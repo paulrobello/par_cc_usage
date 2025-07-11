@@ -222,8 +222,8 @@ class TestCreateUnifiedBlocks:
         result = create_unified_blocks({"test_project": project})
         assert result == block_start
     
-    def test_create_unified_blocks_multiple_active_blocks_returns_earliest(self):
-        """Test create_unified_blocks returns the earliest among multiple active blocks."""
+    def test_create_unified_blocks_multiple_active_blocks_returns_most_recent(self):
+        """Test create_unified_blocks returns the most recent among multiple active blocks."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
         
@@ -265,8 +265,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_2"] = session2
         
         result = create_unified_blocks({"test_project": project})
-        # Should select the earliest active block (block1) - optimal billing detection
-        assert result == block1_start
+        # Should select the most recent active block (block2) - new behavior prefers latest
+        assert result == block2_start
     
     def test_create_unified_blocks_inactive_vs_active(self):
         """Test create_unified_blocks ignores inactive blocks and selects active ones."""
@@ -310,7 +310,7 @@ class TestCreateUnifiedBlocks:
         assert result == active_block_start
     
     def test_create_unified_blocks_multiple_projects(self):
-        """Test create_unified_blocks across multiple projects returns earliest active."""
+        """Test create_unified_blocks across multiple projects returns most recent active."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
         
@@ -354,8 +354,8 @@ class TestCreateUnifiedBlocks:
         projects = {"project1": project1, "project2": project2}
         result = create_unified_blocks(projects)
         
-        # Should select the earliest active block (block2 from project2) - optimal billing detection
-        assert result == block2_start
+        # Should select the most recent active block (block1 from project1) - new behavior prefers latest
+        assert result == block1_start
     
     def test_create_unified_blocks_activity_boundary_cases(self):
         """Test create_unified_blocks with blocks at activity time boundaries."""
