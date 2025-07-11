@@ -1,0 +1,107 @@
+name: Release 🐍 distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (optional - will auto-detect if not provided)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Validate version
+        id: get_version
+        uses: ./.github/actions/validate-version
+        with:
+          version-override: ${{ inputs.version }}
+
+      - name: Run tests and checks
+        run: |
+          make checkall
+
+      - name: Build package
+        run: make package
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.build.outputs.version }}"
+          echo "Creating release for tag: $tag"
+          gh release create \
+          "$tag" \
+          --repo '${{ github.repository }}' \
+          --generate-notes \
+          --latest
+
+      - name: Upload artifact signatures to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.build.outputs.version }}"
+          echo "Uploading artifacts to release: $tag"
+          gh release upload \
+          "$tag" dist/** \
+          --repo '${{ github.repository }}'
+
+      - name: Discord notification
+        if: always() && needs.build.result == 'success'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: '🎉 New release v${{ needs.build.outputs.version }} has been created for ${{ github.repository }}! 🚀'
+        continue-on-error: true
+
+      - name: Discord notification - failure
+        if: failure() && secrets.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
+        with:
+          args: '❌ Failed to create release v${{ needs.build.outputs.version }} for ${{ github.repository }}. Check the workflow logs for details.'
+        continue-on-error: true

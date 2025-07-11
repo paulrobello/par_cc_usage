@@ -1,0 +1,89 @@
+name: Build and Test 🐍 distribution 📦
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Run Tests and Quality Checks
+        run: |
+          make checkall
+
+      - name: Package
+        run: make package
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: ${{ runner.os }}-3.12-x64-${{ hashFiles('**/pyproject.toml') }}-${{ github.sha }}
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions-ubuntu-latest-3.12-x64
+          path: dist/
+
+  validate-version:
+    runs-on: ubuntu-latest
+    needs:
+      - build # Wait for all build jobs to complete
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Validate version
+        id: get_version
+        uses: ./.github/actions/validate-version
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          set -euo pipefail
+          version="${{ steps.get_version.outputs.version }}"
+          tag="v$version"
+          echo "Checking if tag $tag already exists..."
+          
+          TAG_EXISTS=$(git tag --list "$tag" || true)
+          if [ -n "$TAG_EXISTS" ]; then
+            echo "::warning::Tag $tag already exists. Consider bumping the version."
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+            echo "Tag $tag does not exist. Good to proceed."
+          fi
+
+      - name: Validate tag uniqueness
+        if: env.TAG_EXISTS == 'true'
+        run: |
+          set -euo pipefail
+          version="${{ steps.get_version.outputs.version }}"
+          tag="v$version"
+          echo "::error::Tag $tag already exists. Please bump the version before pushing."
+          echo "Recent existing tags:"
+          git tag --list "v*" | sort -V | tail -10 || echo "No existing tags found"
+          exit 1

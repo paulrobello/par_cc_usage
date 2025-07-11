@@ -1,0 +1,5 @@
+{"timestamp": "2025-01-09T10:00:00.000Z", "request": {"model": "claude-3-5-sonnet-latest"}, "response": {"id": "msg_001", "usage": {"input_tokens": 10, "output_tokens": 20}}, "project_name": "test", "session_id": "session_001", "request_id": "req_001"}
+{invalid json here
+{"timestamp": "2025-01-09T10:05:00.000Z", "request": {"model": "claude-3-5-sonnet-latest"}, "response": {"id": "msg_002"}, "project_name": "test", "session_id": "session_001", "request_id": "req_002"}
+{"timestamp": "2025-01-09T10:10:00.000Z", "response": {"id": "msg_003", "usage": {"input_tokens": 15, "output_tokens": 25}}, "project_name": "test", "session_id": "session_001", "request_id": "req_003"}
+{"timestamp": "2025-01-09T10:15:00.000Z", "request": {"model": "claude-3-5-sonnet-latest"}, "response": {"usage": {"input_tokens": 20, "output_tokens": 30}}, "project_name": "test", "session_id": "session_001", "request_id": "req_004"}

@@ -1,0 +1,117 @@
+[project]
+name = "par-cc-usage"
+dynamic = ["version"]
+description = "Claude Code usage tracking tool with real-time monitoring and analysis"
+readme = "README.md"
+url = "https://github.com/paulrobello/par_cc_usage"
+authors = [
+    { name = "Paul Robello", email = "probello@gmail.com" },
+]
+maintainers = [
+    { name = "Paul Robello", email = "probello@gmail.com" },
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Environment :: Console",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Terminals",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+keywords = [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "token-usage",
+    "monitoring",
+    "cli",
+    "terminal",
+    "usage-tracking",
+    "real-time",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "rich>=13.7.0",
+    "typer>=0.9.0",
+    "pyyaml>=6.0.1",
+    "pydantic>=2.0.0",
+    "watchdog>=3.0.0",
+    "aiofiles>=23.0.0",
+    "pytz>=2023.3",
+    "requests>=2.31.0",
+    "xdg-base-dirs>=6.0.2",
+]
+
+[project.license]
+file = "LICENSE"
+
+[project.urls]
+Homepage = "https://github.com/paulrobello/par_cc_usage"
+Documentation = "https://github.com/paulrobello/par_cc_usage/blob/main/README.md"
+Source = "https://github.com/paulrobello/par_cc_usage"
+Issues = "https://github.com/paulrobello/par_cc_usage/issues"
+
+[build-system]
+requires = [
+    "hatchling",
+]
+build-backend = "hatchling.build"
+
+[project.scripts]
+pccu = "par_cc_usage.main:main"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.402",
+    "types-pytz>=2024.2.0.20241221",
+    "types-requests>=2.32.0.20241016",
+    "types-pyyaml>=6.0.5.4",
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.1",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "hatchling>=1.27.0",
+    "build>=1.2.2.post1",
+    "pytest-asyncio>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/par_cc_usage",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/par_cc_usage",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+]
+exclude = [
+    "*.pyc",
+    "__pycache__",
+    "*.so",
+    "*.dylib",
+]
+
+
+[tool.hatch.version]
+path = "src/par_cc_usage/__init__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
