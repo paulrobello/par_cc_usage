@@ -662,18 +662,33 @@ def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
         active_blocks.sort(key=lambda block: block.start_time)
         return active_blocks[0].start_time
     
-    # Prefer blocks starting at 00:00 UTC (hour 0) for consistent billing periods
+    # Prefer blocks starting at midnight in the local timezone for consistent billing periods
     # among blocks that contain the current time
-    hour_0_blocks = [block for block in current_blocks if block.start_time.hour == 0]
     
-    if hour_0_blocks:
-        # If there are multiple hour-0 blocks, take the most recent one
-        hour_0_blocks.sort(key=lambda block: block.start_time)
-        return hour_0_blocks[-1].start_time
+    # Get the current local midnight time in UTC (for configured timezone)
+    # Default to America/Chicago if no timezone specified
+    local_tz = pytz.timezone('America/Chicago')
+    current_time_local = now.astimezone(local_tz)
+    current_date_local = current_time_local.date()
+    local_midnight_local = local_tz.localize(
+        datetime.combine(current_date_local, datetime.min.time())
+    )
+    local_midnight_utc = local_midnight_local.astimezone(UTC)
     
-    # If no hour-0 blocks, fall back to earliest current block
+    # Find blocks that start at the local midnight time
+    midnight_blocks = [
+        block for block in current_blocks 
+        if block.start_time.hour == local_midnight_utc.hour
+    ]
+    
+    if midnight_blocks:
+        # If there are multiple midnight blocks, take the most recent one
+        midnight_blocks.sort(key=lambda block: block.start_time)
+        return midnight_blocks[-1].start_time
+    
+    # If no midnight blocks, fall back to most recent current block
     current_blocks.sort(key=lambda block: block.start_time)
-    return current_blocks[0].start_time
+    return current_blocks[-1].start_time
 
 
 def aggregate_usage(

@@ -106,9 +106,56 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 
 ## Installation
 
+### Option 1: Install from PyPI (Recommended)
+
+Using [uv](https://docs.astral.sh/uv/) (fastest):
 ```bash
-uv sync
+uv tool install par-cc-usage
 ```
+
+Using pip:
+```bash
+pip install par-cc-usage
+```
+
+After installation, you can run the tool directly:
+```bash
+pccu monitor
+```
+
+### Option 2: Development Installation
+
+Clone the repository and install in development mode:
+
+```bash
+# Clone the repository
+git clone https://github.com/paulrobello/par_cc_usage.git
+cd par_cc_usage
+
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
+pip install -e .
+```
+
+Run the tool in development mode:
+```bash
+# Using uv
+uv run pccu monitor
+
+# Or using make (if available)
+make run
+
+# Or directly with Python
+python -m par_cc_usage.main monitor
+```
+
+### Prerequisites
+
+- Python 3.12 or higher
+- Claude Code must be installed and have generated usage data
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip for installation
 
 ## Usage
 

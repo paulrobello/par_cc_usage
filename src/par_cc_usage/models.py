@@ -534,7 +534,7 @@ class UsageSnapshot:
             return self.block_start_override
 
         # Use the unified block calculation from token_calculator
-        # This implements entry-level aggregation like the reference projects
+        # This implements entry-level aggregation for token usage
         from .token_calculator import create_unified_blocks
 
         return create_unified_blocks(self.projects)
