@@ -2,7 +2,7 @@
 
 Claude Code usage tracking tool with real-time monitoring and analysis.
 
-![PAR CC Usage Monitor](Screenshot.png)
+![PAR CC Usage Monitor](https://raw.githubusercontent.com/paulrobello/par_cc_usage/main/Screenshot.png)
 *Real-time monitoring interface showing token usage, burn rate analytics, tool usage tracking, and project activity*
 
 ## Table of Contents
