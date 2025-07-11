@@ -85,6 +85,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Model name simplification**: Clean display names (Opus, Sonnet) for better readability
 - **Session sorting**: Newest-first ordering for active sessions
 - **Per-model token tracking**: Accurate token attribution with proper multipliers (Opus 5x, others 1x)
+- **Compact display mode**: Minimal interface option for reduced screen space usage
 
 ### 📁 File System Support
 - **Multi-directory monitoring**: Supports both legacy (`~/.claude/projects`) and new paths
@@ -174,8 +175,11 @@ python -m par_cc_usage.main monitor
 Monitor token usage in real-time with comprehensive options:
 
 ```bash
-# Basic monitoring (5-second interval, compact display)
+# Basic monitoring (default 5-second interval)
 pccu monitor
+
+# Compact mode for minimal display
+pccu monitor --compact
 
 # Enhanced monitoring with session details
 pccu monitor --show-sessions
@@ -187,12 +191,13 @@ pccu monitor --interval 2 --token-limit 1000000 --show-sessions
 pccu monitor --config production-config.yaml
 
 # Testing and debugging scenarios
-pccu monitor --no-cache --block-start 18:00  # Fresh scan + custom block timing
-pccu monitor --block-start 14:30 --show-sessions  # Override block start time
+pccu monitor --no-cache --block-start 18  # Fresh scan + custom block timing
+pccu monitor --block-start 14 --show-sessions  # Override block start time
 
 # Production monitoring examples
 pccu monitor --interval 10 --token-limit 500000  # Conservative monitoring
 pccu monitor --show-sessions --config team-config.yaml  # Team dashboard
+pccu monitor --compact --interval 3  # Minimal display with frequent updates
 ```
 
 #### Monitor Display Features
@@ -363,6 +368,7 @@ display:
   update_in_place: true
   refresh_interval: 1
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
+  display_mode: normal  # Display mode: 'normal' or 'compact'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
     - "-Users-"
     - "-home-"
@@ -438,13 +444,44 @@ pccu monitor --block-start 18 --show-sessions
 **Important**: The `--block-start` hour (0-23) is interpreted in your configured timezone and automatically converted to UTC for internal processing.
 
 ### Compact Interface
-The default display shows only essential information:
+The monitor now supports compact mode for minimal, focused display:
+
+**Normal Mode (Default)**: Full display with all information:
 - **Header**: Active projects and sessions count
 - **Block Progress**: 5-hour block progress with time remaining
-- **Token Usage**: Per-model token counts with burn rate metrics
+- **Token Usage**: Per-model token counts with burn rate metrics and progress bars
+- **Tool Usage**: Optional tool usage statistics (if enabled)
+- **Sessions**: Optional session/project details (if enabled)
+
+**Compact Mode**: Minimal display with essential information only:
+- **Header**: Active projects and sessions count
+- **Token Usage**: Per-model token counts with burn rate metrics (no progress bars or interruption stats)
   - **Burn Rate**: Displays tokens consumed per minute (e.g., "1.2K/m")
   - **Estimated Total**: Projects total usage for the full 5-hour block based on current burn rate
-  - **ETA**: Shows estimated time until token limit is reached with actual clock time (e.g., "2.3h (10:45 PM)" or "45m (08:30 AM)"). ETA can extend beyond the current block into the next billing cycle
+  - **ETA**: Shows estimated time until token limit is reached with actual clock time (e.g., "2.3h (10:45 PM)" or "45m (08:30 AM)")
+  - **Total Usage**: Simple text display instead of progress bar
+- **Hidden Elements**: No block progress bar, tool usage information, or session details (even with `--show-sessions`)
+
+**Using Compact Mode**:
+
+```bash
+# Start directly in compact mode
+pccu monitor --compact
+
+# Compact mode with other options (sessions still hidden in compact mode)
+pccu monitor --compact --show-sessions --interval 2
+
+# Use config file for persistent compact mode
+pccu monitor  # Uses config setting: display.display_mode: compact
+
+# Environment variable approach
+PAR_CC_USAGE_DISPLAY_MODE=compact pccu monitor
+```
+
+**Configuration Options**:
+- **CLI**: Use `--compact` flag to start in compact mode
+- **Config**: Set `display.display_mode: compact` in config file
+- **Environment**: Set `PAR_CC_USAGE_DISPLAY_MODE=compact`
 
 ### Optional Session Details
 Use `--show-sessions` or set `show_active_sessions: true` in config to view:
@@ -701,13 +738,6 @@ We're actively working on exciting new features to enhance your Claude Code moni
 - **Cost projections**: Estimated spending for the current billing block
 - **Historical cost analysis**: Track spending patterns over time
 - **Budget alerts**: Configurable notifications when approaching cost thresholds
-
-### 📱 Compact View Mode
-- **Minimal interface**: Streamlined display for smaller terminals and focused monitoring
-- **Essential metrics only**: Shows core information without detailed breakdowns
-- **Single-line progress**: Condensed progress indicators for space efficiency
-- **Quick overview**: Perfect for background monitoring or limited screen real estate
-- **Toggle support**: Easy switching between full and compact views
 
 ### 🎨 Theme System
 - **Dark/Light themes**: Choose between dark and light color schemes

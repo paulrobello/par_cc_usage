@@ -23,7 +23,7 @@ from .config import (
     update_config_token_limit,
 )
 from .display import DisplayManager, create_error_display, create_info_display
-from .enums import OutputFormat, SortBy
+from .enums import DisplayMode, OutputFormat, SortBy
 from .file_monitor import FileMonitor, FileState, JSONLReader, parse_session_from_path
 from .list_command import display_usage_list
 from .models import DeduplicationState, Project, UsageSnapshot
@@ -213,6 +213,9 @@ def _apply_command_overrides(config: Config, options: MonitorOptions) -> None:
     if options.no_cache:
         config.disable_cache = options.no_cache
         console.print("[yellow]Disabling cache from command line[/yellow]")
+    if options.display_mode:
+        config.display.display_mode = options.display_mode
+        console.print(f"[yellow]Overriding display mode from command line:[/yellow] {options.display_mode.value}")
 
 
 def _check_token_limit_update(config: Config, actual_config_file: Path | None, current_usage: int) -> None:
@@ -285,6 +288,7 @@ def _parse_monitor_options(
     no_cache: bool,
     block_start_override: int | None,
     snapshot: bool,
+    compact: bool,
     config: Config,
 ) -> MonitorOptions:
     """Parse and create monitor options from command arguments.
@@ -298,6 +302,7 @@ def _parse_monitor_options(
         no_cache: No cache flag
         block_start_override: Block start override hour
         snapshot: Take single snapshot flag
+        compact: Use compact display mode
         config: Configuration object
 
     Returns:
@@ -315,6 +320,7 @@ def _parse_monitor_options(
         block_start_override=block_start_override,
         block_start_override_utc=block_start_override_utc,
         snapshot=snapshot,
+        display_mode=DisplayMode.COMPACT if compact else None,
     )
 
 
@@ -467,6 +473,7 @@ def monitor(
     snapshot: Annotated[
         bool, typer.Option("--snapshot", help="Take a single snapshot and exit (for debugging)")
     ] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Use compact display mode (minimal view)")] = False,
 ) -> None:
     """Monitor Claude Code token usage in real-time."""
     # Initialize configuration
@@ -475,7 +482,16 @@ def monitor(
 
     # Parse monitor options
     options = _parse_monitor_options(
-        interval, token_limit, config_file, show_sessions, show_tools, no_cache, block_start_override, snapshot, config
+        interval,
+        token_limit,
+        config_file,
+        show_sessions,
+        show_tools,
+        no_cache,
+        block_start_override,
+        snapshot,
+        compact,
+        config,
     )
 
     # Apply command line overrides
@@ -549,6 +565,7 @@ def monitor(
         config=config,
     ) as display_manager:
         console.print(f"[green]Monitoring token usage (refresh every {config.polling_interval}s)...[/green]")
+
         console.print("[dim]Press Ctrl+C to stop[/dim]\n")
 
         # Monitor loop

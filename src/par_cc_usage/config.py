@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-from .enums import TimeFormat
+from .enums import DisplayMode, TimeFormat
 from .utils import expand_path
 from .xdg_dirs import (
     get_cache_dir,
@@ -41,6 +41,10 @@ class DisplayConfig(BaseModel):
     show_tool_usage: bool = Field(
         default=False,
         description="Display tool usage information in monitoring and lists",
+    )
+    display_mode: DisplayMode = Field(
+        default=DisplayMode.NORMAL,
+        description="Display mode: 'normal' for full display, 'compact' for minimal view",
     )
 
 
@@ -219,6 +223,14 @@ def _parse_time_format_value(value: str) -> TimeFormat | None:
         return None
 
 
+def _parse_display_mode_value(value: str) -> DisplayMode | None:
+    """Parse display mode value with validation."""
+    try:
+        return DisplayMode(value)
+    except ValueError:
+        return None
+
+
 def _parse_prefix_list_value(value: str) -> list[str]:
     """Parse comma-separated prefix list."""
     return [prefix.strip() for prefix in value.split(",") if prefix.strip()]
@@ -255,6 +267,8 @@ def _parse_env_value(value: str, config_key: str) -> Any:
     # Special enum fields
     elif config_key == "time_format":
         return _parse_time_format_value(value)
+    elif config_key == "display_mode":
+        return _parse_display_mode_value(value)
 
     # List fields
     elif config_key == "project_name_prefixes":
@@ -310,6 +324,7 @@ def _get_display_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_TIME_FORMAT": "time_format",
         "PAR_CC_USAGE_PROJECT_NAME_PREFIXES": "project_name_prefixes",
         "PAR_CC_USAGE_SHOW_TOOL_USAGE": "show_tool_usage",
+        "PAR_CC_USAGE_DISPLAY_MODE": "display_mode",
     }
 
 
@@ -391,6 +406,7 @@ def save_config(config: Config, config_file: Path) -> None:
             "refresh_interval": config.display.refresh_interval,
             "time_format": config.display.time_format.value,
             "project_name_prefixes": config.display.project_name_prefixes,
+            "display_mode": config.display.display_mode.value,
         },
         "notifications": {
             "discord_webhook_url": config.notifications.discord_webhook_url,

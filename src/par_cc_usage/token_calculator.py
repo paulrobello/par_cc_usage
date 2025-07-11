@@ -622,17 +622,16 @@ def process_jsonl_line(
         return
 
 
-
 def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
     """Create unified block start time using optimal block selection.
-    
+
     This implementation selects the most appropriate current billing block by
     preferring blocks that start at hour boundaries (00:00 UTC) when multiple
     active blocks exist, which provides consistent billing period representation.
-    
+
     Args:
         projects: Dictionary of projects with per-session blocks
-    
+
     Returns:
         The current billing block start time or None if no active blocks exist
     """
@@ -643,49 +642,41 @@ def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
             for block in session.blocks:
                 if not block.is_gap:  # Skip gap blocks
                     all_blocks.append(block)
-    
+
     # Filter for active blocks
     active_blocks = [block for block in all_blocks if block.is_active]
-    
+
     if not active_blocks:
         return None
-    
+
     # Find blocks that contain the current time
     now = datetime.now(UTC)
-    current_blocks = [
-        block for block in active_blocks
-        if block.start_time <= now < block.end_time
-    ]
-    
+    current_blocks = [block for block in active_blocks if block.start_time <= now < block.end_time]
+
     if not current_blocks:
         # Fallback to earliest active block
         active_blocks.sort(key=lambda block: block.start_time)
         return active_blocks[0].start_time
-    
+
     # Prefer blocks starting at midnight in the local timezone for consistent billing periods
     # among blocks that contain the current time
-    
+
     # Get the current local midnight time in UTC (for configured timezone)
     # Default to America/Chicago if no timezone specified
-    local_tz = pytz.timezone('America/Chicago')
+    local_tz = pytz.timezone("America/Chicago")
     current_time_local = now.astimezone(local_tz)
     current_date_local = current_time_local.date()
-    local_midnight_local = local_tz.localize(
-        datetime.combine(current_date_local, datetime.min.time())
-    )
+    local_midnight_local = local_tz.localize(datetime.combine(current_date_local, datetime.min.time()))
     local_midnight_utc = local_midnight_local.astimezone(UTC)
-    
+
     # Find blocks that start at the local midnight time
-    midnight_blocks = [
-        block for block in current_blocks 
-        if block.start_time.hour == local_midnight_utc.hour
-    ]
-    
+    midnight_blocks = [block for block in current_blocks if block.start_time.hour == local_midnight_utc.hour]
+
     if midnight_blocks:
         # If there are multiple midnight blocks, take the most recent one
         midnight_blocks.sort(key=lambda block: block.start_time)
         return midnight_blocks[-1].start_time
-    
+
     # If no midnight blocks, fall back to most recent current block
     current_blocks.sort(key=lambda block: block.start_time)
     return current_blocks[-1].start_time

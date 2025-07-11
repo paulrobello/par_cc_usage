@@ -57,3 +57,10 @@ class SortBy(str, Enum):
     PROJECT = "project"
     SESSION = "session"
     MODEL = "model"
+
+
+class DisplayMode(str, Enum):
+    """Display mode options for monitor."""
+
+    NORMAL = "normal"
+    COMPACT = "compact"

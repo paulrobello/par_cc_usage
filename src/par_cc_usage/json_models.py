@@ -114,7 +114,6 @@ class MessageData(BaseModel):
         return None
 
 
-
 class TokenUsageData(BaseModel):
     """Top-level JSONL data structure."""
 

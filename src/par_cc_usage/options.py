@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from .enums import OutputFormat, SortBy, TimeFormat
+from .enums import DisplayMode, OutputFormat, SortBy, TimeFormat
 
 
 @dataclass
@@ -22,6 +22,7 @@ class MonitorOptions:
     block_start_override: int | None = None
     block_start_override_utc: datetime | None = None
     snapshot: bool = False
+    display_mode: DisplayMode | None = None
 
 
 @dataclass

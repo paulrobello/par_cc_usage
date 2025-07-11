@@ -13,6 +13,7 @@ from rich.progress import BarColumn, Progress, TextColumn
 from rich.table import Table
 from rich.text import Text
 
+from .enums import DisplayMode
 from .models import Project, Session, UsageSnapshot
 from .token_calculator import format_token_count, get_model_display_name
 from .utils import format_datetime, format_time_range
@@ -38,6 +39,7 @@ class MonitorDisplay:
         self.time_format = time_format
         self.config = config
         self.show_tool_usage = config and config.display.show_tool_usage if config else True
+        self.compact_mode = config and config.display.display_mode == DisplayMode.COMPACT if config else False
         self._setup_layout(show_sessions)
 
     def _strip_project_name(self, project_name: str) -> str:
@@ -52,7 +54,13 @@ class MonitorDisplay:
 
     def _setup_layout(self, show_sessions: bool = False) -> None:
         """Set up the display layout."""
-        if show_sessions:
+        if self.compact_mode:
+            # Compact mode: only show header and progress (no block progress, tool usage, or sessions)
+            self.layout.split_column(
+                Layout(name="header", size=3),
+                Layout(name="progress", size=6),
+            )
+        elif show_sessions:
             if self.show_tool_usage:
                 self.layout.split_column(
                     Layout(name="header", size=3),
@@ -212,8 +220,8 @@ class MonitorDisplay:
             model_text.append(f"{emoji} {display_name:8}", style="bold")
             model_text.append(f"{format_token_count(tokens):>12}", style="#FFFF00")
 
-            # Add interruption count if interruption data exists (always show, even if 0)
-            if model_interruptions is not None:
+            # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
+            if model_interruptions is not None and not self.compact_mode:
                 interruption_count = model_interruptions.get(model, 0)
                 # Green for 0 interruptions (good), red for actual interruptions (warning)
                 color = "#00FF00" if interruption_count == 0 else "#FF6B6B"
@@ -299,28 +307,43 @@ class MonitorDisplay:
         # Calculate burn rate and estimated total usage
         burn_rate_text = self._calculate_burn_rate(snapshot, total_tokens, total_limit)
 
-        # Total progress bar with color based on percentage
-        percentage = (total_tokens / total_limit) * 100
-        bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
-
-        total_progress = Progress(
-            TextColumn("📊 Total   ", style=text_style),
-            BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn(
-                f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}",
-                style=text_style,
-            ),
-            console=self.console,
-            expand=False,
-        )
-        total_progress.add_task("Total", total=total_limit, completed=total_tokens)
-
-        # Combine model displays, total progress bar, and burn rate
+        # Combine model displays and burn rate
         all_displays = []
         if model_displays:
             all_displays.extend(model_displays)
-        all_displays.extend([total_progress, burn_rate_text])
+        all_displays.append(burn_rate_text)
+
+        # Add total progress bar only if not in compact mode
+        if not self.compact_mode:
+            # Total progress bar with color based on percentage
+            percentage = (total_tokens / total_limit) * 100
+            bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
+
+            total_progress = Progress(
+                TextColumn("📊 Total   ", style=text_style),
+                BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TextColumn(
+                    f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}",
+                    style=text_style,
+                ),
+                console=self.console,
+                expand=False,
+            )
+            total_progress.add_task("Total", total=total_limit, completed=total_tokens)
+            all_displays.append(total_progress)
+        else:
+            # In compact mode, show total as simple text
+            percentage = (total_tokens / total_limit) * 100
+            _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
+
+            total_text = Text()
+            total_text.append("📊 Total   ", style=text_style)
+            total_text.append(
+                f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
+            )
+            total_text.append(f"({percentage:>3.0f}%)", style=text_style)
+            all_displays.append(total_text)
 
         all_progress = Group(*all_displays)
 
@@ -813,15 +836,27 @@ class MonitorDisplay:
             snapshot: Usage snapshot
         """
         self.layout["header"].update(self._create_header(snapshot))
-        self.layout["block_progress"].update(self._create_block_progress(snapshot))
         self.layout["progress"].update(self._create_progress_bars(snapshot))
-        # Update tool usage with dynamic height only if tool usage is enabled
-        if self.show_tool_usage:
-            tool_usage_height = self._calculate_tool_usage_height(snapshot)
-            self.layout["tool_usage"].size = tool_usage_height
-            self.layout["tool_usage"].update(self._create_tool_usage_table(snapshot))
-        if self.show_sessions:
-            self.layout["sessions"].update(self._create_sessions_table(snapshot))
+
+        # Update non-compact mode elements only if not in compact mode
+        if not self.compact_mode:
+            try:
+                self.layout["block_progress"].update(self._create_block_progress(snapshot))
+            except KeyError:
+                pass
+            # Update tool usage with dynamic height only if tool usage is enabled
+            if self.show_tool_usage:
+                try:
+                    tool_usage_height = self._calculate_tool_usage_height(snapshot)
+                    self.layout["tool_usage"].size = tool_usage_height
+                    self.layout["tool_usage"].update(self._create_tool_usage_table(snapshot))
+                except KeyError:
+                    pass
+            if self.show_sessions:
+                try:
+                    self.layout["sessions"].update(self._create_sessions_table(snapshot))
+                except KeyError:
+                    pass
 
     def render(self) -> Layout:
         """Get the renderable layout.
@@ -858,6 +893,7 @@ class DisplayManager:
         self.refresh_interval = refresh_interval
         self.update_in_place = update_in_place
         self.display = MonitorDisplay(self.console, show_sessions, time_format, config)
+        self.config = config
         self.live: Live | None = None
 
     def start(self) -> None:
