@@ -397,10 +397,102 @@ class TestMonitorDisplay:
         sample_usage_snapshot.timestamp = datetime.now(UTC)
         sample_usage_snapshot.block_start_override = datetime.now(UTC) - timedelta(hours=1)
 
-        text = display._calculate_burn_rate(sample_usage_snapshot, 60000, 100000)
+        text = display._calculate_burn_rate_sync(sample_usage_snapshot, 60000, 100000)
 
         assert hasattr(text, 'plain')  # Should be a Text object
         assert "/m" in text.plain  # Abbreviated tokens per minute format
+
+    @pytest.mark.asyncio
+    async def test_calculate_burn_rate_async_without_pricing(self, sample_usage_snapshot):
+        """Test async burn rate calculation without pricing enabled."""
+        # Mock config without pricing
+        mock_config = Mock()
+        mock_config.display.show_pricing = False
+        
+        display = MonitorDisplay(config=mock_config)
+
+        # Mock timestamp for consistent elapsed time
+        sample_usage_snapshot.timestamp = datetime.now(UTC)
+        sample_usage_snapshot.block_start_override = datetime.now(UTC) - timedelta(hours=1)
+
+        text = await display._calculate_burn_rate(sample_usage_snapshot, 60000, 100000)
+
+        assert hasattr(text, 'plain')  # Should be a Text object
+        assert "/m" in text.plain  # Abbreviated tokens per minute format
+        assert "$" not in text.plain  # Should not have estimated cost when pricing disabled
+
+    @pytest.mark.asyncio
+    async def test_calculate_burn_rate_async_with_pricing(self, sample_usage_snapshot):
+        """Test async burn rate calculation with pricing enabled."""
+        # Mock config with pricing enabled
+        mock_config = Mock()
+        mock_config.display.show_pricing = True
+        
+        display = MonitorDisplay(config=mock_config)
+
+        # Mock timestamp for consistent elapsed time
+        sample_usage_snapshot.timestamp = datetime.now(UTC)
+        sample_usage_snapshot.block_start_override = datetime.now(UTC) - timedelta(hours=1)
+
+        # Mock the get_unified_block_total_cost method to return a test cost
+        async def mock_get_cost():
+            return 10.50  # $10.50 current cost
+        sample_usage_snapshot.get_unified_block_total_cost = mock_get_cost
+
+        text = await display._calculate_burn_rate(sample_usage_snapshot, 60000, 100000)
+
+        assert hasattr(text, 'plain')  # Should be a Text object
+        assert "/m" in text.plain  # Abbreviated tokens per minute format
+        # Should have estimated cost when pricing enabled and cost available
+        assert "Est:" in text.plain and "$" in text.plain
+
+    @pytest.mark.asyncio
+    async def test_calculate_burn_rate_async_pricing_error(self, sample_usage_snapshot):
+        """Test async burn rate calculation when pricing calculation fails."""
+        # Mock config with pricing enabled
+        mock_config = Mock()
+        mock_config.display.show_pricing = True
+        
+        display = MonitorDisplay(config=mock_config)
+
+        # Mock timestamp for consistent elapsed time
+        sample_usage_snapshot.timestamp = datetime.now(UTC)
+        sample_usage_snapshot.block_start_override = datetime.now(UTC) - timedelta(hours=1)
+
+        # Mock the get_unified_block_total_cost method to raise an exception
+        async def mock_get_cost_error():
+            raise Exception("Pricing calculation failed")
+        sample_usage_snapshot.get_unified_block_total_cost = mock_get_cost_error
+
+        text = await display._calculate_burn_rate(sample_usage_snapshot, 60000, 100000)
+
+        assert hasattr(text, 'plain')  # Should be a Text object
+        assert "/m" in text.plain  # Abbreviated tokens per minute format
+        # Should not break when pricing fails - graceful degradation
+
+    @pytest.mark.asyncio
+    async def test_calculate_burn_rate_async_zero_cost(self, sample_usage_snapshot):
+        """Test async burn rate calculation with zero cost."""
+        # Mock config with pricing enabled
+        mock_config = Mock()
+        mock_config.display.show_pricing = True
+        
+        display = MonitorDisplay(config=mock_config)
+
+        # Mock timestamp for consistent elapsed time
+        sample_usage_snapshot.timestamp = datetime.now(UTC)
+        sample_usage_snapshot.block_start_override = datetime.now(UTC) - timedelta(hours=1)
+
+        # Mock the get_unified_block_total_cost method to return zero cost
+        async def mock_get_zero_cost():
+            return 0.0
+        sample_usage_snapshot.get_unified_block_total_cost = mock_get_zero_cost
+
+        text = await display._calculate_burn_rate(sample_usage_snapshot, 60000, 100000)
+
+        assert hasattr(text, 'plain')  # Should be a Text object
+        assert "/m" in text.plain  # Abbreviated tokens per minute format
+        # Should not show cost estimate when cost is zero
 
     def test_calculate_eta_display(self, sample_usage_snapshot):
         """Test ETA display calculation."""
@@ -929,7 +1021,7 @@ class TestMonitorDisplayEdgeCases:
         display = MonitorDisplay()
 
         # Should handle no active block gracefully and return Text
-        burn_rate_text = display._calculate_burn_rate(snapshot, 1000, 5000)
+        burn_rate_text = display._calculate_burn_rate_sync(snapshot, 1000, 5000)
         assert isinstance(burn_rate_text, Text)
 
     def test_calculate_eta_display_infinite(self):

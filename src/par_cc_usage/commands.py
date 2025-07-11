@@ -462,6 +462,94 @@ def _print_recent_activity_analysis(
     console.print("  3. Use a rolling window approach for unified block determination")
 
 
+def _debug_block_overlap(block, unified_start, unified_end, now):
+    """Check if block overlaps with unified block window."""
+    last_activity = block.actual_end_time or block.start_time
+    time_since_activity = (now - last_activity).total_seconds() / 3600
+
+    console.print(f"      - is_gap: {block.is_gap}")
+    console.print(f"      - last_activity: {last_activity}")
+    console.print(f"      - time_since_activity: {time_since_activity:.2f}h")
+    console.print(f"      - is_active: {block.is_active}")
+
+    if not block.is_active:
+        console.print("      [red]✗ Block is not active[/red]")
+        return False, False
+
+    # Check overlap with unified block
+    block_end = block.actual_end_time or block.end_time
+    overlap_check = block.start_time < unified_end and block_end > unified_start
+
+    console.print(f"      - block_end: {block_end}")
+    console.print(f"      - starts_before_unified_ends: {block.start_time < unified_end}")
+    console.print(f"      - ends_after_unified_starts: {block_end > unified_start}")
+    console.print(f"      - overlap_check: {overlap_check}")
+
+    if overlap_check:
+        console.print(f"      - tokens: {block.adjusted_tokens}")
+        has_tokens = block.adjusted_tokens > 0
+        if has_tokens:
+            console.print("      [green]✓ Block would be included in session table[/green]")
+        else:
+            console.print("      [yellow]⚠ Block has 0 tokens[/yellow]")
+        return True, has_tokens
+    else:
+        console.print("      [red]✗ Block does not overlap with unified window[/red]")
+        return False, False
+
+
+def _analyze_blocks(snapshot, unified_start, unified_end, now):
+    """Analyze all blocks and return summary statistics."""
+    total_sessions = 0
+    total_blocks = 0
+    active_blocks = 0
+    blocks_with_overlap = 0
+    blocks_passing_filter = 0
+
+    for project_name, project in snapshot.projects.items():
+        console.print(f"\n[cyan]Project: {project_name}[/cyan]")
+
+        for session_id, session in project.sessions.items():
+            total_sessions += 1
+            console.print(f"  [yellow]Session: {session_id}[/yellow]")
+
+            for block in session.blocks:
+                total_blocks += 1
+                console.print(f"    [white]Block: {block.start_time} to {block.end_time}[/white]")
+
+                if block.is_active:
+                    active_blocks += 1
+
+                has_overlap, has_tokens = _debug_block_overlap(block, unified_start, unified_end, now)
+                if has_overlap:
+                    blocks_with_overlap += 1
+                    if has_tokens:
+                        blocks_passing_filter += 1
+
+    return total_sessions, total_blocks, active_blocks, blocks_with_overlap, blocks_passing_filter
+
+
+def _print_summary(total_sessions, total_blocks, active_blocks, blocks_with_overlap, blocks_passing_filter):
+    """Print summary of block analysis."""
+    console.print("\n[bold]Summary:[/bold]")
+    console.print(f"  Total sessions: {total_sessions}")
+    console.print(f"  Total blocks: {total_blocks}")
+    console.print(f"  Active blocks: {active_blocks}")
+    console.print(f"  Blocks with overlap: {blocks_with_overlap}")
+    console.print(f"  Blocks passing filter: {blocks_passing_filter}")
+
+    if blocks_passing_filter == 0:
+        console.print("\n[red]No blocks are passing the filter - this explains why the session table is empty![/red]")
+        if active_blocks == 0:
+            console.print("  [red]Issue: No blocks are active[/red]")
+        elif blocks_with_overlap == 0:
+            console.print("  [red]Issue: No active blocks overlap with unified block window[/red]")
+        else:
+            console.print("  [red]Issue: Active blocks with overlap have 0 tokens[/red]")
+    else:
+        console.print(f"\n[green]Found {blocks_passing_filter} blocks that should appear in session table[/green]")
+
+
 @app.command("debug-session-table")
 def debug_session_table(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
@@ -492,89 +580,17 @@ def debug_session_table(
     unified_start = snapshot.unified_block_start_time
     console.print(f"[bold]Unified block start time: {unified_start}[/bold]")
 
-    if unified_start:
-        unified_end = unified_start + timedelta(hours=5)
-        console.print(f"[bold]Unified block end time: {unified_end}[/bold]")
-
-        # Analyze each project/session/block
-        from datetime import datetime
-
-        now = datetime.now(unified_start.tzinfo)
-        console.print(f"[bold]Current time: {now}[/bold]")
-
-        total_sessions = 0
-        total_blocks = 0
-        active_blocks = 0
-        blocks_with_overlap = 0
-        blocks_passing_filter = 0
-
-        for project_name, project in snapshot.projects.items():
-            console.print(f"\n[cyan]Project: {project_name}[/cyan]")
-
-            for session_id, session in project.sessions.items():
-                total_sessions += 1
-                console.print(f"  [yellow]Session: {session_id}[/yellow]")
-
-                for block in session.blocks:
-                    total_blocks += 1
-                    console.print(f"    [white]Block: {block.start_time} to {block.end_time}[/white]")
-
-                    # Check if block is active
-                    last_activity = block.actual_end_time or block.start_time
-                    time_since_activity = (now - last_activity).total_seconds() / 3600  # hours
-
-                    console.print(f"      - is_gap: {block.is_gap}")
-                    console.print(f"      - last_activity: {last_activity}")
-                    console.print(f"      - time_since_activity: {time_since_activity:.2f}h")
-                    console.print(f"      - is_active: {block.is_active}")
-
-                    if block.is_active:
-                        active_blocks += 1
-
-                        # Check overlap with unified block
-                        block_end = block.actual_end_time or block.end_time
-                        overlap_check = (
-                            block.start_time < unified_end  # Block starts before unified block ends
-                            and block_end > unified_start  # Block ends after unified block starts
-                        )
-
-                        console.print(f"      - block_end: {block_end}")
-                        console.print(f"      - starts_before_unified_ends: {block.start_time < unified_end}")
-                        console.print(f"      - ends_after_unified_starts: {block_end > unified_start}")
-                        console.print(f"      - overlap_check: {overlap_check}")
-
-                        if overlap_check:
-                            blocks_with_overlap += 1
-                            console.print(f"      - tokens: {block.adjusted_tokens}")
-                            if block.adjusted_tokens > 0:
-                                blocks_passing_filter += 1
-                                console.print("      [green]✓ Block would be included in session table[/green]")
-                            else:
-                                console.print("      [yellow]⚠ Block has 0 tokens[/yellow]")
-                        else:
-                            console.print("      [red]✗ Block does not overlap with unified window[/red]")
-                    else:
-                        console.print("      [red]✗ Block is not active[/red]")
-
-        # Summary
-        console.print("\n[bold]Summary:[/bold]")
-        console.print(f"  Total sessions: {total_sessions}")
-        console.print(f"  Total blocks: {total_blocks}")
-        console.print(f"  Active blocks: {active_blocks}")
-        console.print(f"  Blocks with overlap: {blocks_with_overlap}")
-        console.print(f"  Blocks passing filter: {blocks_passing_filter}")
-
-        if blocks_passing_filter == 0:
-            console.print(
-                "\n[red]No blocks are passing the filter - this explains why the session table is empty![/red]"
-            )
-            if active_blocks == 0:
-                console.print("  [red]Issue: No blocks are active[/red]")
-            elif blocks_with_overlap == 0:
-                console.print("  [red]Issue: No active blocks overlap with unified block window[/red]")
-            else:
-                console.print("  [red]Issue: Active blocks with overlap have 0 tokens[/red]")
-        else:
-            console.print(f"\n[green]Found {blocks_passing_filter} blocks that should appear in session table[/green]")
-    else:
+    if not unified_start:
         console.print("[red]No unified block start time found![/red]")
+        return
+
+    unified_end = unified_start + timedelta(hours=5)
+    console.print(f"[bold]Unified block end time: {unified_end}[/bold]")
+
+    from datetime import datetime
+
+    now = datetime.now(unified_start.tzinfo)
+    console.print(f"[bold]Current time: {now}[/bold]")
+
+    stats = _analyze_blocks(snapshot, unified_start, unified_end, now)
+    _print_summary(*stats)

@@ -56,7 +56,7 @@ uv run pccu test-webhook
 # Take a single debug snapshot (monitor once and exit)
 uv run pccu monitor --snapshot
 
-# Test pricing functionality
+# Test pricing functionality including burn rate cost estimation
 uv run pccu monitor --show-pricing --snapshot
 uv run pccu list --show-pricing
 
@@ -77,6 +77,9 @@ async def test():
 
 asyncio.run(test())
 "
+
+# Test burn rate cost estimation specifically
+uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 ```
 
 ## Architecture Overview
@@ -188,9 +191,23 @@ The pricing system (`pricing.py`) provides accurate cost calculations with robus
 
 #### Integration Points:
 - **Display Integration**: Cost columns automatically added to activity tables when `show_pricing` enabled
+- **Burn Rate Cost Estimation**: Real-time 5-hour block cost projection in burn rate line based on current spending rate
 - **Async Architecture**: All pricing operations are async to prevent UI blocking
 - **Error Resilience**: Pricing failures don't break functionality, gracefully fall back to no-cost display
 - **Debug Support**: `debug_model_pricing()` function for troubleshooting pricing issues
+
+#### Burn Rate Cost Estimation:
+The burn rate cost estimation provides intelligent cost projection for 5-hour billing blocks:
+
+1. **Cost Per Minute Calculation**: `current_cost / elapsed_minutes` - calculates spending rate based on actual usage
+2. **5-Hour Projection**: `cost_per_minute * 60 * 5.0` - projects cost for full billing block
+3. **Display Integration**: Added to burn rate line when `show_pricing` enabled
+4. **Async Implementation**: `_calculate_burn_rate()` method made async to support cost calculations
+5. **Sync Compatibility**: `_calculate_burn_rate_sync()` method for non-pricing contexts
+6. **Graceful Fallback**: Cost estimation failures don't break burn rate display
+
+**Display Format**: `"531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m"`
+- Token burn rate + estimated tokens + estimated cost + ETA
 
 ### Critical File Interactions
 
@@ -297,18 +314,52 @@ Respects standard XDG environment variables:
 ## Code Quality Standards
 
 ### Complexity Management
-All functions maintain cyclomatic complexity ≤ 10 through:
+All functions maintain cyclomatic complexity ≤ 10 through systematic refactoring:
 - Extraction of helper functions for specific responsibilities
 - Clear separation of concerns (e.g., data collection vs. processing)
 - Use of early returns to reduce nesting
+- Functional decomposition of complex operations
+
+### Recent Code Quality Improvements (2024)
+
+**Major Complexity Refactoring**: Successfully reduced cyclomatic complexity across all core modules:
+
+#### Display Module (`display.py`)
+- **`_calculate_burn_rate()`** (11 → ≤10): Extracted cost calculation, color determination, and text formatting into separate helper functions
+- **`_populate_project_table()`** (17 → ≤10): Split into table setup, data collection, cost calculation, and row formatting functions
+- **`_populate_session_table()`** (12 → ≤10): Decomposed into column setup, data collection, and row formatting helpers
+
+#### Command Module (`commands.py`)
+- **`debug_session_table()`** (13 → ≤10): Extracted block overlap analysis, statistics collection, and summary display functions
+
+#### Main Module (`main.py`)
+- **`list_sessions()`** (19 → ≤10): Separated project scanning, table creation, filtering, and cost calculation
+- **`debug_sessions()`** (13 → ≤10): Split into header display, table creation, block analysis, and summary functions
+- **`filter_sessions()`** (36 → ≤10): Extensive decomposition into filter logic, display formatting, and output generation functions
+
+#### Benefits of Complexity Reduction
+1. **Improved Readability**: Each function has a single, clear responsibility
+2. **Better Maintainability**: Changes to specific functionality are isolated
+3. **Increased Testability**: Helper functions can be tested independently
+4. **Code Reusability**: Common logic extracted into reusable functions
+5. **Reduced Cognitive Load**: Functions are easier to understand and debug
 
 ### Key Refactored Components
 - **XDG Directory Support** (`xdg_dirs.py`): Centralized XDG Base Directory specification implementation
 - **Configuration Loading** (`config.py`): Separated file loading, environment parsing, nested config handling, and legacy migration
 - **Monitor Function** (`main.py`): Split into initialization, token detection, and file processing helpers
-- **Debug Commands** (`commands.py`): Extracted display and data collection logic
+- **Debug Commands** (`commands.py`): Extracted display and data collection logic with complexity-optimized helper functions
 - **Block Selection** (`token_calculator.py`): Optimal unified block logic with hour-boundary preference for consistent billing representation
 - **JSONL Processing** (`token_calculator.py`): Isolated message validation and block creation
+- **Display System** (`display.py`): Modular UI components with separated rendering, calculation, and formatting logic
+- **Session Management** (`main.py`): Decomposed session listing, filtering, and analysis functions
+
+### Code Quality Metrics
+- **Cyclomatic Complexity**: All functions ≤ 10 (enforced by ruff)
+- **Test Coverage**: 512+ test cases covering core functionality
+- **Type Safety**: Full type annotations with pyright validation
+- **Code Formatting**: Consistent style with ruff formatting
+- **Documentation**: Comprehensive docstrings following Google style
 
 
 ## Version Management

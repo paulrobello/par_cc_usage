@@ -369,7 +369,7 @@ class MonitorDisplay:
             model_displays = self._create_model_displays(model_tokens, model_interruptions)
 
         # Calculate burn rate and estimated total usage
-        burn_rate_text = self._calculate_burn_rate(snapshot, total_tokens, total_limit)
+        burn_rate_text = await self._calculate_burn_rate(snapshot, total_tokens, total_limit)
 
         # Get total cost if pricing is enabled
         total_cost = 0.0
@@ -551,7 +551,68 @@ class MonitorDisplay:
         # Top border: 1, Data rows: actual_rows, Total row: 1, Bottom border: 1
         return min(actual_rows + 4, 10)  # Cap at 10 total height (8 data rows + 2 overhead)
 
-    def _calculate_burn_rate(self, snapshot: UsageSnapshot, total_tokens: int, total_limit: int) -> Text:
+    def _calculate_burn_rate_color(self, estimated_total: float, total_limit: int) -> str:
+        """Determine color based on percentage of limit."""
+        percentage = (estimated_total / total_limit) * 100
+        if percentage >= 100:
+            return "bold #FF0000"  # red
+        elif percentage >= 95:
+            return "bold #FFA500"  # orange
+        else:
+            return "bold #00FF00"  # green
+
+    async def _calculate_estimated_cost(self, snapshot: UsageSnapshot, elapsed_minutes: float) -> str:
+        """Calculate estimated cost for the full 5-hour block."""
+        if not (self.config and self.config.display.show_pricing):
+            return ""
+
+        try:
+            current_cost = await snapshot.get_unified_block_total_cost()
+            if elapsed_minutes > 0 and current_cost > 0:
+                cost_per_minute = current_cost / elapsed_minutes
+                estimated_total_cost = cost_per_minute * 60 * 5.0  # 5 hours
+                from .pricing import format_cost
+
+                return f"  Est: {format_cost(estimated_total_cost)}"
+        except Exception:
+            pass
+        return ""
+
+    def _format_burn_rate_text(
+        self,
+        burn_rate_per_minute: float,
+        estimated_total: float,
+        total_limit: int,
+        estimated_cost_text: str,
+        eta_display: str,
+        eta_before_block_end: bool,
+        remaining_tokens: int,
+    ) -> Text:
+        """Format the burn rate display text."""
+        percentage = (estimated_total / total_limit) * 100
+        color = self._calculate_burn_rate_color(estimated_total, total_limit)
+
+        burn_rate_text = Text()
+        burn_rate_text.append("🔥 Burn    ", style="bold")
+        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style="#00FFFF")
+        burn_rate_text.append("  Est: ", style="dim")
+        burn_rate_text.append(f"{format_token_count(int(estimated_total)):>8}", style=color)
+        burn_rate_text.append(f" ({percentage:>3.0f}%)", style=color)
+
+        if estimated_cost_text:
+            burn_rate_text.append(estimated_cost_text, style="#00FF80")
+
+        if remaining_tokens > 0:
+            burn_rate_text.append("  ETA: ", style="dim")
+            if burn_rate_per_minute > 0:
+                eta_style = "#FF0000" if eta_before_block_end else "#00FFFF"
+                burn_rate_text.append(eta_display, style=eta_style)
+            else:
+                burn_rate_text.append("∞", style="#00FF00")
+
+        return burn_rate_text
+
+    async def _calculate_burn_rate(self, snapshot: UsageSnapshot, total_tokens: int, total_limit: int) -> Text:
         """Calculate burn rate and estimated total usage.
 
         Args:
@@ -561,6 +622,55 @@ class MonitorDisplay:
 
         Returns:
             Formatted text with burn rate and estimate
+        """
+        # Get unified block start time
+        block_start = snapshot.unified_block_start_time
+        if not block_start:
+            return Text("No active block", style="dim")
+
+        # Calculate elapsed time
+        elapsed_seconds = (snapshot.timestamp - block_start).total_seconds()
+        elapsed_minutes = elapsed_seconds / 60
+
+        # Avoid division by zero
+        if elapsed_minutes < 0.1:  # Less than 6 seconds
+            return Text("Burn rate: calculating...", style="dim")
+
+        # Calculate burn rate and estimates
+        burn_rate_per_minute = total_tokens / elapsed_minutes
+        burn_rate_per_hour = burn_rate_per_minute * 60
+        estimated_total = burn_rate_per_hour * 5.0
+
+        # Calculate ETA to token limit
+        remaining_tokens = total_limit - total_tokens
+        eta_display, eta_before_block_end = self._calculate_eta_display(
+            snapshot, total_tokens, total_limit, burn_rate_per_minute
+        )
+
+        # Calculate estimated cost if pricing is enabled
+        estimated_cost_text = await self._calculate_estimated_cost(snapshot, elapsed_minutes)
+
+        # Format the display
+        return self._format_burn_rate_text(
+            burn_rate_per_minute,
+            estimated_total,
+            total_limit,
+            estimated_cost_text,
+            eta_display,
+            eta_before_block_end,
+            remaining_tokens,
+        )
+
+    def _calculate_burn_rate_sync(self, snapshot: UsageSnapshot, total_tokens: int, total_limit: int) -> Text:
+        """Calculate burn rate and estimated total usage (sync version without cost).
+
+        Args:
+            snapshot: Usage snapshot
+            total_tokens: Current total token usage
+            total_limit: Token limit
+
+        Returns:
+            Formatted text with burn rate and estimate (no cost)
         """
         # Get unified block start time
         block_start = snapshot.unified_block_start_time
@@ -599,7 +709,7 @@ class MonitorDisplay:
         else:
             color = "bold #00FF00"  # green
 
-        # Format the display
+        # Format the display (without cost)
         burn_rate_text = Text()
         burn_rate_text.append("🔥 Burn    ", style="bold")
         burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style="#00FFFF")
@@ -700,26 +810,52 @@ class MonitorDisplay:
             border_style="#00FF00",
         )
 
-    async def _populate_project_table(
-        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
-    ) -> None:
-        """Populate table with project aggregated data."""
+    def _add_project_table_columns(self, table: Table, show_pricing: bool) -> None:
+        """Add columns to project table."""
         table.add_column("Project", style="#00FFFF")
         table.add_column("Model", style="green")
         table.add_column("Tokens", style="#FFFF00", justify="right")
 
-        # Add Cost column if pricing is enabled
-        show_pricing = self.config and self.config.display.show_pricing
         if show_pricing:
             table.add_column("Cost", style="#00FF80", justify="right")
 
         if self.config.display.show_tool_usage:
             table.add_column("Tools", style="#FF9900", justify="center")
 
-        # Collect project data
-        active_projects: list[tuple[Project, int, set[str], datetime | None, set[str], int, float]] = []
+    async def _calculate_project_cost(self, project: Project, unified_start: datetime | None) -> float:
+        """Calculate total cost for a project."""
+        project_cost = 0.0
+        try:
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    if block.is_active and (
+                        unified_start is None or project._block_overlaps_unified_window(block, unified_start)
+                    ):
+                        for full_model in block.full_model_names:
+                            from .pricing import calculate_token_cost
+
+                            usage = block.token_usage
+                            cost = await calculate_token_cost(
+                                full_model,
+                                usage.input_tokens,
+                                usage.output_tokens,
+                                usage.cache_creation_input_tokens,
+                                usage.cache_read_input_tokens,
+                            )
+                            project_cost += cost.total_cost
+        except Exception:
+            project_cost = 0.0
+        return project_cost
+
+    async def _collect_project_data(self, snapshot: UsageSnapshot, unified_start: datetime | None, show_pricing: bool):
+        """Collect and sort project data."""
+        active_projects = []
+
         for project in snapshot.active_projects:
             project_tokens = project.get_unified_block_tokens(unified_start)
+            if project_tokens <= 0:
+                continue
+
             project_models = project.get_unified_block_models(unified_start)
             project_latest_activity = project.get_unified_block_latest_activity(unified_start)
             project_tools = (
@@ -729,45 +865,19 @@ class MonitorDisplay:
                 project.get_unified_block_tool_calls(unified_start) if self.config.display.show_tool_usage else 0
             )
 
-            # Calculate project cost if pricing is enabled
-            project_cost = 0.0
-            if show_pricing:
-                try:
-                    # Calculate cost for this project by summing costs of its active blocks
-                    for session in project.sessions.values():
-                        for block in session.blocks:
-                            if block.is_active and (
-                                unified_start is None or project._block_overlaps_unified_window(block, unified_start)
-                            ):
-                                # Calculate cost for each full model name in the block
-                                for full_model in block.full_model_names:
-                                    from .pricing import calculate_token_cost
+            project_cost = await self._calculate_project_cost(project, unified_start) if show_pricing else 0.0
 
-                                    usage = block.token_usage
-                                    cost = await calculate_token_cost(
-                                        full_model,
-                                        usage.input_tokens,
-                                        usage.output_tokens,
-                                        usage.cache_creation_input_tokens,
-                                        usage.cache_read_input_tokens,
-                                    )
-                                    project_cost += cost.total_cost
-                except Exception:
-                    # If cost calculation fails, set to 0
-                    project_cost = 0.0
-
-            if project_tokens > 0:
-                active_projects.append(
-                    (
-                        project,
-                        project_tokens,
-                        project_models,
-                        project_latest_activity,
-                        project_tools,
-                        project_tool_calls,
-                        project_cost,
-                    )
+            active_projects.append(
+                (
+                    project,
+                    project_tokens,
+                    project_models,
+                    project_latest_activity,
+                    project_tools,
+                    project_tool_calls,
+                    project_cost,
                 )
+            )
 
         # Sort projects by latest activity time (newest first)
         from datetime import datetime
@@ -775,6 +885,42 @@ class MonitorDisplay:
 
         utc = ZoneInfo("UTC")
         active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+
+        return active_projects
+
+    def _add_project_table_row(
+        self,
+        table: Table,
+        project,
+        project_tokens: int,
+        model_display: str,
+        cost_display: str,
+        tool_display: str,
+        show_pricing: bool,
+    ) -> None:
+        """Add a single row to the project table."""
+        row_data = [
+            self._strip_project_name(project.name),
+            model_display,
+            format_token_count(project_tokens),
+        ]
+
+        if show_pricing:
+            row_data.append(cost_display)
+
+        if self.config.display.show_tool_usage:
+            row_data.append(tool_display)
+
+        table.add_row(*row_data)
+
+    async def _populate_project_table(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
+        """Populate table with project aggregated data."""
+        show_pricing = self.config and self.config.display.show_pricing
+
+        self._add_project_table_columns(table, show_pricing)
+        active_projects = await self._collect_project_data(snapshot, unified_start, show_pricing)
 
         # Add rows for sorted projects
         for (
@@ -799,62 +945,34 @@ class MonitorDisplay:
                 cost_display = format_cost(project_cost) if project_cost > 0 else "-"
 
             # Prepare tool display
+            tool_display = ""
             if self.config.display.show_tool_usage:
                 if project_tools:
-                    # Show tools and call count
                     tool_display = f"{', '.join(sorted(project_tools, key=str.lower))} ({project_tool_calls})"
                 else:
                     tool_display = "-"
 
-                if show_pricing:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        model_display,
-                        format_token_count(project_tokens),
-                        cost_display,
-                        tool_display,
-                    )
-                else:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        model_display,
-                        format_token_count(project_tokens),
-                        tool_display,
-                    )
-            else:
-                if show_pricing:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        model_display,
-                        format_token_count(project_tokens),
-                        cost_display,
-                    )
-                else:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        model_display,
-                        format_token_count(project_tokens),
-                    )
+            self._add_project_table_row(
+                table, project, project_tokens, model_display, cost_display, tool_display, show_pricing
+            )
 
-    async def _populate_session_table(
-        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
-    ) -> None:
-        """Populate table with session data."""
+    def _add_session_table_columns(self, table: Table, show_pricing: bool) -> None:
+        """Add columns to session table."""
         table.add_column("Project", style="#00FFFF")
         table.add_column("Session ID", style="dim")
         table.add_column("Model", style="green")
         table.add_column("Tokens", style="#FFFF00", justify="right")
 
-        # Add Cost column if pricing is enabled
-        show_pricing = self.config and self.config.display.show_pricing
         if show_pricing:
             table.add_column("Cost", style="#00FF80", justify="right")
 
         if self.config.display.show_tool_usage:
             table.add_column("Tools", style="#FF9900", justify="center")
 
-        # Collect all active sessions with their data
-        active_sessions: list[tuple[Project, Session, int, set[str], datetime | None, set[str], int, float]] = []
+    async def _collect_session_data(self, snapshot: UsageSnapshot, unified_start: datetime | None, show_pricing: bool):
+        """Collect and sort session data."""
+        active_sessions = []
+
         for project in snapshot.active_projects:
             for session in project.active_sessions:
                 session_data = await self._calculate_session_data_with_cost(session, unified_start, show_pricing)
@@ -867,6 +985,44 @@ class MonitorDisplay:
 
         utc = ZoneInfo("UTC")
         active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+
+        return active_sessions
+
+    def _add_session_table_row(
+        self,
+        table: Table,
+        project,
+        session,
+        session_tokens: int,
+        model_display: str,
+        cost_display: str,
+        tool_display: str,
+        show_pricing: bool,
+    ) -> None:
+        """Add a single row to the session table."""
+        row_data = [
+            self._strip_project_name(project.name),
+            session.session_id,
+            model_display,
+            format_token_count(session_tokens),
+        ]
+
+        if show_pricing:
+            row_data.append(cost_display)
+
+        if self.config.display.show_tool_usage:
+            row_data.append(tool_display)
+
+        table.add_row(*row_data)
+
+    async def _populate_session_table(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
+        """Populate table with session data."""
+        show_pricing = self.config and self.config.display.show_pricing
+
+        self._add_session_table_columns(table, show_pricing)
+        active_sessions = await self._collect_session_data(snapshot, unified_start, show_pricing)
 
         # Add rows for sorted sessions
         for (
@@ -892,46 +1048,16 @@ class MonitorDisplay:
                 cost_display = format_cost(session_cost) if session_cost > 0 else "-"
 
             # Prepare tool display if needed
+            tool_display = ""
             if self.config.display.show_tool_usage:
                 if session_tools:
-                    # Show tools and call count
                     tool_display = f"{', '.join(sorted(session_tools, key=str.lower))} ({session_tool_calls})"
                 else:
                     tool_display = "-"
 
-                if show_pricing:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        session.session_id,
-                        model_display,
-                        format_token_count(session_tokens),
-                        cost_display,
-                        tool_display,
-                    )
-                else:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        session.session_id,
-                        model_display,
-                        format_token_count(session_tokens),
-                        tool_display,
-                    )
-            else:
-                if show_pricing:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        session.session_id,
-                        model_display,
-                        format_token_count(session_tokens),
-                        cost_display,
-                    )
-                else:
-                    table.add_row(
-                        self._strip_project_name(project.name),
-                        session.session_id,
-                        model_display,
-                        format_token_count(session_tokens),
-                    )
+            self._add_session_table_row(
+                table, project, session, session_tokens, model_display, cost_display, tool_display, show_pricing
+            )
 
     def _calculate_session_data(
         self, session: Session, unified_start: datetime | None
@@ -1329,8 +1455,8 @@ class MonitorDisplay:
         # Use regular display (no pricing in sync version)
         model_displays = self._create_model_displays(model_tokens, model_interruptions)
 
-        # Calculate burn rate and estimated total usage
-        burn_rate_text = self._calculate_burn_rate(snapshot, total_tokens, total_limit)
+        # Calculate burn rate and estimated total usage (sync version without cost)
+        burn_rate_text = self._calculate_burn_rate_sync(snapshot, total_tokens, total_limit)
 
         # Combine model displays and burn rate (no pricing in sync version)
         all_displays = []
