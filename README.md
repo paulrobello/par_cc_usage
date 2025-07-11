@@ -2,6 +2,15 @@
 
 Claude Code usage tracking tool with real-time monitoring and analysis.
 
+[![PyPI](https://img.shields.io/pypi/v/par-cc-usage)](https://pypi.org/project/par-cc-usage/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/par-cc-usage.svg)](https://pypi.org/project/par-cc-usage/)  
+![Runs on Linux | MacOS | Windows](https://img.shields.io/badge/runs%20on-Linux%20%7C%20MacOS%20%7C%20Windows-blue)
+![Arch x86-63 | ARM | AppleSilicon](https://img.shields.io/badge/arch-x86--64%20%7C%20ARM%20%7C%20AppleSilicon-blue)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/par-cc-usage)
+![PyPI - License](https://img.shields.io/pypi/l/par-cc-usage)
+
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/probello3)
+
 ![PAR CC Usage Monitor](https://raw.githubusercontent.com/paulrobello/par_cc_usage/main/Screenshot.png)
 *Real-time monitoring interface showing token usage, burn rate analytics, tool usage tracking, and project activity*
 
