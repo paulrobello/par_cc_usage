@@ -73,7 +73,7 @@ jobs:
         continue-on-error: true
 
       - name: Discord notification - failure
-        if: failure() && secrets.DISCORD_WEBHOOK
+        if: failure()
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
