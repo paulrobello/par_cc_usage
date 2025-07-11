@@ -210,6 +210,8 @@ def _apply_command_overrides(config: Config, options: MonitorOptions) -> None:
         config.display.show_active_sessions = options.show_sessions
     if options.show_tools:
         config.display.show_tool_usage = options.show_tools
+    if options.show_pricing:
+        config.display.show_pricing = options.show_pricing
     if options.no_cache:
         config.disable_cache = options.no_cache
         console.print("[yellow]Disabling cache from command line[/yellow]")
@@ -285,6 +287,7 @@ def _parse_monitor_options(
     config_file: Path | None,
     show_sessions: bool,
     show_tools: bool,
+    show_pricing: bool,
     no_cache: bool,
     block_start_override: int | None,
     snapshot: bool,
@@ -299,6 +302,7 @@ def _parse_monitor_options(
         config_file: Config file path
         show_sessions: Show sessions flag
         show_tools: Show tools flag
+        show_pricing: Show pricing flag
         no_cache: No cache flag
         block_start_override: Block start override hour
         snapshot: Take single snapshot flag
@@ -316,6 +320,7 @@ def _parse_monitor_options(
         config_file=config_file,
         show_sessions=show_sessions,
         show_tools=show_tools,
+        show_pricing=show_pricing,
         no_cache=no_cache,
         block_start_override=block_start_override,
         block_start_override_utc=block_start_override_utc,
@@ -459,6 +464,7 @@ def monitor(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
     show_sessions: Annotated[bool, typer.Option("--show-sessions", "-s", help="Show active sessions list")] = False,
     show_tools: Annotated[bool, typer.Option("--show-tools", help="Show tool usage information")] = False,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Disable file monitoring cache")] = False,
     block_start_override: Annotated[
         int | None,
@@ -476,6 +482,38 @@ def monitor(
     compact: Annotated[bool, typer.Option("--compact", help="Use compact display mode (minimal view)")] = False,
 ) -> None:
     """Monitor Claude Code token usage in real-time."""
+    import asyncio
+
+    # Run the async monitor function
+    asyncio.run(
+        _monitor_async(
+            interval=interval,
+            token_limit=token_limit,
+            config_file=config_file,
+            show_sessions=show_sessions,
+            show_tools=show_tools,
+            show_pricing=show_pricing,
+            no_cache=no_cache,
+            block_start_override=block_start_override,
+            snapshot=snapshot,
+            compact=compact,
+        )
+    )
+
+
+async def _monitor_async(
+    interval: int,
+    token_limit: int | None,
+    config_file: Path | None,
+    show_sessions: bool,
+    show_tools: bool,
+    show_pricing: bool,
+    no_cache: bool,
+    block_start_override: int | None,
+    snapshot: bool,
+    compact: bool,
+) -> None:
+    """Async implementation of monitor command."""
     # Initialize configuration
     config, actual_config_file = _initialize_config(config_file)
     _print_config_info(config)
@@ -487,6 +525,7 @@ def monitor(
         config_file,
         show_sessions,
         show_tools,
+        show_pricing,
         no_cache,
         block_start_override,
         snapshot,
@@ -550,7 +589,7 @@ def monitor(
             time_format=config.display.time_format,
             config=config,
         ) as display_manager:
-            display_manager.update(usage_snapshot)
+            await display_manager.update(usage_snapshot)
 
         console.print("\n[green]Snapshot complete.[/green]")
         return
@@ -593,7 +632,7 @@ def monitor(
                 # Update snapshot with potentially new limit
                 usage_snapshot.total_limit = config.token_limit or 0
 
-                display_manager.update(usage_snapshot)
+                await display_manager.update(usage_snapshot)
 
                 # Check for block completion notifications
                 notification_manager.check_and_send_notifications(usage_snapshot)
@@ -810,3 +849,459 @@ def test_webhook(
         console.print(create_error_display("Webhook test failed!"))
         console.print(create_info_display("Check your webhook URLs and server settings"))
         sys.exit(1)
+
+
+@app.command("list-sessions")
+def list_sessions(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    show_inactive: Annotated[bool, typer.Option("--show-inactive", help="Show inactive sessions")] = False,
+    project_filter: Annotated[str | None, typer.Option("--project", "-p", help="Filter by project name")] = None,
+    session_filter: Annotated[str | None, typer.Option("--session", "-s", help="Filter by session ID")] = None,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+) -> None:
+    """List all sessions with their status and activity information."""
+    import asyncio
+
+    from rich.table import Table
+
+    from .token_calculator import format_token_count, get_model_display_name
+
+    async def _list_sessions_async() -> None:
+        config = load_config(config_file)
+        console.print(f"[dim]Scanning projects in {config.projects_dir}...[/]")
+
+        # Scan all projects
+        projects: dict[str, Project] = {}
+        dedup_state = DeduplicationState()
+
+        file_monitor = FileMonitor(
+            claude_data_dirs=[config.projects_dir],
+            cache_file=config.cache_dir / "file_states.json" if config.cache_dir else None,
+            disable_cache=False,
+        )
+
+        for file_path, file_state in file_monitor.scan_files():
+            with JSONLReader(file_path, file_state.position) as reader:
+                for data in reader.read_lines():
+                    session_id, project_path = parse_session_from_path(file_path)
+                    process_jsonl_line(data, project_path, session_id, projects, dedup_state, config.timezone)
+
+        # Create table
+        table = Table(title="Sessions List", show_header=True, header_style="bold magenta")
+        table.add_column("Project", style="cyan")
+        table.add_column("Session ID", style="yellow")
+        table.add_column("Model", style="green")
+        table.add_column("Status", style="bold")
+        table.add_column("Tokens", style="blue", justify="right")
+        table.add_column("Last Activity", style="dim")
+
+        if show_pricing:
+            table.add_column("Cost", style="#00FF80", justify="right")
+
+        # Collect all sessions
+        all_sessions = []
+        for project in projects.values():
+            for session in project.sessions.values():
+                # Apply filters
+                if project_filter and project_filter.lower() not in project.name.lower():
+                    continue
+                if session_filter and session_filter.lower() not in session.session_id.lower():
+                    continue
+
+                latest_block = session.latest_block
+                if latest_block:
+                    is_active = latest_block.is_active
+                    if not show_inactive and not is_active:
+                        continue
+
+                    # Calculate cost if pricing is enabled
+                    cost = 0.0
+                    if show_pricing:
+                        try:
+                            for block in session.blocks:
+                                if block.is_active:
+                                    for full_model in block.full_model_names:
+                                        from .pricing import calculate_token_cost
+
+                                        usage = block.token_usage
+                                        cost_result = await calculate_token_cost(
+                                            full_model,
+                                            usage.input_tokens,
+                                            usage.output_tokens,
+                                            usage.cache_creation_input_tokens,
+                                            usage.cache_read_input_tokens,
+                                        )
+                                        cost += cost_result.total_cost
+                        except Exception:
+                            cost = 0.0
+
+                    all_sessions.append((project, session, latest_block, is_active, cost))
+
+        # Sort by last activity (newest first)
+        all_sessions.sort(key=lambda x: x[2].actual_end_time or x[2].start_time, reverse=True)
+
+        # Add rows
+        for project, session, block, is_active, cost in all_sessions:
+            status = "🟢 Active" if is_active else "🔴 Inactive"
+            last_activity = block.actual_end_time or block.start_time
+
+            # Format time
+            from .utils import format_datetime
+
+            time_str = format_datetime(last_activity, config.display.time_format, config.timezone)
+
+            row_data = [
+                project.name,
+                session.session_id[:12] + "...",
+                get_model_display_name(block.model),
+                status,
+                format_token_count(session.total_tokens),
+                time_str,
+            ]
+
+            if show_pricing:
+                from .pricing import format_cost
+
+                row_data.append(format_cost(cost) if cost > 0 else "-")
+
+            table.add_row(*row_data)
+
+        if table.row_count == 0:
+            console.print("[dim italic]No sessions found matching criteria[/]")
+        else:
+            console.print(table)
+            console.print(f"\n[dim]Found {table.row_count} sessions[/]")
+
+    asyncio.run(_list_sessions_async())
+
+
+@app.command("debug-sessions")
+def debug_sessions(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    project_filter: Annotated[str | None, typer.Option("--project", "-p", help="Filter by project name")] = None,
+    session_filter: Annotated[str | None, typer.Option("--session", "-s", help="Filter by session ID")] = None,
+) -> None:
+    """Debug session activity and filtering logic."""
+    from rich.table import Table
+
+    config = load_config(config_file)
+    console.print("[bold blue]Debug: Session Activity Analysis[/]")
+    console.print("─" * 50)
+
+    # Scan all projects
+    projects: dict[str, Project] = {}
+    dedup_state = DeduplicationState()
+
+    console.print(f"Scanning projects in {config.projects_dir}...")
+
+    file_monitor = FileMonitor(
+        claude_data_dirs=[config.projects_dir],
+        cache_file=config.cache_dir / "file_states.json" if config.cache_dir else None,
+        disable_cache=False,
+    )
+
+    for file_path, file_state in file_monitor.scan_files():
+        with JSONLReader(file_path, file_state.position) as reader:
+            for data in reader.read_lines():
+                session_id, project_path = parse_session_from_path(file_path)
+                process_jsonl_line(data, project_path, session_id, projects, dedup_state, config.timezone)
+
+    # Create usage snapshot
+    snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
+
+    console.print(f"Current Time (UTC): {datetime.now(UTC)}")
+    console.print(f"Configured Timezone: {config.timezone}")
+    console.print(f"Snapshot Timestamp: {snapshot.timestamp}")
+    console.print(f"Unified Block Start Time: {snapshot.unified_block_start_time}")
+
+    # Debug session table logic
+    unified_start = snapshot.unified_block_start_time
+    if unified_start:
+        unified_end = unified_start + timedelta(hours=5)
+        console.print(f"Unified Block Window: {unified_start} to {unified_end}")
+    else:
+        console.print("No unified block start time")
+
+    console.print()
+
+    # Create table for session analysis
+    table = Table(title="Session Debug Analysis", show_header=True, header_style="bold magenta")
+    table.add_column("Project", style="cyan")
+    table.add_column("Session", style="yellow")
+    table.add_column("Block Start", style="green")
+    table.add_column("Block End", style="green")
+    table.add_column("Last Activity", style="blue")
+    table.add_column("Is Active", style="bold")
+    table.add_column("In Unified Window", style="bold")
+    table.add_column("Tokens", style="dim", justify="right")
+    table.add_column("Reason", style="dim")
+
+    for project in projects.values():
+        # Apply project filter
+        if project_filter and project_filter.lower() not in project.name.lower():
+            continue
+
+        for session in project.sessions.values():
+            # Apply session filter
+            if session_filter and session_filter.lower() not in session.session_id.lower():
+                continue
+
+            for block in session.blocks:
+                # Check if block is active
+                is_active = block.is_active
+
+                # Check if block would be included in unified window
+                in_unified_window = False
+                reason = ""
+
+                if not is_active:
+                    reason = "Block not active"
+                elif unified_start is None:
+                    in_unified_window = True
+                    reason = "No unified block filter"
+                else:
+                    # Check overlap logic
+                    block_end = block.actual_end_time or block.end_time
+                    if block.start_time < unified_end and block_end > unified_start:
+                        in_unified_window = True
+                        reason = "Overlaps unified window"
+                    else:
+                        reason = f"No overlap: block({block.start_time}-{block_end}) vs unified({unified_start}-{unified_end})"
+
+                status_active = "🟢 YES" if is_active else "🔴 NO"
+                status_window = "🟢 YES" if in_unified_window else "🔴 NO"
+
+                from .token_calculator import format_token_count
+                from .utils import format_datetime
+
+                table.add_row(
+                    project.name[:20],
+                    session.session_id[:12] + "...",
+                    format_datetime(block.start_time, "24h", config.timezone),
+                    format_datetime(block.end_time, "24h", config.timezone),
+                    format_datetime(block.actual_end_time or block.start_time, "24h", config.timezone),
+                    status_active,
+                    status_window,
+                    format_token_count(block.adjusted_tokens),
+                    reason[:30] + "..." if len(reason) > 30 else reason,
+                )
+
+    console.print(table)
+
+    # Summary
+    active_sessions = [s for p in projects.values() for s in p.active_sessions]
+    console.print("\n[bold]Summary:[/]")
+    console.print(f"Total projects: {len(projects)}")
+    console.print(f"Total active sessions: {len(active_sessions)}")
+    console.print(f"Active tokens: {snapshot.active_tokens:,}")
+
+    if unified_start:
+        unified_tokens = snapshot.unified_block_tokens()
+        console.print(f"Unified block tokens: {unified_tokens:,}")
+
+
+@app.command("filter-sessions")
+def filter_sessions(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    min_tokens: Annotated[int | None, typer.Option("--min-tokens", help="Minimum token count")] = None,
+    max_tokens: Annotated[int | None, typer.Option("--max-tokens", help="Maximum token count")] = None,
+    model_filter: Annotated[str | None, typer.Option("--model", "-m", help="Filter by model name")] = None,
+    active_only: Annotated[bool, typer.Option("--active-only", help="Show only active sessions")] = True,
+    since_hours: Annotated[
+        int | None, typer.Option("--since-hours", help="Show sessions with activity in last N hours")
+    ] = None,
+    output_format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.TABLE,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+) -> None:
+    """Filter and display sessions based on various criteria."""
+    import asyncio
+
+    from rich.table import Table
+
+    from .token_calculator import format_token_count, get_model_display_name
+
+    async def _filter_sessions_async() -> None:
+        config = load_config(config_file)
+
+        # Scan all projects
+        projects: dict[str, Project] = {}
+        dedup_state = DeduplicationState()
+
+        file_monitor = FileMonitor(
+            claude_data_dirs=[config.projects_dir],
+            cache_file=config.cache_dir / "file_states.json" if config.cache_dir else None,
+            disable_cache=False,
+        )
+
+        for file_path, file_state in file_monitor.scan_files():
+            with JSONLReader(file_path, file_state.position) as reader:
+                for data in reader.read_lines():
+                    session_id, project_path = parse_session_from_path(file_path)
+                    process_jsonl_line(data, project_path, session_id, projects, dedup_state, config.timezone)
+
+        # Filter sessions
+        filtered_sessions = []
+        now = datetime.now(UTC)
+
+        for project in projects.values():
+            for session in project.sessions.values():
+                # Apply filters
+                if active_only and not any(block.is_active for block in session.blocks):
+                    continue
+
+                if min_tokens and session.total_tokens < min_tokens:
+                    continue
+
+                if max_tokens and session.total_tokens > max_tokens:
+                    continue
+
+                # Model filter
+                if model_filter:
+                    session_models = set()
+                    for block in session.blocks:
+                        session_models.update(block.models_used)
+                    if not any(model_filter.lower() in model.lower() for model in session_models):
+                        continue
+
+                # Time filter
+                if since_hours:
+                    latest_activity = None
+                    for block in session.blocks:
+                        activity_time = block.actual_end_time or block.start_time
+                        if latest_activity is None or activity_time > latest_activity:
+                            latest_activity = activity_time
+
+                    if latest_activity:
+                        hours_ago = (now - latest_activity).total_seconds() / 3600
+                        if hours_ago > since_hours:
+                            continue
+
+                # Calculate cost if pricing is enabled
+                cost = 0.0
+                if show_pricing:
+                    try:
+                        for block in session.blocks:
+                            if block.is_active:
+                                for full_model in block.full_model_names:
+                                    from .pricing import calculate_token_cost
+
+                                    usage = block.token_usage
+                                    cost_result = await calculate_token_cost(
+                                        full_model,
+                                        usage.input_tokens,
+                                        usage.output_tokens,
+                                        usage.cache_creation_input_tokens,
+                                        usage.cache_read_input_tokens,
+                                    )
+                                    cost += cost_result.total_cost
+                    except Exception:
+                        cost = 0.0
+
+                filtered_sessions.append((project, session, cost))
+
+        # Sort by total tokens (descending)
+        filtered_sessions.sort(key=lambda x: x[1].total_tokens, reverse=True)
+
+        # Display results
+        if output_format == OutputFormat.TABLE:
+            table = Table(title="Filtered Sessions", show_header=True, header_style="bold magenta")
+            table.add_column("Project", style="cyan")
+            table.add_column("Session ID", style="yellow")
+            table.add_column("Model(s)", style="green")
+            table.add_column("Status", style="bold")
+            table.add_column("Tokens", style="blue", justify="right")
+            table.add_column("Latest Activity", style="dim")
+
+            if show_pricing:
+                table.add_column("Cost", style="#00FF80", justify="right")
+
+            for project, session, cost in filtered_sessions:
+                # Get status
+                is_active = any(block.is_active for block in session.blocks)
+                status = "🟢 Active" if is_active else "🔴 Inactive"
+
+                # Get models
+                session_models = set()
+                for block in session.blocks:
+                    session_models.update(block.models_used)
+                models_str = ", ".join(sorted(get_model_display_name(m) for m in session_models))
+
+                # Get latest activity
+                latest_activity = None
+                for block in session.blocks:
+                    activity_time = block.actual_end_time or block.start_time
+                    if latest_activity is None or activity_time > latest_activity:
+                        latest_activity = activity_time
+
+                from .utils import format_datetime
+
+                time_str = (
+                    format_datetime(latest_activity, config.display.time_format, config.timezone)
+                    if latest_activity
+                    else "Unknown"
+                )
+
+                row_data = [
+                    project.name,
+                    session.session_id[:12] + "...",
+                    models_str,
+                    status,
+                    format_token_count(session.total_tokens),
+                    time_str,
+                ]
+
+                if show_pricing:
+                    from .pricing import format_cost
+
+                    row_data.append(format_cost(cost) if cost > 0 else "-")
+
+                table.add_row(*row_data)
+
+            console.print(table)
+            console.print(f"\n[dim]Found {len(filtered_sessions)} sessions matching criteria[/]")
+
+        elif output_format == OutputFormat.JSON:
+            import json
+
+            result = []
+            for project, session, cost in filtered_sessions:
+                session_data = {
+                    "project": project.name,
+                    "session_id": session.session_id,
+                    "model": session.model,
+                    "total_tokens": session.total_tokens,
+                    "is_active": any(block.is_active for block in session.blocks),
+                }
+                if show_pricing:
+                    session_data["cost"] = cost
+                result.append(session_data)
+
+            console.print(json.dumps(result, indent=2))
+
+        elif output_format == OutputFormat.CSV:
+            import csv
+            import io
+
+            output = io.StringIO()
+            fieldnames = ["project", "session_id", "model", "total_tokens", "is_active"]
+            if show_pricing:
+                fieldnames.append("cost")
+
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for project, session, cost in filtered_sessions:
+                row = {
+                    "project": project.name,
+                    "session_id": session.session_id,
+                    "model": session.model,
+                    "total_tokens": session.total_tokens,
+                    "is_active": any(block.is_active for block in session.blocks),
+                }
+                if show_pricing:
+                    row["cost"] = cost
+                writer.writerow(row)
+
+            console.print(output.getvalue())
+
+    asyncio.run(_filter_sessions_async())

@@ -456,7 +456,7 @@ class TestInterruptionTracking:
         result = _process_message_data(test_data)
         
         assert result is not None
-        model, token_usage = result
+        model, original_model, token_usage = result
         assert model == "opus"
         assert token_usage.was_interrupted is True
         assert token_usage.input_tokens == 100
@@ -484,7 +484,7 @@ class TestInterruptionTracking:
         result = _process_message_data(test_data)
         
         assert result is not None
-        model, token_usage = result
+        model, original_model, token_usage = result
         assert model == "sonnet"
         assert token_usage.was_interrupted is False
 

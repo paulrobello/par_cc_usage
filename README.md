@@ -21,6 +21,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [🔥 Advanced Burn Rate Analytics](#-advanced-burn-rate-analytics)
   - [⚙️ Intelligent Block Management](#️-intelligent-block-management)
   - [🎯 Smart Features](#-smart-features)
+  - [💰 Cost Tracking & Pricing](#-cost-tracking--pricing)
   - [📁 File System Support](#-file-system-support)
   - [🌐 Configuration & Customization](#-configuration--customization)
   - [🔔 Notification System](#-notification-system)
@@ -50,6 +51,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Model Display Names and Token Multipliers](#model-display-names-and-token-multipliers)
   - [Time Format Options](#time-format-options)
   - [Project Name Customization](#project-name-customization)
+  - [Cost Tracking & Pricing](#cost-tracking--pricing-1)
   - [Webhook Notifications](#webhook-notifications-1)
 - [File Locations](#file-locations)
   - [XDG Base Directory Specification](#xdg-base-directory-specification)
@@ -86,6 +88,16 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Session sorting**: Newest-first ordering for active sessions
 - **Per-model token tracking**: Accurate token attribution with proper multipliers (Opus 5x, others 1x)
 - **Compact display mode**: Minimal interface option for reduced screen space usage
+
+### 💰 Cost Tracking & Pricing
+- **Real-time cost calculations**: Live cost tracking using LiteLLM pricing data
+- **Per-model cost breakdown**: Accurate cost attribution for each Claude model
+- **Activity table pricing**: Optional cost columns in project and session views
+- **Configurable pricing display**: Enable/disable cost tracking via configuration or command-line
+- **Integrated pricing cache**: Efficient pricing lookups with built-in caching
+- **Intelligent fallbacks**: When exact model names aren't found, uses pattern matching to find closest pricing
+- **Unknown model handling**: Models marked as "Unknown" automatically display $0.00 cost
+- **Robust error handling**: Missing pricing data doesn't break functionality or display
 
 ### 📁 File System Support
 - **Multi-directory monitoring**: Supports both legacy (`~/.claude/projects`) and new paths
@@ -198,14 +210,21 @@ pccu monitor --block-start 14 --show-sessions  # Override block start time
 pccu monitor --interval 10 --token-limit 500000  # Conservative monitoring
 pccu monitor --show-sessions --config team-config.yaml  # Team dashboard
 pccu monitor --compact --interval 3  # Minimal display with frequent updates
+
+# Cost tracking and pricing
+pccu monitor --show-pricing  # Enable cost calculations and display
+pccu monitor --show-sessions --show-pricing  # Session view with cost breakdown
+pccu monitor --show-pricing --config pricing-config.yaml  # Cost monitoring with config
 ```
 
 #### Monitor Display Features
 - **Real-time updates**: Live token consumption tracking
 - **Burn rate analytics**: Tokens/minute with ETA to limit (e.g., "1.2K/m ETA: 2.3h (10:45 PM)")
+- **Cost tracking**: Real-time cost calculations using LiteLLM pricing (when `--show-pricing` is enabled)
 - **Block progress**: Visual 5-hour billing block progress with time remaining
-- **Model breakdown**: Per-model token usage (Opus, Sonnet)
+- **Model breakdown**: Per-model token usage (Opus, Sonnet) with optional cost breakdown
 - **Session details**: Individual session tracking when `--show-sessions` is used
+- **Activity tables**: Project or session aggregation views with optional cost columns
 
 ### List Usage Data
 
@@ -228,8 +247,14 @@ pccu list --sort-by project
 pccu list --sort-by time
 pccu list --sort-by model
 
-# Save to file
-pccu list --output usage-report.json --format json
+# Include cost information in output
+pccu list --show-pricing
+
+# Combine sorting and pricing
+pccu list --sort-by tokens --show-pricing --format table
+
+# Save detailed report with costs to file
+pccu list --show-pricing --output usage-report.json --format json
 ```
 
 ### Configuration Management
@@ -369,6 +394,7 @@ display:
   refresh_interval: 1
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
+  show_pricing: false  # Enable cost calculations and display (default: false)
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
     - "-Users-"
     - "-home-"
@@ -595,6 +621,80 @@ display:
 ```bash
 export PAR_CC_USAGE_PROJECT_NAME_PREFIXES="-Users-probello-Repos-,-home-user-"
 ```
+
+### Cost Tracking & Pricing
+
+PAR CC Usage includes comprehensive cost tracking capabilities using LiteLLM's pricing data for accurate cost calculations across all supported Claude models.
+
+#### Enabling Cost Display
+
+**Via Command Line:**
+```bash
+# Enable pricing for monitor mode
+pccu monitor --show-pricing
+
+# Enable pricing for session view
+pccu monitor --show-sessions --show-pricing
+
+# Enable pricing for list output
+pccu list --show-pricing
+```
+
+**Via Configuration File:**
+```yaml
+display:
+  show_pricing: true  # Enable cost calculations and display
+```
+
+**Via Environment Variable:**
+```bash
+export PAR_CC_USAGE_SHOW_PRICING=true
+```
+
+#### Features
+
+- **Real-time cost tracking**: Live cost calculations displayed alongside token usage
+- **Per-model accuracy**: Precise cost calculations for each Claude model (Opus, Sonnet, Haiku)
+- **Activity table integration**: Optional cost columns in both project and session aggregation views
+- **Total cost display**: Overall cost shown in the main token usage summary
+- **LiteLLM integration**: Uses LiteLLM's comprehensive pricing database for accuracy
+- **Efficient caching**: Built-in pricing cache for optimal performance
+
+#### Cost Display Locations
+
+When `show_pricing` is enabled, cost information appears in:
+
+1. **Main Usage Summary**: Total cost displayed next to token counts (e.g., "84.1M $34.85")
+2. **Activity Tables**: 
+   - Project aggregation mode: Cost column showing project-level costs
+   - Session aggregation mode: Cost column showing session-level costs
+3. **List Command Output**: Cost information in table, JSON, and CSV formats
+
+#### Pricing Data
+
+PAR CC Usage uses LiteLLM's comprehensive pricing database for accurate, up-to-date model costs with intelligent fallback handling:
+
+**Core Pricing Features:**
+- **Real-time pricing data**: Uses LiteLLM's pricing database for current model costs
+- **Comprehensive model support**: Covers all Claude model variants with accurate per-token pricing
+- **Token type handling**: Proper pricing for input, output, cache creation, and cache read tokens
+- **Automatic model mapping**: Maps Claude Code model names to LiteLLM pricing keys
+
+**Intelligent Fallback System:**
+- **Unknown model handling**: Models marked as "Unknown" automatically display $0.00 cost
+- **Pattern-based fallbacks**: When exact model names aren't found, uses intelligent pattern matching:
+  - Models containing "opus" → Falls back to Claude Opus pricing
+  - Models containing "sonnet" → Falls back to Claude Sonnet pricing  
+  - Models containing "haiku" → Falls back to Claude Haiku pricing
+- **Fuzzy matching**: Partial name matching for model variants and prefixes
+- **Generic Claude fallbacks**: Unrecognized Claude models fall back to Sonnet pricing as a safe default
+- **Graceful error handling**: Missing pricing data doesn't break functionality
+
+**Examples of Fallback Behavior:**
+- `"Unknown"` → $0.00 cost (no charges applied)
+- `"claude-opus-custom"` → Uses Claude Opus pricing via pattern matching
+- `"anthropic/claude-sonnet-experimental"` → Uses Claude Sonnet pricing via fuzzy matching
+- `"custom-claude-model"` → Uses Claude Sonnet pricing as generic fallback
 
 ### Webhook Notifications
 

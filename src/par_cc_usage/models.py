@@ -90,6 +90,7 @@ class TokenBlock:
     token_usage: TokenUsage
     messages_processed: int = 0
     models_used: set[str] = field(default_factory=set[str])
+    full_model_names: set[str] = field(default_factory=set[str])  # Full model names for pricing
     model_tokens: dict[str, int] = field(default_factory=dict[str, int])  # Per-model adjusted tokens
     # New fields from findings.md
     actual_end_time: datetime | None = None  # Last activity in block
@@ -111,16 +112,16 @@ class TokenBlock:
 
         A block is active if:
         1. It's not a gap block
-        2. Current time is within the block's time range (start_time <= now < end_time)
-        3. Time since last activity < 5 hours (session duration)
+        2. Time since last activity < 5 hours (session duration)
+        3. Current time is not before the block's start time
         """
         if self.is_gap:
             return False
 
         now = datetime.now(self.start_time.tzinfo)
 
-        # Check if current time is within the block's time range
-        if not (self.start_time <= now < self.end_time):
+        # Check if current time is before the block's start time
+        if now < self.start_time:
             return False
 
         # Check time since last activity
@@ -486,6 +487,74 @@ class UsageSnapshot:
                                 model_interruptions[model] = 0
                             model_interruptions[model] += count
         return model_interruptions
+
+    async def get_unified_block_cost_by_model(self) -> dict[str, float]:
+        """Get cost breakdown by model only from blocks overlapping with unified block time window."""
+        from .pricing import calculate_token_cost
+
+        unified_start = self.unified_block_start_time
+        if not unified_start:
+            return {}
+
+        model_costs: dict[str, float] = {}
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
+                        # Calculate cost for each full model name in the block
+                        for full_model in block.full_model_names:
+                            if full_model not in model_costs:
+                                model_costs[full_model] = 0.0
+
+                            # Calculate cost based on token usage
+                            usage = block.token_usage
+                            cost = await calculate_token_cost(
+                                full_model,
+                                usage.input_tokens,
+                                usage.output_tokens,
+                                usage.cache_creation_input_tokens,
+                                usage.cache_read_input_tokens,
+                            )
+                            model_costs[full_model] += cost.total_cost
+
+        return model_costs
+
+    async def get_unified_block_total_cost(self) -> float:
+        """Get total cost only from blocks overlapping with unified block time window."""
+        model_costs = await self.get_unified_block_cost_by_model()
+        return sum(model_costs.values())
+
+    async def get_total_cost_by_model(self) -> dict[str, float]:
+        """Get cost breakdown by model from all active blocks."""
+        from .pricing import calculate_token_cost
+
+        model_costs: dict[str, float] = {}
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    if block.is_active:
+                        # Calculate cost for each full model name in the block
+                        for full_model in block.full_model_names:
+                            if full_model not in model_costs:
+                                model_costs[full_model] = 0.0
+
+                            # Calculate cost based on token usage
+                            usage = block.token_usage
+                            cost = await calculate_token_cost(
+                                full_model,
+                                usage.input_tokens,
+                                usage.output_tokens,
+                                usage.cache_creation_input_tokens,
+                                usage.cache_read_input_tokens,
+                            )
+                            model_costs[full_model] += cost.total_cost
+
+        return model_costs
+
+    async def get_total_cost(self) -> float:
+        """Get total cost from all active blocks."""
+        model_costs = await self.get_total_cost_by_model()
+        return sum(model_costs.values())
 
     def total_interruptions(self) -> int:
         """Get total interruptions across all active blocks."""

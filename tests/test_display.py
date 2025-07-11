@@ -5,6 +5,7 @@ Tests for the display module.
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
+import pytest
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -152,16 +153,18 @@ class TestMonitorDisplay:
         # We can check that it has the right structure instead
         assert panel.title is None
 
-    def test_create_progress_bars(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_progress_bars(self, sample_usage_snapshot):
         """Test progress bars creation."""
         display = MonitorDisplay()
 
-        panel = display._create_progress_bars(sample_usage_snapshot)
+        panel = await display._create_progress_bars(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         assert panel.title == "Token Usage by Model"
 
-    def test_create_progress_bars_compact_mode(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_progress_bars_compact_mode(self, sample_usage_snapshot):
         """Test progress bars creation in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
@@ -170,7 +173,7 @@ class TestMonitorDisplay:
 
         display = MonitorDisplay(config=config)
 
-        panel = display._create_progress_bars(sample_usage_snapshot)
+        panel = await display._create_progress_bars(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         assert panel.title == "Token Usage by Model"
@@ -217,7 +220,8 @@ class TestMonitorDisplay:
         assert isinstance(display_text, Text)
         assert "Interrupted" in str(display_text)
 
-    def test_create_sessions_table_no_sessions(self):
+    @pytest.mark.asyncio
+    async def test_create_sessions_table_no_sessions(self):
         """Test sessions table with no active sessions."""
         # Mock config
         mock_config = Mock()
@@ -233,11 +237,12 @@ class TestMonitorDisplay:
             total_limit=None,
         )
 
-        panel = display._create_sessions_table(snapshot)
+        panel = await display._create_sessions_table(snapshot)
 
         assert isinstance(panel, Panel)
 
-    def test_create_sessions_table_with_sessions(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_sessions_table_with_sessions(self, sample_usage_snapshot):
         """Test sessions table with active sessions."""
         # Mock config
         mock_config = Mock()
@@ -246,7 +251,7 @@ class TestMonitorDisplay:
 
         display = MonitorDisplay(config=mock_config)
 
-        panel = display._create_sessions_table(sample_usage_snapshot)
+        panel = await display._create_sessions_table(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
 
@@ -279,20 +284,20 @@ class TestMonitorDisplay:
 
     def test_format_time_24h(self):
         """Test time formatting in 24-hour format."""
-        display = MonitorDisplay(time_format="24h")
-
+        from par_cc_usage.utils import format_time
+        
         test_time = datetime(2024, 7, 8, 14, 30, 45, tzinfo=UTC)
-        formatted = display._format_time(test_time)
+        formatted = format_time(test_time, "24h")
 
         # Should contain 24-hour formatted time
         assert "14:30" in formatted
 
     def test_format_time_12h(self):
         """Test time formatting in 12-hour format."""
-        display = MonitorDisplay(time_format="12h")
-
+        from par_cc_usage.utils import format_time
+        
         test_time = datetime(2024, 7, 8, 14, 30, 45, tzinfo=UTC)
-        formatted = display._format_time(test_time)
+        formatted = format_time(test_time, "12h")
 
         # Should contain 12-hour formatted time
         assert "PM" in formatted or "AM" in formatted
@@ -311,7 +316,8 @@ class TestMonitorDisplay:
         assert display.show_sessions is True  # The setting is preserved
         # But in compact mode, sessions should not be displayed in the layout
 
-    def test_compact_mode_burn_rate_calculation(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_compact_mode_burn_rate_calculation(self, sample_usage_snapshot):
         """Test burn rate calculation and display in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
@@ -321,7 +327,7 @@ class TestMonitorDisplay:
         display = MonitorDisplay(config=config)
 
         # Create progress bars panel which includes burn rate in compact mode
-        panel = display._create_progress_bars(sample_usage_snapshot)
+        panel = await display._create_progress_bars(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         # Compact mode should still show burn rate metrics
@@ -426,19 +432,21 @@ class TestMonitorDisplay:
         # The update method should work without errors
         assert True
 
-    def test_create_progress_bars_with_limit(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_progress_bars_with_limit(self, sample_usage_snapshot):
         """Test progress bars with token limit set."""
         display = MonitorDisplay()
 
         # Set a token limit
         sample_usage_snapshot.total_limit = 100000
 
-        panel = display._create_progress_bars(sample_usage_snapshot)
+        panel = await display._create_progress_bars(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         assert panel.title == "Token Usage by Model"
 
-    def test_create_sessions_table_with_unified_block(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_sessions_table_with_unified_block(self, sample_usage_snapshot):
         """Test sessions table filtering by unified block."""
         # Mock config
         mock_config = Mock()
@@ -457,7 +465,7 @@ class TestMonitorDisplay:
                 for block in session.blocks:
                     block.start_time = block_start
 
-        panel = display._create_sessions_table(sample_usage_snapshot)
+        panel = await display._create_sessions_table(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
 
@@ -474,17 +482,19 @@ class TestMonitorDisplay:
         # Just check that the header is created successfully
         assert "Active" in str(panel.renderable) or "projects" in str(panel.renderable).lower()
 
-    def test_create_sessions_table_project_aggregation_mode(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_sessions_table_project_aggregation_mode(self, sample_usage_snapshot):
         """Test sessions table with project aggregation enabled."""
         # Mock config with project aggregation enabled
         mock_config = Mock()
         mock_config.display.aggregate_by_project = True
         mock_config.display.project_name_prefixes = ["-Users-", "-home-"]
         mock_config.display.show_tool_usage = False  # Disable tool usage for consistent column count
+        mock_config.display.show_pricing = False  # Disable pricing for testing
 
         display = MonitorDisplay(config=mock_config)
 
-        panel = display._create_sessions_table(sample_usage_snapshot)
+        panel = await display._create_sessions_table(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         assert panel.title == "Projects with Activity in Current Block"
@@ -492,20 +502,22 @@ class TestMonitorDisplay:
         # The table should have different columns for project mode
         table = panel.renderable
         assert isinstance(table, Table)
-        # Check that it has the expected columns for project aggregation
+        # Check that it has the expected columns for project aggregation (Project, Model, Tokens)
         assert len(table.columns) == 3  # Project, Model, Tokens
 
-    def test_create_sessions_table_session_aggregation_mode(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_create_sessions_table_session_aggregation_mode(self, sample_usage_snapshot):
         """Test sessions table with session aggregation enabled."""
         # Mock config with project aggregation disabled
         mock_config = Mock()
         mock_config.display.aggregate_by_project = False
         mock_config.display.project_name_prefixes = ["-Users-", "-home-"]
         mock_config.display.show_tool_usage = False  # Disable tool usage for consistent column count
+        mock_config.display.show_pricing = False  # Disable pricing for testing
 
         display = MonitorDisplay(config=mock_config)
 
-        panel = display._create_sessions_table(sample_usage_snapshot)
+        panel = await display._create_sessions_table(sample_usage_snapshot)
 
         assert isinstance(panel, Panel)
         assert panel.title == "Sessions with Activity in Current Block"
@@ -513,7 +525,7 @@ class TestMonitorDisplay:
         # The table should have different columns for session mode
         table = panel.renderable
         assert isinstance(table, Table)
-        # Check that it has the expected columns for session aggregation
+        # Check that it has the expected columns for session aggregation (Project, Session ID, Model, Tokens)
         assert len(table.columns) == 4  # Project, Session ID, Model, Tokens
 
     def test_strip_project_name_with_config(self):
@@ -547,13 +559,15 @@ class TestMonitorDisplay:
         assert display._strip_project_name("-Users-johndoe-MyProject") == "-Users-johndoe-MyProject"
         assert display._strip_project_name("MyProject") == "MyProject"
 
-    def test_populate_project_table(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_populate_project_table(self, sample_usage_snapshot):
         """Test populating table with project aggregation data."""
         # Mock config
         mock_config = Mock()
         mock_config.display.aggregate_by_project = True
         mock_config.display.project_name_prefixes = ["-Users-"]
         mock_config.display.show_tool_usage = False  # Disable tool usage for consistent column count
+        mock_config.display.show_pricing = False  # Disable pricing for testing
 
         display = MonitorDisplay(config=mock_config)
 
@@ -567,19 +581,21 @@ class TestMonitorDisplay:
         project.get_unified_block_latest_activity = Mock(return_value=datetime.now(UTC))
 
         # Call the method
-        display._populate_project_table(table, sample_usage_snapshot, None)
+        await display._populate_project_table(table, sample_usage_snapshot, None)
 
         # Verify the table was populated
         assert len(table.columns) == 3  # Project, Model, Tokens
         assert table.row_count >= 0  # Should have at least attempted to add rows
 
-    def test_populate_session_table(self, sample_usage_snapshot):
+    @pytest.mark.asyncio
+    async def test_populate_session_table(self, sample_usage_snapshot):
         """Test populating table with session aggregation data."""
         # Mock config
         mock_config = Mock()
         mock_config.display.aggregate_by_project = False
         mock_config.display.project_name_prefixes = ["-Users-"]
         mock_config.display.show_tool_usage = False  # Disable tool usage for consistent column count
+        mock_config.display.show_pricing = False  # Disable pricing for testing
 
         display = MonitorDisplay(config=mock_config)
 
@@ -587,7 +603,7 @@ class TestMonitorDisplay:
         table = Table()
 
         # Call the method
-        display._populate_session_table(table, sample_usage_snapshot, None)
+        await display._populate_session_table(table, sample_usage_snapshot, None)
 
         # Verify the table was populated
         assert len(table.columns) == 4  # Project, Session ID, Model, Tokens

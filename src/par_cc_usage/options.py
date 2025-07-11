@@ -18,6 +18,7 @@ class MonitorOptions:
     config_file: Path | None = None
     show_sessions: bool = False
     show_tools: bool = False
+    show_pricing: bool = False
     no_cache: bool = False
     block_start_override: int | None = None
     block_start_override_utc: datetime | None = None

@@ -230,6 +230,66 @@ class MonitorDisplay:
             model_displays.append(model_text)
         return model_displays
 
+    async def _create_model_displays_with_pricing(
+        self,
+        model_tokens: dict[str, int],
+        model_interruptions: dict[str, int] | None = None,
+        snapshot: UsageSnapshot | None = None,
+    ) -> list[Text]:
+        """Create model token displays with pricing information.
+
+        Args:
+            model_tokens: Token count by model
+            model_interruptions: Interruption count by model (optional)
+            snapshot: Usage snapshot for accurate cost calculation
+
+        Returns:
+            List of formatted model displays with pricing
+        """
+        from .pricing import format_cost
+
+        # Get accurate model costs from the snapshot if available
+        model_costs = {}
+        if snapshot:
+            try:
+                full_model_costs = await snapshot.get_unified_block_cost_by_model()
+                # Map full model names back to normalized names for display
+                from .token_calculator import normalize_model_name
+
+                for full_model, cost in full_model_costs.items():
+                    normalized = normalize_model_name(full_model)
+                    if normalized not in model_costs:
+                        model_costs[normalized] = 0.0
+                    model_costs[normalized] += cost
+            except Exception:
+                # If cost calculation fails, use empty dict
+                model_costs = {}
+
+        model_displays: list[Text] = []
+        for model, tokens in sorted(model_tokens.items()):
+            display_name = get_model_display_name(model)
+            emoji = self._get_model_emoji(model)
+
+            model_text = Text()
+            model_text.append(f"{emoji} {display_name:8}", style="bold")
+            model_text.append(f"{format_token_count(tokens):>12}", style="#FFFF00")
+
+            # Add pricing if enabled
+            if self.config and self.config.display.show_pricing:
+                cost = model_costs.get(model, 0.0)
+                if cost > 0:
+                    model_text.append(f"  {format_cost(cost)}", style="#00FF80")
+
+            # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
+            if model_interruptions is not None and not self.compact_mode:
+                interruption_count = model_interruptions.get(model, 0)
+                # Green for 0 interruptions (good), red for actual interruptions (warning)
+                color = "#00FF00" if interruption_count == 0 else "#FF6B6B"
+                model_text.append(f"  ({interruption_count} Interrupted)", style=color)
+
+            model_displays.append(model_text)
+        return model_displays
+
     def _get_progress_colors(self, percentage: float, total_tokens: int, base_limit: int) -> tuple[str, str]:
         """Get progress bar colors based on percentage.
 
@@ -274,7 +334,7 @@ class MonitorDisplay:
                         total_tool_calls += block.total_tool_calls
         return tool_counts, total_tool_calls
 
-    def _create_progress_bars(self, snapshot: UsageSnapshot) -> Panel:
+    async def _create_progress_bars(self, snapshot: UsageSnapshot) -> Panel:
         """Create progress bars for token usage.
 
         Args:
@@ -302,10 +362,23 @@ class MonitorDisplay:
         from rich.console import Group
         from rich.progress import BarColumn, Progress, TextColumn
 
-        model_displays = self._create_model_displays(model_tokens, model_interruptions)
+        # Use pricing display if enabled, otherwise use regular display
+        if self.config and self.config.display.show_pricing:
+            model_displays = await self._create_model_displays_with_pricing(model_tokens, model_interruptions, snapshot)
+        else:
+            model_displays = self._create_model_displays(model_tokens, model_interruptions)
 
         # Calculate burn rate and estimated total usage
         burn_rate_text = self._calculate_burn_rate(snapshot, total_tokens, total_limit)
+
+        # Get total cost if pricing is enabled
+        total_cost = 0.0
+        if self.config and self.config.display.show_pricing:
+            try:
+                total_cost = await snapshot.get_unified_block_total_cost()
+            except Exception:
+                # If cost calculation fails, continue without cost display
+                total_cost = 0.0
 
         # Combine model displays and burn rate
         all_displays = []
@@ -319,14 +392,18 @@ class MonitorDisplay:
             percentage = (total_tokens / total_limit) * 100
             bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
 
+            # Create the tokens text with optional cost
+            tokens_text = f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}"
+            if total_cost > 0:
+                from .pricing import format_cost
+
+                tokens_text += f" {format_cost(total_cost)}"
+
             total_progress = Progress(
                 TextColumn("📊 Total   ", style=text_style),
                 BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TextColumn(
-                    f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}",
-                    style=text_style,
-                ),
+                TextColumn(tokens_text, style=text_style),
                 console=self.console,
                 expand=False,
             )
@@ -342,6 +419,10 @@ class MonitorDisplay:
             total_text.append(
                 f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
             )
+            if total_cost > 0:
+                from .pricing import format_cost
+
+                total_text.append(f"{format_cost(total_cost)} ", style=text_style)
             total_text.append(f"({percentage:>3.0f}%)", style=text_style)
             all_displays.append(total_text)
 
@@ -582,7 +663,7 @@ class MonitorDisplay:
         # Combine duration and clock time
         return f"{time_remaining} ({eta_clock})", eta_before_block_end
 
-    def _create_sessions_table(self, snapshot: UsageSnapshot) -> Panel:
+    async def _create_sessions_table(self, snapshot: UsageSnapshot) -> Panel:
         """Create active sessions table.
 
         Args:
@@ -603,9 +684,9 @@ class MonitorDisplay:
         unified_start = snapshot.unified_block_start_time
 
         if self.config.display.aggregate_by_project:
-            self._populate_project_table(table, snapshot, unified_start)
+            await self._populate_project_table(table, snapshot, unified_start)
         else:
-            self._populate_session_table(table, snapshot, unified_start)
+            await self._populate_session_table(table, snapshot, unified_start)
 
         # Add empty row if no data
         self._add_empty_row_if_needed(table)
@@ -619,15 +700,360 @@ class MonitorDisplay:
             border_style="#00FF00",
         )
 
-    def _populate_project_table(self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None) -> None:
+    async def _populate_project_table(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
         """Populate table with project aggregated data."""
+        table.add_column("Project", style="#00FFFF")
+        table.add_column("Model", style="green")
+        table.add_column("Tokens", style="#FFFF00", justify="right")
+
+        # Add Cost column if pricing is enabled
+        show_pricing = self.config and self.config.display.show_pricing
+        if show_pricing:
+            table.add_column("Cost", style="#00FF80", justify="right")
+
+        if self.config.display.show_tool_usage:
+            table.add_column("Tools", style="#FF9900", justify="center")
+
+        # Collect project data
+        active_projects: list[tuple[Project, int, set[str], datetime | None, set[str], int, float]] = []
+        for project in snapshot.active_projects:
+            project_tokens = project.get_unified_block_tokens(unified_start)
+            project_models = project.get_unified_block_models(unified_start)
+            project_latest_activity = project.get_unified_block_latest_activity(unified_start)
+            project_tools = (
+                project.get_unified_block_tools(unified_start) if self.config.display.show_tool_usage else set()
+            )
+            project_tool_calls = (
+                project.get_unified_block_tool_calls(unified_start) if self.config.display.show_tool_usage else 0
+            )
+
+            # Calculate project cost if pricing is enabled
+            project_cost = 0.0
+            if show_pricing:
+                try:
+                    # Calculate cost for this project by summing costs of its active blocks
+                    for session in project.sessions.values():
+                        for block in session.blocks:
+                            if block.is_active and (
+                                unified_start is None or project._block_overlaps_unified_window(block, unified_start)
+                            ):
+                                # Calculate cost for each full model name in the block
+                                for full_model in block.full_model_names:
+                                    from .pricing import calculate_token_cost
+
+                                    usage = block.token_usage
+                                    cost = await calculate_token_cost(
+                                        full_model,
+                                        usage.input_tokens,
+                                        usage.output_tokens,
+                                        usage.cache_creation_input_tokens,
+                                        usage.cache_read_input_tokens,
+                                    )
+                                    project_cost += cost.total_cost
+                except Exception:
+                    # If cost calculation fails, set to 0
+                    project_cost = 0.0
+
+            if project_tokens > 0:
+                active_projects.append(
+                    (
+                        project,
+                        project_tokens,
+                        project_models,
+                        project_latest_activity,
+                        project_tools,
+                        project_tool_calls,
+                        project_cost,
+                    )
+                )
+
+        # Sort projects by latest activity time (newest first)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        utc = ZoneInfo("UTC")
+        active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+
+        # Add rows for sorted projects
+        for (
+            project,
+            project_tokens,
+            project_models,
+            _,
+            project_tools,
+            project_tool_calls,
+            project_cost,
+        ) in active_projects:
+            # Display models used
+            from .token_calculator import get_model_display_name
+
+            model_display = ", ".join(sorted({get_model_display_name(m) for m in project_models}))
+
+            # Prepare cost display if pricing is enabled
+            cost_display = ""
+            if show_pricing:
+                from .pricing import format_cost
+
+                cost_display = format_cost(project_cost) if project_cost > 0 else "-"
+
+            # Prepare tool display
+            if self.config.display.show_tool_usage:
+                if project_tools:
+                    # Show tools and call count
+                    tool_display = f"{', '.join(sorted(project_tools, key=str.lower))} ({project_tool_calls})"
+                else:
+                    tool_display = "-"
+
+                if show_pricing:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        model_display,
+                        format_token_count(project_tokens),
+                        cost_display,
+                        tool_display,
+                    )
+                else:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        model_display,
+                        format_token_count(project_tokens),
+                        tool_display,
+                    )
+            else:
+                if show_pricing:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        model_display,
+                        format_token_count(project_tokens),
+                        cost_display,
+                    )
+                else:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        model_display,
+                        format_token_count(project_tokens),
+                    )
+
+    async def _populate_session_table(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
+        """Populate table with session data."""
+        table.add_column("Project", style="#00FFFF")
+        table.add_column("Session ID", style="dim")
+        table.add_column("Model", style="green")
+        table.add_column("Tokens", style="#FFFF00", justify="right")
+
+        # Add Cost column if pricing is enabled
+        show_pricing = self.config and self.config.display.show_pricing
+        if show_pricing:
+            table.add_column("Cost", style="#00FF80", justify="right")
+
+        if self.config.display.show_tool_usage:
+            table.add_column("Tools", style="#FF9900", justify="center")
+
+        # Collect all active sessions with their data
+        active_sessions: list[tuple[Project, Session, int, set[str], datetime | None, set[str], int, float]] = []
+        for project in snapshot.active_projects:
+            for session in project.active_sessions:
+                session_data = await self._calculate_session_data_with_cost(session, unified_start, show_pricing)
+                if session_data[0] > 0:  # session_tokens > 0
+                    active_sessions.append((project, session, *session_data))
+
+        # Sort sessions by latest activity time (newest first)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        utc = ZoneInfo("UTC")
+        active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+
+        # Add rows for sorted sessions
+        for (
+            project,
+            session,
+            session_tokens,
+            session_models,
+            _,
+            session_tools,
+            session_tool_calls,
+            session_cost,
+        ) in active_sessions:
+            # Display models used
+            from .token_calculator import get_model_display_name
+
+            model_display = ", ".join(sorted({get_model_display_name(m) for m in session_models}))
+
+            # Prepare cost display if pricing is enabled
+            cost_display = ""
+            if show_pricing:
+                from .pricing import format_cost
+
+                cost_display = format_cost(session_cost) if session_cost > 0 else "-"
+
+            # Prepare tool display if needed
+            if self.config.display.show_tool_usage:
+                if session_tools:
+                    # Show tools and call count
+                    tool_display = f"{', '.join(sorted(session_tools, key=str.lower))} ({session_tool_calls})"
+                else:
+                    tool_display = "-"
+
+                if show_pricing:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        session.session_id,
+                        model_display,
+                        format_token_count(session_tokens),
+                        cost_display,
+                        tool_display,
+                    )
+                else:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        session.session_id,
+                        model_display,
+                        format_token_count(session_tokens),
+                        tool_display,
+                    )
+            else:
+                if show_pricing:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        session.session_id,
+                        model_display,
+                        format_token_count(session_tokens),
+                        cost_display,
+                    )
+                else:
+                    table.add_row(
+                        self._strip_project_name(project.name),
+                        session.session_id,
+                        model_display,
+                        format_token_count(session_tokens),
+                    )
+
+    def _calculate_session_data(
+        self, session: Session, unified_start: datetime | None
+    ) -> tuple[int, set[str], datetime | None, set[str], int]:
+        """Calculate session tokens, models, latest activity, tools, and tool calls."""
+        session_tokens = 0
+        session_models: set[str] = set()
+        session_latest_activity = None
+        session_tools: set[str] = set()
+        session_tool_calls = 0
+
+        for block in session.blocks:
+            # Show any session with activity within the current unified block time window
+            include_block = self._should_include_block(block, unified_start)
+
+            if include_block:
+                session_tokens += block.adjusted_tokens
+                session_models.update(block.models_used)
+                session_tools.update(block.tools_used)
+                session_tool_calls += block.total_tool_calls
+                # Track the latest activity time for this session (for sorting)
+                latest_time = block.actual_end_time or block.start_time
+                if session_latest_activity is None or latest_time > session_latest_activity:
+                    session_latest_activity = latest_time
+
+        return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls
+
+    async def _calculate_session_data_with_cost(
+        self, session: Session, unified_start: datetime | None, show_pricing: bool
+    ) -> tuple[int, set[str], datetime | None, set[str], int, float]:
+        """Calculate session tokens, models, latest activity, tools, tool calls, and cost."""
+        session_tokens = 0
+        session_models: set[str] = set()
+        session_latest_activity = None
+        session_tools: set[str] = set()
+        session_tool_calls = 0
+        session_cost = 0.0
+
+        for block in session.blocks:
+            # Show any session with activity within the current unified block time window
+            include_block = self._should_include_block(block, unified_start)
+
+            if include_block:
+                session_tokens += block.adjusted_tokens
+                session_models.update(block.models_used)
+                session_tools.update(block.tools_used)
+                session_tool_calls += block.total_tool_calls
+                # Track the latest activity time for this session (for sorting)
+                latest_time = block.actual_end_time or block.start_time
+                if session_latest_activity is None or latest_time > session_latest_activity:
+                    session_latest_activity = latest_time
+
+                # Calculate cost if pricing is enabled
+                if show_pricing:
+                    try:
+                        # Calculate cost for each full model name in the block
+                        for full_model in block.full_model_names:
+                            from .pricing import calculate_token_cost
+
+                            usage = block.token_usage
+                            cost = await calculate_token_cost(
+                                full_model,
+                                usage.input_tokens,
+                                usage.output_tokens,
+                                usage.cache_creation_input_tokens,
+                                usage.cache_read_input_tokens,
+                            )
+                            session_cost += cost.total_cost
+                    except Exception:
+                        # If cost calculation fails, continue without adding to cost
+                        pass
+
+        return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls, session_cost
+
+    def _create_sessions_table_sync(self, snapshot: UsageSnapshot) -> Panel:
+        """Create active sessions table (sync version without pricing).
+
+        Args:
+            snapshot: Usage snapshot
+
+        Returns:
+            Sessions panel
+        """
+        table = Table(
+            title=None,
+            show_header=True,
+            header_style="bold #FF00FF",
+            show_lines=False,
+            expand=False,
+        )
+
+        # Get unified block start time
+        unified_start = snapshot.unified_block_start_time
+
+        if self.config.display.aggregate_by_project:
+            self._populate_project_table_sync(table, snapshot, unified_start)
+        else:
+            self._populate_session_table_sync(table, snapshot, unified_start)
+
+        # Add empty row if no data
+        self._add_empty_row_if_needed(table)
+
+        # Set title based on aggregation mode
+        title = self._get_table_title()
+
+        return Panel(
+            table,
+            title=title,
+            border_style="#00FF00",
+        )
+
+    def _populate_project_table_sync(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
+        """Populate table with project aggregated data (sync version without pricing)."""
         table.add_column("Project", style="#00FFFF")
         table.add_column("Model", style="green")
         table.add_column("Tokens", style="#FFFF00", justify="right")
         if self.config.display.show_tool_usage:
             table.add_column("Tools", style="#FF9900", justify="center")
 
-        # Collect project data
+        # Collect project data (without cost)
         active_projects: list[tuple[Project, int, set[str], datetime | None, set[str], int]] = []
         for project in snapshot.active_projects:
             project_tokens = project.get_unified_block_tokens(unified_start)
@@ -687,8 +1113,10 @@ class MonitorDisplay:
                     format_token_count(project_tokens),
                 )
 
-    def _populate_session_table(self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None) -> None:
-        """Populate table with session data."""
+    def _populate_session_table_sync(
+        self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
+    ) -> None:
+        """Populate table with session data (sync version without pricing)."""
         table.add_column("Project", style="#00FFFF")
         table.add_column("Session ID", style="dim")
         table.add_column("Model", style="green")
@@ -696,7 +1124,7 @@ class MonitorDisplay:
         if self.config.display.show_tool_usage:
             table.add_column("Tools", style="#FF9900", justify="center")
 
-        # Collect all active sessions with their data
+        # Collect all active sessions with their data (without cost)
         active_sessions: list[tuple[Project, Session, int, set[str], datetime | None, set[str], int]] = []
         for project in snapshot.active_projects:
             for session in project.active_sessions:
@@ -741,32 +1169,6 @@ class MonitorDisplay:
                     format_token_count(session_tokens),
                 )
 
-    def _calculate_session_data(
-        self, session: Session, unified_start: datetime | None
-    ) -> tuple[int, set[str], datetime | None, set[str], int]:
-        """Calculate session tokens, models, latest activity, tools, and tool calls."""
-        session_tokens = 0
-        session_models: set[str] = set()
-        session_latest_activity = None
-        session_tools: set[str] = set()
-        session_tool_calls = 0
-
-        for block in session.blocks:
-            # Show any session with activity within the current unified block time window
-            include_block = self._should_include_block(block, unified_start)
-
-            if include_block:
-                session_tokens += block.adjusted_tokens
-                session_models.update(block.models_used)
-                session_tools.update(block.tools_used)
-                session_tool_calls += block.total_tool_calls
-                # Track the latest activity time for this session (for sorting)
-                latest_time = block.actual_end_time or block.start_time
-                if session_latest_activity is None or latest_time > session_latest_activity:
-                    session_latest_activity = latest_time
-
-        return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls
-
     def _should_include_block(self, block: Any, unified_start: datetime | None) -> bool:
         """Determine if a block should be included based on unified block time window."""
         if not block.is_active:
@@ -791,36 +1193,17 @@ class MonitorDisplay:
     def _add_empty_row_if_needed(self, table: Table) -> None:
         """Add empty row if no data in table."""
         if table.row_count == 0:
+            # Determine how many columns the table has
+            column_count = len(table.columns)
+
             if self.config.display.aggregate_by_project:
-                if self.config.display.show_tool_usage:
-                    table.add_row(
-                        "[dim italic]No active projects[/]",
-                        "",
-                        "",
-                        "",
-                    )
-                else:
-                    table.add_row(
-                        "[dim italic]No active projects[/]",
-                        "",
-                        "",
-                    )
+                message = "[dim italic]No active projects[/]"
             else:
-                if self.config.display.show_tool_usage:
-                    table.add_row(
-                        "[dim italic]No active sessions[/]",
-                        "",
-                        "",
-                        "",
-                        "",
-                    )
-                else:
-                    table.add_row(
-                        "[dim italic]No active sessions[/]",
-                        "",
-                        "",
-                        "",
-                    )
+                message = "[dim italic]No active sessions[/]"
+
+            # Create empty strings for all columns except the first one
+            empty_cols = [""] * (column_count - 1)
+            table.add_row(message, *empty_cols)
 
     def _get_table_title(self) -> str:
         """Get the appropriate table title based on aggregation mode."""
@@ -830,13 +1213,40 @@ class MonitorDisplay:
             return "Sessions with Activity in Current Block"
 
     def update(self, snapshot: UsageSnapshot) -> None:
-        """Update the display with new data.
+        """Update the display with new data (sync version for backwards compatibility).
+
+        Args:
+            snapshot: Usage snapshot
+        """
+        import asyncio
+
+        # If we're in an async context, run the async version
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context, so we need to use the async version
+            # For sync compatibility, we'll block until completion
+            # This is not ideal but necessary for backwards compatibility
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self.update_async(snapshot))
+                try:
+                    future.result(timeout=10)  # 10 second timeout
+                except concurrent.futures.TimeoutError:
+                    # If async fails, fall back to sync version without pricing
+                    self._update_sync(snapshot)
+        except RuntimeError:
+            # No event loop running, we can run async directly
+            asyncio.run(self.update_async(snapshot))
+
+    async def update_async(self, snapshot: UsageSnapshot) -> None:
+        """Update the display with new data (async version with pricing support).
 
         Args:
             snapshot: Usage snapshot
         """
         self.layout["header"].update(self._create_header(snapshot))
-        self.layout["progress"].update(self._create_progress_bars(snapshot))
+        self.layout["progress"].update(await self._create_progress_bars(snapshot))
 
         # Update non-compact mode elements only if not in compact mode
         if not self.compact_mode:
@@ -854,9 +1264,119 @@ class MonitorDisplay:
                     pass
             if self.show_sessions:
                 try:
-                    self.layout["sessions"].update(self._create_sessions_table(snapshot))
+                    self.layout["sessions"].update(await self._create_sessions_table(snapshot))
                 except KeyError:
                     pass
+
+    def _update_sync(self, snapshot: UsageSnapshot) -> None:
+        """Update the display with new data (sync version without pricing).
+
+        Args:
+            snapshot: Usage snapshot
+        """
+        self.layout["header"].update(self._create_header(snapshot))
+        # Use the sync version of progress bars (without pricing)
+        self.layout["progress"].update(self._create_progress_bars_sync(snapshot))
+
+        # Update non-compact mode elements only if not in compact mode
+        if not self.compact_mode:
+            try:
+                self.layout["block_progress"].update(self._create_block_progress(snapshot))
+            except KeyError:
+                pass
+            # Update tool usage with dynamic height only if tool usage is enabled
+            if self.show_tool_usage:
+                try:
+                    tool_usage_height = self._calculate_tool_usage_height(snapshot)
+                    self.layout["tool_usage"].size = tool_usage_height
+                    self.layout["tool_usage"].update(self._create_tool_usage_table(snapshot))
+                except KeyError:
+                    pass
+            if self.show_sessions:
+                try:
+                    self.layout["sessions"].update(self._create_sessions_table_sync(snapshot))
+                except KeyError:
+                    pass
+
+    def _create_progress_bars_sync(self, snapshot: UsageSnapshot) -> Panel:
+        """Create progress bars for token usage (sync version without pricing).
+
+        Args:
+            snapshot: Usage snapshot
+
+        Returns:
+            Progress panel
+        """
+        # Get token usage by model for unified block only
+        model_tokens = snapshot.unified_block_tokens_by_model()
+        total_tokens = snapshot.unified_block_tokens()
+        model_interruptions = snapshot.unified_block_interruptions_by_model()
+
+        # If no unified block data, fall back to all active tokens and models
+        if not model_tokens and total_tokens == 0:
+            model_tokens = snapshot.tokens_by_model()
+            total_tokens = snapshot.active_tokens
+            model_interruptions = snapshot.interruptions_by_model()
+
+        # Ensure limit is at least as high as current usage
+        base_limit = snapshot.total_limit or 500_000
+        total_limit = max(base_limit, total_tokens)
+
+        # Create per-model token displays (no progress bars)
+        from rich.console import Group
+        from rich.progress import BarColumn, Progress, TextColumn
+
+        # Use regular display (no pricing in sync version)
+        model_displays = self._create_model_displays(model_tokens, model_interruptions)
+
+        # Calculate burn rate and estimated total usage
+        burn_rate_text = self._calculate_burn_rate(snapshot, total_tokens, total_limit)
+
+        # Combine model displays and burn rate (no pricing in sync version)
+        all_displays = []
+        if model_displays:
+            all_displays.extend(model_displays)
+        all_displays.append(burn_rate_text)
+
+        # Add total progress bar only if not in compact mode
+        if not self.compact_mode:
+            # Total progress bar with color based on percentage
+            percentage = (total_tokens / total_limit) * 100
+            bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
+
+            # Create the tokens text (no cost in sync version)
+            tokens_text = f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}"
+
+            total_progress = Progress(
+                TextColumn("📊 Total   ", style=text_style),
+                BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TextColumn(tokens_text, style=text_style),
+                console=self.console,
+                expand=False,
+            )
+            total_progress.add_task("Total", total=total_limit, completed=total_tokens)
+            all_displays.append(total_progress)
+        else:
+            # In compact mode, show total as simple text (no cost in sync version)
+            percentage = (total_tokens / total_limit) * 100
+            _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
+
+            total_text = Text()
+            total_text.append("📊 Total   ", style=text_style)
+            total_text.append(
+                f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
+            )
+            total_text.append(f"({percentage:>3.0f}%)", style=text_style)
+            all_displays.append(total_text)
+
+        all_progress = Group(*all_displays)
+
+        return Panel(
+            all_progress,
+            title="Token Usage by Model",
+            border_style="#FFFF00",
+        )
 
     def render(self) -> Layout:
         """Get the renderable layout.
@@ -913,13 +1433,13 @@ class DisplayManager:
             self.live.stop()
             self.live = None
 
-    def update(self, snapshot: UsageSnapshot) -> None:
+    async def update(self, snapshot: UsageSnapshot) -> None:
         """Update the display with new data.
 
         Args:
             snapshot: Usage snapshot
         """
-        self.display.update(snapshot)
+        await self.display.update_async(snapshot)
 
         if self.update_in_place and self.live:
             self.live.update(self.display.render())

@@ -51,6 +51,7 @@ dependencies = [
     "pytz>=2023.3",
     "requests>=2.31.0",
     "xdg-base-dirs>=6.0.2",
+    "aiohttp>=3.9.0",
 ]
 
 [project.license]

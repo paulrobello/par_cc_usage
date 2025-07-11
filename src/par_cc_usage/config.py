@@ -46,6 +46,10 @@ class DisplayConfig(BaseModel):
         default=DisplayMode.NORMAL,
         description="Display mode: 'normal' for full display, 'compact' for minimal view",
     )
+    show_pricing: bool = Field(
+        default=False,
+        description="Show pricing information next to token counts",
+    )
 
 
 class NotificationConfig(BaseModel):
@@ -261,6 +265,7 @@ def _parse_env_value(value: str, config_key: str) -> Any:
         "update_in_place",
         "aggregate_by_project",
         "show_tool_usage",
+        "show_pricing",
     ]:
         return _parse_bool_value(value)
 
@@ -325,6 +330,7 @@ def _get_display_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_PROJECT_NAME_PREFIXES": "project_name_prefixes",
         "PAR_CC_USAGE_SHOW_TOOL_USAGE": "show_tool_usage",
         "PAR_CC_USAGE_DISPLAY_MODE": "display_mode",
+        "PAR_CC_USAGE_SHOW_PRICING": "show_pricing",
     }
 
 
@@ -407,6 +413,7 @@ def save_config(config: Config, config_file: Path) -> None:
             "time_format": config.display.time_format.value,
             "project_name_prefixes": config.display.project_name_prefixes,
             "display_mode": config.display.display_mode.value,
+            "show_pricing": config.display.show_pricing,
         },
         "notifications": {
             "discord_webhook_url": config.notifications.discord_webhook_url,

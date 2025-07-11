@@ -55,6 +55,28 @@ uv run pccu test-webhook
 
 # Take a single debug snapshot (monitor once and exit)
 uv run pccu monitor --snapshot
+
+# Test pricing functionality
+uv run pccu monitor --show-pricing --snapshot
+uv run pccu list --show-pricing
+
+# Debug pricing fallbacks (using Python directly)
+uv run python -c "
+import asyncio
+from src.par_cc_usage.pricing import debug_model_pricing, calculate_token_cost
+
+async def test():
+    # Test unknown model handling
+    info = await debug_model_pricing('Unknown')
+    cost = await calculate_token_cost('Unknown', 1000, 500)
+    print(f'Unknown model: \${cost.total_cost}, info: {info}')
+    
+    # Test fallback pricing
+    cost = await calculate_token_cost('claude-opus-custom', 1000, 500)
+    print(f'Custom opus model cost: \${cost.total_cost}')
+
+asyncio.run(test())
+"
 ```
 
 ## Architecture Overview
@@ -65,7 +87,8 @@ uv run pccu monitor --snapshot
    - `file_monitor.py`: Watches Claude project directories for JSONL file changes using file position tracking
    - `token_calculator.py`: Parses JSONL lines and calculates token usage per 5-hour blocks with deduplication
    - `models.py`: Core data structures (TokenUsage, TokenBlock, Session, Project, UsageSnapshot) with timezone support
-   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics
+   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics and cost tracking
+   - `pricing.py`: LiteLLM integration for accurate cost calculations across all Claude models
 
 2. **Unified Block System**:
    The unified billing block calculation uses an optimal approach to identify the current billing period:
@@ -142,6 +165,32 @@ UsageSnapshot (aggregates everything)
                  ├── TokenUsage (individual messages)
                  └── model_tokens (per-model adjusted tokens with multipliers)
 ```
+
+### Pricing System Architecture
+
+The pricing system (`pricing.py`) provides accurate cost calculations with robust fallback handling:
+
+#### Core Components:
+- **PricingCache**: Async cache for LiteLLM pricing data with intelligent fallback logic
+- **ModelPricing**: Pydantic model for structured pricing data validation
+- **TokenCost**: Result structure for cost calculations with detailed breakdown
+
+#### Fallback Logic Hierarchy:
+1. **Direct Match**: Exact model name lookup in LiteLLM pricing cache
+2. **Variation Matching**: Tests common Claude model name patterns (e.g., `anthropic/claude-*`)
+3. **Fuzzy Matching**: Partial string matching for similar model names
+4. **Pattern-Based Fallbacks**: 
+   - Models containing "opus" → Claude Opus pricing
+   - Models containing "sonnet" → Claude Sonnet pricing
+   - Models containing "haiku" → Claude Haiku pricing
+5. **Generic Claude Fallback**: Any Claude model → Sonnet pricing as safe default
+6. **Unknown Model Handling**: Models marked as "Unknown" → $0.00 cost
+
+#### Integration Points:
+- **Display Integration**: Cost columns automatically added to activity tables when `show_pricing` enabled
+- **Async Architecture**: All pricing operations are async to prevent UI blocking
+- **Error Resilience**: Pricing failures don't break functionality, gracefully fall back to no-cost display
+- **Debug Support**: `debug_model_pricing()` function for troubleshooting pricing issues
 
 ### Critical File Interactions
 

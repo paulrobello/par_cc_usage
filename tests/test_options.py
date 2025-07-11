@@ -12,7 +12,7 @@ class TestMonitorOptions:
         """Test MonitorOptions with default values."""
         options = MonitorOptions()
 
-        assert options.display_mode == DisplayMode.NORMAL
+        assert options.display_mode is None  # Default is None, config provides the actual default
         assert options.interval == 5
         assert options.snapshot is False
         assert options.show_sessions is False
@@ -148,7 +148,7 @@ class TestMonitorOptions:
 
         # Should contain key information
         assert "MonitorOptions" in repr_str
-        assert "display_mode=DisplayMode.COMPACT" in repr_str
+        assert "display_mode=<DisplayMode.COMPACT: 'compact'>" in repr_str
         assert "interval=3" in repr_str
         assert "snapshot=True" in repr_str
         assert "token_limit=500000" in repr_str

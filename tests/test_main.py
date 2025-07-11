@@ -264,8 +264,8 @@ class TestMonitorCommand:
                         assert mock_parse_options.called
                         # Get the call arguments
                         call_args = mock_parse_options.call_args[0]
-                        # The compact parameter should be True (it's the 9th parameter, index 8)
-                        assert call_args[8] is True  # compact parameter
+                        # The compact parameter should be True (it's the 10th parameter, index 9)
+                        assert call_args[9] is True  # compact parameter
 
     def test_monitor_normal_mode_default(self, mock_config):
         """Test monitor command defaults to normal mode."""

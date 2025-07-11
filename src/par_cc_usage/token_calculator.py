@@ -361,13 +361,16 @@ def _process_token_usage(
         return None
 
 
-def _update_existing_block(block: TokenBlock, token_usage: TokenUsage, model: str, timestamp: datetime) -> bool:
+def _update_existing_block(
+    block: TokenBlock, token_usage: TokenUsage, model: str, original_model: str, timestamp: datetime
+) -> bool:
     """Update existing block with new token usage.
 
     Args:
         block: Existing block to update
         token_usage: New token usage data
-        model: Model name
+        model: Model name (normalized)
+        original_model: Original full model name
         timestamp: Current timestamp
 
     Returns:
@@ -378,6 +381,7 @@ def _update_existing_block(block: TokenBlock, token_usage: TokenUsage, model: st
         block.messages_processed += 1
         block.model = model
         block.models_used.add(model)
+        block.full_model_names.add(original_model)
         block.actual_end_time = timestamp
         block.cost_usd += token_usage.cost_usd or 0.0
         if token_usage.version and token_usage.version not in block.versions:
@@ -435,6 +439,7 @@ def _create_new_token_block(
     session_id: str,
     project_path: str,
     model: str,
+    original_model: str,
     token_usage: TokenUsage,
 ) -> None:
     """Create a new token block and add it to the session."""
@@ -457,6 +462,7 @@ def _create_new_token_block(
         token_usage=token_usage,
         messages_processed=1,
         models_used={model},
+        full_model_names={original_model},
         actual_end_time=timestamp,
         block_id=block_start.isoformat(),
         cost_usd=token_usage.cost_usd or 0.0,
@@ -493,8 +499,8 @@ def _validate_jsonl_data(data: dict[str, Any]) -> ValidationResult:
 
 def _process_message_data(
     data: dict[str, Any], dedup_state: DeduplicationState | None = None
-) -> tuple[str, TokenUsage] | None:
-    """Process message data and return model and token usage."""
+) -> tuple[str, str, TokenUsage] | None:
+    """Process message data and return normalized model, original model, and token usage."""
     # Validate using Pydantic models
     validation_result = _validate_jsonl_data(data)
     if not validation_result.is_valid or validation_result.data is None:
@@ -536,7 +542,7 @@ def _process_message_data(
     if token_usage is None:
         return None
 
-    return normalized_model, token_usage
+    return normalized_model, model, token_usage
 
 
 def _update_session_model(session: Session, model: str) -> None:
@@ -556,6 +562,7 @@ def _process_token_block(
     session_id: str,
     project_path: str,
     model: str,
+    original_model: str,
     token_usage: TokenUsage,
 ) -> None:
     """Process token usage into appropriate block (new or existing).
@@ -565,16 +572,17 @@ def _process_token_block(
         timestamp: Message timestamp
         session_id: Session identifier
         project_path: Project path
-        model: Model name
+        model: Model name (normalized)
+        original_model: Original full model name
         token_usage: Token usage data
     """
     if _should_create_new_block(session, timestamp):
-        _create_new_token_block(session, timestamp, session_id, project_path, model, token_usage)
+        _create_new_token_block(session, timestamp, session_id, project_path, model, original_model, token_usage)
     else:
         # Add to existing block
         block = session.latest_block
         if block:
-            _update_existing_block(block, token_usage, model, timestamp)
+            _update_existing_block(block, token_usage, model, original_model, timestamp)
 
 
 def process_jsonl_line(
@@ -609,13 +617,13 @@ def process_jsonl_line(
         if message_result is None:
             return
 
-        model, token_usage = message_result
+        model, original_model, token_usage = message_result
 
         # Update session model if different
         _update_session_model(session, model)
 
         # Process token usage into appropriate block
-        _process_token_block(session, timestamp, session_id, project_path, model, token_usage)
+        _process_token_block(session, timestamp, session_id, project_path, model, original_model, token_usage)
 
     except Exception:
         # Skip any entries that fail processing completely

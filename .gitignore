@@ -174,3 +174,4 @@ cache/
 todos.md
 config.yaml
 PUBLISHING.md
+/litellm_pricing.json
