@@ -56,6 +56,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Configuration Files](#configuration-files)
   - [Legacy File Migration](#legacy-file-migration)
   - [Environment Variable Override](#environment-variable-override)
+- [Coming Soon](#coming-soon)
 - [Development](#development)
 
 ## Features
@@ -689,6 +690,29 @@ export XDG_CACHE_HOME="/custom/cache/path"
 # Override data directory
 export XDG_DATA_HOME="/custom/data/path"
 ```
+
+## Coming Soon
+
+We're actively working on exciting new features to enhance your Claude Code monitoring experience:
+
+### 💰 Cost Tracking for Non-Subscribers
+- **Pay-per-use cost calculation**: Accurate cost estimates for users without Claude Pro subscriptions
+- **Real-time cost monitoring**: Live cost tracking alongside token usage
+- **Cost projections**: Estimated spending for the current billing block
+- **Historical cost analysis**: Track spending patterns over time
+- **Budget alerts**: Configurable notifications when approaching cost thresholds
+
+### 📱 Compact View Mode
+- **Minimal interface**: Streamlined display for smaller terminals and focused monitoring
+- **Essential metrics only**: Shows core information without detailed breakdowns
+- **Single-line progress**: Condensed progress indicators for space efficiency
+- **Quick overview**: Perfect for background monitoring or limited screen real estate
+- **Toggle support**: Easy switching between full and compact views
+
+### 🎨 Theme System
+- **Dark/Light themes**: Choose between dark and light color schemes
+
+**Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## Development
 
