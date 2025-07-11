@@ -95,7 +95,7 @@ uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 
 2. **Unified Block System**:
    The unified billing block calculation uses an optimal approach to identify the current billing period:
-   - **Current Block Selection**: Selects blocks that contain the current time, preferring those starting at hour boundaries (00:00 UTC)
+   - **Current Block Selection**: Selects blocks that contain the current time, preferring the earliest start time among active blocks
    - **Hour-floored start times**: All blocks start at the top of the hour in UTC
    - **Manual Override**: CLI `--block-start HOUR` option for testing and corrections (hour 0-23)
    - Logic in `token_calculator.py:create_unified_blocks()` function provides accurate billing block identification
@@ -108,14 +108,14 @@ uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
    1. **Collect All Blocks**: Gathers all blocks across all projects and sessions
    2. **Filter Active Blocks**: Keeps only blocks that are currently active
    3. **Find Current Blocks**: Identifies blocks that contain the current time
-   4. **Prefer Hour Boundaries**: Prioritizes blocks starting at 00:00 UTC for consistent billing periods
-   5. **Fallback Selection**: Uses earliest active block if no hour-boundary blocks exist
+   4. **Select Earliest**: Among current blocks, selects the one with the earliest start time
+   5. **Fallback Selection**: Uses earliest active block if no blocks contain the current time
 
    **Block Activity Logic**: A block is active if:
    - Time since last activity < 5 hours (session duration)
    - Current time < block end time (start + 5 hours)
 
-   **Key Architectural Decision**: This approach ensures consistent billing period representation by preferring blocks that start at clean hour boundaries, providing stable and predictable billing block identification.
+   **Key Architectural Decision**: This approach ensures consistent billing period representation by selecting the earliest active block that contains the current time, providing stable and predictable billing block identification.
 
 3. **Enhanced Configuration System**:
    - `config.py`: Pydantic-based configuration with structured environment variable parsing
@@ -223,9 +223,9 @@ The burn rate cost estimation provides intelligent cost projection for 5-hour bi
 
 2. **Unified Block Selection**:
    - `token_calculator.py:aggregate_usage()` → Creates UsageSnapshot
-   - `token_calculator.py:create_unified_blocks()` → Implements optimal block selection algorithm (hour-boundary preference)
+   - `token_calculator.py:create_unified_blocks()` → Implements optimal block selection algorithm (earliest active block preference)
    - `models.py:UsageSnapshot.unified_block_start_time` → Returns current billing block start time
-   - Logic correctly identifies the current billing block by preferring hour boundaries for consistent representation
+   - Logic correctly identifies the current billing block by selecting the earliest active block that contains the current time
 
 ## Important Implementation Details
 
@@ -349,7 +349,7 @@ All functions maintain cyclomatic complexity ≤ 10 through systematic refactori
 - **Configuration Loading** (`config.py`): Separated file loading, environment parsing, nested config handling, and legacy migration
 - **Monitor Function** (`main.py`): Split into initialization, token detection, and file processing helpers
 - **Debug Commands** (`commands.py`): Extracted display and data collection logic with complexity-optimized helper functions
-- **Block Selection** (`token_calculator.py`): Optimal unified block logic with hour-boundary preference for consistent billing representation
+- **Block Selection** (`token_calculator.py`): Optimal unified block logic with earliest active block preference for consistent billing representation
 - **JSONL Processing** (`token_calculator.py`): Isolated message validation and block creation
 - **Display System** (`display.py`): Modular UI components with separated rendering, calculation, and formatting logic
 - **Session Management** (`main.py`): Decomposed session listing, filtering, and analysis functions

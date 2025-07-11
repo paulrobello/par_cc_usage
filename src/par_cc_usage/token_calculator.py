@@ -631,11 +631,10 @@ def process_jsonl_line(
 
 
 def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Create unified block start time using optimal block selection.
+    """Create unified block start time using optimal block selection logic.
 
-    This implementation selects the most appropriate current billing block by
-    preferring blocks that start at hour boundaries (00:00 UTC) when multiple
-    active blocks exist, which provides consistent billing period representation.
+    This implementation finds the active block that contains the current time,
+    or falls back to the earliest active block if none contain the current time.
 
     Args:
         projects: Dictionary of projects with per-session blocks
@@ -666,28 +665,10 @@ def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
         active_blocks.sort(key=lambda block: block.start_time)
         return active_blocks[0].start_time
 
-    # Prefer blocks starting at midnight in the local timezone for consistent billing periods
-    # among blocks that contain the current time
-
-    # Get the current local midnight time in UTC (for configured timezone)
-    # Default to America/Chicago if no timezone specified
-    local_tz = pytz.timezone("America/Chicago")
-    current_time_local = now.astimezone(local_tz)
-    current_date_local = current_time_local.date()
-    local_midnight_local = local_tz.localize(datetime.combine(current_date_local, datetime.min.time()))
-    local_midnight_utc = local_midnight_local.astimezone(UTC)
-
-    # Find blocks that start at the local midnight time
-    midnight_blocks = [block for block in current_blocks if block.start_time.hour == local_midnight_utc.hour]
-
-    if midnight_blocks:
-        # If there are multiple midnight blocks, take the most recent one
-        midnight_blocks.sort(key=lambda block: block.start_time)
-        return midnight_blocks[-1].start_time
-
-    # If no midnight blocks, fall back to most recent current block
+    # Among blocks that contain the current time, return the earliest start time
+    # This ensures consistent billing block representation
     current_blocks.sort(key=lambda block: block.start_time)
-    return current_blocks[-1].start_time
+    return current_blocks[0].start_time
 
 
 def aggregate_usage(
