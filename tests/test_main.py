@@ -232,26 +232,28 @@ class TestListCommand:
         runner = CliRunner()
         
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
-                with patch('par_cc_usage.main.display_usage_list') as mock_display:
-                    result = runner.invoke(app, ["list"])
-                    
-                    assert result.exit_code == 0
-                    mock_display.assert_called_once()
+            with patch.object(type(mock_config), 'get_claude_paths', return_value=[Path("/fake/path")]):
+                with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                    with patch('par_cc_usage.main.display_usage_list') as mock_display:
+                        result = runner.invoke(app, ["list"])
+                        
+                        assert result.exit_code == 0
+                        mock_display.assert_called_once()
 
     def test_list_command_with_format(self, mock_config):
         """Test list command with format option."""
         runner = CliRunner()
         
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
-                with patch('par_cc_usage.main.display_usage_list') as mock_display:
-                    result = runner.invoke(app, ["list", "--format", "json"])
-                    
-                    assert result.exit_code == 0
-                    # Check that JSON format was passed
-                    call_args = mock_display.call_args
-                    assert call_args[1]['output_format'].value == "json"
+            with patch.object(type(mock_config), 'get_claude_paths', return_value=[Path("/fake/path")]):
+                with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                    with patch('par_cc_usage.main.display_usage_list') as mock_display:
+                        result = runner.invoke(app, ["list", "--format", "json"])
+                        
+                        assert result.exit_code == 0
+                        # Check that JSON format was passed
+                        call_args = mock_display.call_args
+                        assert call_args[1]['output_format'].value == "json"
 
 
 class TestSetLimitCommand:
