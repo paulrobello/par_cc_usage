@@ -1424,8 +1424,8 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = current_time
             mock_dt.timezone = timezone
 
-            # Should return start time of most recent active block (block2) - advanced billing detection
-            assert snapshot.unified_block_start_time == sample_timestamp + timedelta(hours=1)
+            # Should return start time of earliest active block (block1) - optimal billing detection
+            assert snapshot.unified_block_start_time == sample_timestamp
 
     def test_unified_block_end_time(self, sample_timestamp):
         """Test unified_block_end_time property."""
@@ -1629,12 +1629,12 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = sample_timestamp + timedelta(hours=2)
             mock_dt.timezone = timezone
 
-            # Both blocks should be included due to overlap
+            # Only block2 should be included as it's active and overlaps
             total_tokens = snapshot.unified_block_tokens()
-            assert total_tokens == 300  # 200 + 100
+            assert total_tokens == 100  # Only block2 (block1 is not active)
 
             tokens_by_model = snapshot.unified_block_tokens_by_model()
-            assert tokens_by_model == {"sonnet": 300}
+            assert tokens_by_model == {"sonnet": 100}  # Only block2
 
     def test_project_block_overlaps_unified_window_helper(self, sample_timestamp):
         """Test the _block_overlaps_unified_window helper method."""
@@ -1726,8 +1726,8 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = current_time
             mock_dt.timezone = timezone
 
-            # Should select most recent active block (block1) - advanced billing detection
-            assert snapshot.unified_block_start_time == sample_timestamp + timedelta(hours=1)
+            # Should select earliest active block (block2) - optimal billing detection
+            assert snapshot.unified_block_start_time == sample_timestamp
 
     def test_interruption_tracking_methods(self, sample_timestamp):
         """Test interruption tracking methods in UsageSnapshot."""

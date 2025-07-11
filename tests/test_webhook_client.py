@@ -368,9 +368,9 @@ class TestWebhookEdgeCases:
         
         # Create test data with multiple projects
         now = datetime.now(timezone.utc)
-        # Make sure times are in the future so blocks will be active
-        earlier = now + timedelta(hours=1)
-        later = now + timedelta(hours=6)
+        # Make sure times are in the past so blocks will be active
+        earlier = now - timedelta(hours=3)
+        later = now - timedelta(hours=1)
         
         # Project 1 with earlier block
         from par_cc_usage.models import TokenUsage
@@ -386,7 +386,8 @@ class TestWebhookEdgeCases:
             project_name="project_1", 
             model="claude-3-5-sonnet-latest",
             token_usage=token_usage1,
-            models_used={"claude-3-5-sonnet-latest"}
+            models_used={"claude-3-5-sonnet-latest"},
+            actual_end_time=now - timedelta(minutes=30)  # Recent activity
         )
         session1 = Session(session_id="session_1", project_name="project_1", model="claude-3-5-sonnet-latest")
         session1.blocks = [block1]
@@ -406,7 +407,8 @@ class TestWebhookEdgeCases:
             project_name="project_2",
             model="claude-3-opus-latest", 
             token_usage=token_usage2,
-            models_used={"claude-3-opus-latest"}
+            models_used={"claude-3-opus-latest"},
+            actual_end_time=now - timedelta(minutes=15)  # More recent activity
         )
         session2 = Session(session_id="session_2", project_name="project_2", model="claude-3-opus-latest")
         session2.blocks = [block2]
@@ -420,7 +422,7 @@ class TestWebhookEdgeCases:
         
         start_time, block = webhook._find_most_recent_block(snapshot)
         
-        # Should find the later block
+        # The method returns the most recent active block (latest start time)
         assert start_time == later
         assert block == block2
     

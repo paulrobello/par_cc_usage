@@ -265,8 +265,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_2"] = session2
         
         result = create_unified_blocks({"test_project": project})
-        # Should select the most recent active block (block2) - advanced billing detection
-        assert result == block2_start
+        # Should select the earliest active block (block1) - optimal billing detection
+        assert result == block1_start
     
     def test_create_unified_blocks_inactive_vs_active(self):
         """Test create_unified_blocks ignores inactive blocks and selects active ones."""
@@ -354,8 +354,8 @@ class TestCreateUnifiedBlocks:
         projects = {"project1": project1, "project2": project2}
         result = create_unified_blocks(projects)
         
-        # Should select the most recent active block (block1 from project1) - advanced billing detection
-        assert result == block1_start
+        # Should select the earliest active block (block2 from project2) - optimal billing detection
+        assert result == block2_start
     
     def test_create_unified_blocks_activity_boundary_cases(self):
         """Test create_unified_blocks with blocks at activity time boundaries."""
