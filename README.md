@@ -479,19 +479,50 @@ export PAR_CC_USAGE_AGGREGATE_BY_PROJECT=false
 - **Visual indicators**: Progress bars turn red when exceeding the original limit
 - **Real-time updates**: Limits update immediately during monitoring
 
-### Model Display Names and Token Multipliers
-Model identifiers are simplified for better readability and include cost-based multipliers:
-- `claude-opus-*` → **Opus** (5x multiplier - reflects higher cost)
-- `claude-sonnet-*` → **Sonnet** (1x multiplier - baseline cost)
-- Unknown/other models → **Unknown** (1x multiplier - baseline cost)
+### Token Usage Calculation
+
+PAR CC Usage calculates token consumption using a comprehensive approach that accounts for all token types and applies cost-based multipliers:
+
+#### Token Types Included
+- **Input tokens**: User prompts and context
+- **Output tokens**: AI responses and generated content
+- **Cache creation tokens**: Tokens used to create context caches
+- **Cache read tokens**: Tokens read from existing context caches
+
+**Total Calculation**: All token types are summed together for accurate billing representation.
+
+#### Model-Based Token Multipliers
+To reflect the actual cost differences between Claude models, tokens are adjusted using multipliers:
+
+- **Opus models** (`claude-opus-*`): **5x multiplier** - reflects significantly higher cost
+- **Sonnet models** (`claude-sonnet-*`): **1x multiplier** - baseline cost
+- **Other/Unknown models**: **1x multiplier** - baseline cost
+
+**Multiplier Application**: The multiplier is applied to the total token count (input + output + cache tokens) for each message, then aggregated by model within each billing block.
+
+#### Block-Level Aggregation
+- **Per-session blocks**: Each 5-hour session maintains separate token counts
+- **Per-model tracking**: Token counts are tracked separately for each model within a block
+- **Unified billing**: When multiple sessions are active, the system aggregates tokens from all sessions that overlap with the current billing period
+
+#### Deduplication
+- **Message + Request ID**: Prevents double-counting when JSONL files are re-processed
+- **Processed hash tracking**: Maintains a cache of seen message combinations
+- **Cross-session deduplication**: Works across all active sessions and projects
+
+#### Display Calculations
+- **Unified Block Total**: Shows tokens from all sessions overlapping the current 5-hour billing window
+- **Per-Model Breakdown**: Displays individual model contributions with multipliers applied
+- **Burn Rate**: Calculated as tokens per minute based on activity within the current block
+- **Projections**: Estimates total block usage based on current burn rate
+
+### Model Display Names
+Model identifiers are simplified for better readability:
+- `claude-opus-*` → **Opus**
+- `claude-sonnet-*` → **Sonnet** 
+- Unknown/other models → **Unknown**
 
 **Note**: Claude Code primarily uses Opus and Sonnet models. Any other model names (including Haiku) are normalized to "Unknown".
-
-**Token Multiplier System:**
-- **Opus tokens are multiplied by 5x** to reflect their significantly higher cost
-- **All other models use 1x** (no multiplier) as the baseline
-- **Per-model tracking**: Each token block maintains accurate per-model token counts with multipliers applied
-- **Total calculation**: The total token count equals the sum of all individual model tokens
 
 ### Time Format Options
 Configure time display format through `display.time_format` setting:
