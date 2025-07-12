@@ -64,3 +64,13 @@ class DisplayMode(str, Enum):
 
     NORMAL = "normal"
     COMPACT = "compact"
+
+
+class ThemeType(str, Enum):
+    """Theme type options for display styling."""
+
+    DEFAULT = "default"
+    DARK = "dark"
+    LIGHT = "light"
+    ACCESSIBILITY = "accessibility"
+    MINIMAL = "minimal"

@@ -893,10 +893,10 @@ class TestMonitorDisplayEdgeCases:
         """Test progress colors for all percentage ranges."""
         display = MonitorDisplay()
 
-        # Test low usage (< 50%) - green
+        # Test low usage (< 50%) - green (now includes color in style)
         bar_color, text_style = display._get_progress_colors(25.0, 25000, 100000)
         assert bar_color == "#00FF00"
-        assert text_style == "bold"  # Green is just "bold"
+        assert text_style == "bold #00FF00"  # Now includes color with theme system
 
         # Test medium usage (50-75%) - yellow
         bar_color, text_style = display._get_progress_colors(60.0, 60000, 100000)
@@ -908,10 +908,10 @@ class TestMonitorDisplayEdgeCases:
         assert bar_color == "#FFA500"
         assert text_style == "bold #FFA500"
 
-        # Test very high usage (> 90%) - red
+        # Test very high usage (> 90%) - red (uses get_style for critical)
         bar_color, text_style = display._get_progress_colors(95.0, 95000, 100000)
         assert bar_color == "#FF0000"
-        assert text_style == "bold #FF0000"
+        assert text_style == "#FF0000 bold"  # get_style puts color first
 
     def test_create_tool_usage_table_with_tools(self):
         """Test tool usage table creation when tools are used."""

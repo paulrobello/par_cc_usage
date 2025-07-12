@@ -15,6 +15,7 @@ from rich.text import Text
 
 from .enums import DisplayMode
 from .models import Project, Session, UsageSnapshot
+from .theme import get_color, get_progress_color, get_style, get_theme_manager
 from .token_calculator import format_token_count, get_model_display_name
 from .utils import format_datetime, format_time_range
 
@@ -40,6 +41,18 @@ class MonitorDisplay:
         self.config = config
         self.show_tool_usage = config and config.display.show_tool_usage if config else True
         self.compact_mode = config and config.display.display_mode == DisplayMode.COMPACT if config else False
+
+        # Set up theme if config is provided
+        if config and hasattr(config, "display") and hasattr(config.display, "theme"):
+            theme_manager = get_theme_manager()
+            try:
+                theme_manager.set_current_theme(config.display.theme)
+            except ValueError:
+                # If theme is invalid (e.g., mock object), use default theme
+                from .enums import ThemeType
+
+                theme_manager.set_current_theme(ThemeType.DEFAULT)
+
         self._setup_layout(show_sessions)
 
     def _strip_project_name(self, project_name: str) -> str:
@@ -106,16 +119,16 @@ class MonitorDisplay:
         current_time = format_datetime(snapshot.timestamp, self.time_format)
 
         header_text = Text()
-        header_text.append(f"Active Projects: {active_projects}", style="bold #00FF00")
+        header_text.append(f"Active Projects: {active_projects}", style=get_style("success", bold=True))
         header_text.append("  │  ", style="dim")
-        header_text.append(f"Active Sessions: {active_sessions}", style="bold #00FFFF")
+        header_text.append(f"Active Sessions: {active_sessions}", style=get_style("secondary", bold=True))
         header_text.append("\n")
         header_text.append(f"Current Time: {current_time}", style="dim")
 
         return Panel(
             header_text,
             title="PAR Claude Code Usage Monitor",
-            border_style="#4169E1",
+            border_style=get_color("primary"),
         )
 
     def _create_block_progress(self, snapshot: UsageSnapshot) -> Panel:
@@ -161,7 +174,7 @@ class MonitorDisplay:
             BarColumn(bar_width=25),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn(format_time_range(block_start, block_end, self.time_format)),
-            TextColumn(f"({hours_left}h {minutes_left}m left)", style="bold #FFFF00"),
+            TextColumn(f"({hours_left}h {minutes_left}m left)", style=get_style("warning", bold=True)),
             console=self.console,
             expand=False,
         )
@@ -171,7 +184,7 @@ class MonitorDisplay:
 
         return Panel(
             block_info,
-            border_style="#0000FF",
+            border_style=get_color("info"),
             height=3,
         )
 
@@ -218,13 +231,13 @@ class MonitorDisplay:
 
             model_text = Text()
             model_text.append(f"{emoji} {display_name:8}", style="bold")
-            model_text.append(f"{format_token_count(tokens):>12}", style="#FFFF00")
+            model_text.append(f"{format_token_count(tokens):>12}", style=get_color("token_count"))
 
             # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
             if model_interruptions is not None and not self.compact_mode:
                 interruption_count = model_interruptions.get(model, 0)
                 # Green for 0 interruptions (good), red for actual interruptions (warning)
-                color = "#00FF00" if interruption_count == 0 else "#FF6B6B"
+                color = get_color("interruption_none") if interruption_count == 0 else get_color("interruption_present")
                 model_text.append(f"  ({interruption_count} Interrupted)", style=color)
 
             model_displays.append(model_text)
@@ -272,19 +285,19 @@ class MonitorDisplay:
 
             model_text = Text()
             model_text.append(f"{emoji} {display_name:8}", style="bold")
-            model_text.append(f"{format_token_count(tokens):>12}", style="#FFFF00")
+            model_text.append(f"{format_token_count(tokens):>12}", style=get_color("token_count"))
 
             # Add pricing if enabled
             if self.config and self.config.display.show_pricing:
                 cost = model_costs.get(model, 0.0)
                 if cost > 0:
-                    model_text.append(f"  {format_cost(cost)}", style="#00FF80")
+                    model_text.append(f"  {format_cost(cost)}", style=get_color("cost"))
 
             # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
             if model_interruptions is not None and not self.compact_mode:
                 interruption_count = model_interruptions.get(model, 0)
                 # Green for 0 interruptions (good), red for actual interruptions (warning)
-                color = "#00FF00" if interruption_count == 0 else "#FF6B6B"
+                color = get_color("interruption_none") if interruption_count == 0 else get_color("interruption_present")
                 model_text.append(f"  ({interruption_count} Interrupted)", style=color)
 
             model_displays.append(model_text)
@@ -301,23 +314,13 @@ class MonitorDisplay:
         Returns:
             Tuple of (bar_color, text_style)
         """
-        # Determine color based on percentage thresholds
-        if percentage >= 90:
-            bar_color = "#FF0000"  # red
-            text_style = "bold #FF0000"
-        elif percentage >= 75:
-            bar_color = "#FFA500"  # orange
-            text_style = "bold #FFA500"
-        elif percentage >= 50:
-            bar_color = "#FFFF00"  # yellow
-            text_style = "bold #FFFF00"
-        else:
-            bar_color = "#00FF00"  # green
-            text_style = "bold"
+        # Determine color based on percentage thresholds using theme
+        bar_color = get_progress_color(percentage)
+        text_style = get_style("progress_critical", bold=True) if percentage >= 90 else f"bold {bar_color}"
 
         # Add warning color if over original limit (overrides percentage colors)
         if total_tokens > base_limit:
-            text_style = "bold #FF0000"  # red
+            text_style = get_style("error", bold=True)
 
         return bar_color, text_style
 
@@ -431,7 +434,7 @@ class MonitorDisplay:
         return Panel(
             all_progress,
             title="Token Usage by Model",
-            border_style="#FFFF00",
+            border_style=get_color("border"),
         )
 
     def _create_tool_usage_table(self, snapshot: UsageSnapshot) -> Table:
@@ -451,7 +454,7 @@ class MonitorDisplay:
             show_lines=False,
             expand=True,
             title="Tool Use",
-            border_style="#FF9900",
+            border_style=get_color("tool_usage"),
         )
 
         # Only show tool usage if enabled
@@ -485,8 +488,8 @@ class MonitorDisplay:
 
         # Add columns based on calculated layout
         for _col in range(num_cols):
-            table.add_column("Tool", style="#FF9900", no_wrap=False)
-            table.add_column("Count", justify="right", style="#FFFF00", width=6)
+            table.add_column("Tool", style=get_color("tool_usage"), no_wrap=False)
+            table.add_column("Count", justify="right", style=get_color("token_count"), width=6)
 
         # Calculate tools per column for even distribution
         tools_per_col = (len(sorted_tools) + num_cols - 1) // num_cols  # Ceiling division
@@ -555,11 +558,11 @@ class MonitorDisplay:
         """Determine color based on percentage of limit."""
         percentage = (estimated_total / total_limit) * 100
         if percentage >= 100:
-            return "bold #FF0000"  # red
+            return get_style("error", bold=True)
         elif percentage >= 95:
-            return "bold #FFA500"  # orange
+            return get_style("warning", bold=True)
         else:
-            return "bold #00FF00"  # green
+            return get_style("success", bold=True)
 
     async def _calculate_estimated_cost(self, snapshot: UsageSnapshot, elapsed_minutes: float) -> str:
         """Calculate estimated cost for the full 5-hour block."""
@@ -594,21 +597,21 @@ class MonitorDisplay:
 
         burn_rate_text = Text()
         burn_rate_text.append("🔥 Burn    ", style="bold")
-        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style="#00FFFF")
+        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style=get_color("burn_rate"))
         burn_rate_text.append("  Est: ", style="dim")
         burn_rate_text.append(f"{format_token_count(int(estimated_total)):>8}", style=color)
         burn_rate_text.append(f" ({percentage:>3.0f}%)", style=color)
 
         if estimated_cost_text:
-            burn_rate_text.append(estimated_cost_text, style="#00FF80")
+            burn_rate_text.append(estimated_cost_text, style=get_color("cost"))
 
         if remaining_tokens > 0:
             burn_rate_text.append("  ETA: ", style="dim")
             if burn_rate_per_minute > 0:
-                eta_style = "#FF0000" if eta_before_block_end else "#00FFFF"
+                eta_style = get_color("eta_urgent") if eta_before_block_end else get_color("eta_normal")
                 burn_rate_text.append(eta_display, style=eta_style)
             else:
-                burn_rate_text.append("∞", style="#00FF00")
+                burn_rate_text.append("∞", style=get_color("success"))
 
         return burn_rate_text
 
@@ -702,17 +705,12 @@ class MonitorDisplay:
 
         # Determine color based on percentage of limit
         percentage = (estimated_total / total_limit) * 100
-        if percentage >= 100:
-            color = "bold #FF0000"  # red
-        elif percentage >= 95:
-            color = "bold #FFA500"  # orange
-        else:
-            color = "bold #00FF00"  # green
+        color = self._calculate_burn_rate_color(estimated_total, total_limit)
 
         # Format the display (without cost)
         burn_rate_text = Text()
         burn_rate_text.append("🔥 Burn    ", style="bold")
-        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style="#00FFFF")
+        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style=get_color("burn_rate"))
         burn_rate_text.append("  Est: ", style="dim")
         burn_rate_text.append(f"{format_token_count(int(estimated_total)):>8}", style=color)
         burn_rate_text.append(f" ({percentage:>3.0f}%)", style=color)
@@ -722,10 +720,10 @@ class MonitorDisplay:
             burn_rate_text.append("  ETA: ", style="dim")
             if burn_rate_per_minute > 0:
                 # Color ETA red if it's before block end (urgent), otherwise cyan (less urgent)
-                eta_style = "#FF0000" if eta_before_block_end else "#00FFFF"
+                eta_style = get_color("eta_urgent") if eta_before_block_end else get_color("eta_normal")
                 burn_rate_text.append(eta_display, style=eta_style)
             else:
-                burn_rate_text.append("∞", style="#00FF00")
+                burn_rate_text.append("∞", style=get_color("success"))
 
         return burn_rate_text
 
@@ -785,7 +783,7 @@ class MonitorDisplay:
         table = Table(
             title=None,
             show_header=True,
-            header_style="bold #FF00FF",
+            header_style=get_style("accent", bold=True),
             show_lines=False,
             expand=False,
         )
@@ -807,20 +805,20 @@ class MonitorDisplay:
         return Panel(
             table,
             title=title,
-            border_style="#00FF00",
+            border_style=get_color("success"),
         )
 
     def _add_project_table_columns(self, table: Table, show_pricing: bool) -> None:
         """Add columns to project table."""
-        table.add_column("Project", style="#00FFFF")
-        table.add_column("Model", style="green")
-        table.add_column("Tokens", style="#FFFF00", justify="right")
+        table.add_column("Project", style=get_color("project_name"))
+        table.add_column("Model", style=get_color("model_name"))
+        table.add_column("Tokens", style=get_color("token_count"), justify="right")
 
         if show_pricing:
-            table.add_column("Cost", style="#00FF80", justify="right")
+            table.add_column("Cost", style=get_color("cost"), justify="right")
 
         if self.config.display.show_tool_usage:
-            table.add_column("Tools", style="#FF9900", justify="center")
+            table.add_column("Tools", style=get_color("tool_usage"), justify="center")
 
     async def _calculate_project_cost(self, project: Project, unified_start: datetime | None) -> float:
         """Calculate total cost for a project."""
@@ -958,16 +956,16 @@ class MonitorDisplay:
 
     def _add_session_table_columns(self, table: Table, show_pricing: bool) -> None:
         """Add columns to session table."""
-        table.add_column("Project", style="#00FFFF")
+        table.add_column("Project", style=get_color("project_name"))
         table.add_column("Session ID", style="dim")
-        table.add_column("Model", style="green")
-        table.add_column("Tokens", style="#FFFF00", justify="right")
+        table.add_column("Model", style=get_color("model_name"))
+        table.add_column("Tokens", style=get_color("token_count"), justify="right")
 
         if show_pricing:
-            table.add_column("Cost", style="#00FF80", justify="right")
+            table.add_column("Cost", style=get_color("cost"), justify="right")
 
         if self.config.display.show_tool_usage:
-            table.add_column("Tools", style="#FF9900", justify="center")
+            table.add_column("Tools", style=get_color("tool_usage"), justify="center")
 
     async def _collect_session_data(self, snapshot: UsageSnapshot, unified_start: datetime | None, show_pricing: bool):
         """Collect and sort session data."""
@@ -1144,7 +1142,7 @@ class MonitorDisplay:
         table = Table(
             title=None,
             show_header=True,
-            header_style="bold #FF00FF",
+            header_style=get_style("accent", bold=True),
             show_lines=False,
             expand=False,
         )
@@ -1166,18 +1164,18 @@ class MonitorDisplay:
         return Panel(
             table,
             title=title,
-            border_style="#00FF00",
+            border_style=get_color("success"),
         )
 
     def _populate_project_table_sync(
         self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
     ) -> None:
         """Populate table with project aggregated data (sync version without pricing)."""
-        table.add_column("Project", style="#00FFFF")
-        table.add_column("Model", style="green")
-        table.add_column("Tokens", style="#FFFF00", justify="right")
+        table.add_column("Project", style=get_color("project_name"))
+        table.add_column("Model", style=get_color("model_name"))
+        table.add_column("Tokens", style=get_color("token_count"), justify="right")
         if self.config.display.show_tool_usage:
-            table.add_column("Tools", style="#FF9900", justify="center")
+            table.add_column("Tools", style=get_color("tool_usage"), justify="center")
 
         # Collect project data (without cost)
         active_projects: list[tuple[Project, int, set[str], datetime | None, set[str], int]] = []
@@ -1243,12 +1241,12 @@ class MonitorDisplay:
         self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
     ) -> None:
         """Populate table with session data (sync version without pricing)."""
-        table.add_column("Project", style="#00FFFF")
+        table.add_column("Project", style=get_color("project_name"))
         table.add_column("Session ID", style="dim")
-        table.add_column("Model", style="green")
-        table.add_column("Tokens", style="#FFFF00", justify="right")
+        table.add_column("Model", style=get_color("model_name"))
+        table.add_column("Tokens", style=get_color("token_count"), justify="right")
         if self.config.display.show_tool_usage:
-            table.add_column("Tools", style="#FF9900", justify="center")
+            table.add_column("Tools", style=get_color("tool_usage"), justify="center")
 
         # Collect all active sessions with their data (without cost)
         active_sessions: list[tuple[Project, Session, int, set[str], datetime | None, set[str], int]] = []
@@ -1501,7 +1499,7 @@ class MonitorDisplay:
         return Panel(
             all_progress,
             title="Token Usage by Model",
-            border_style="#FFFF00",
+            border_style=get_color("border"),
         )
 
     def render(self) -> Layout:
@@ -1593,9 +1591,9 @@ def create_error_display(error_message: str) -> Panel:
         Error panel
     """
     return Panel(
-        Text(error_message, style="bold red"),
+        Text(error_message, style=get_style("error", bold=True)),
         title="Error",
-        border_style="#FF0000",
+        border_style=get_color("error"),
         expand=False,
     )
 
@@ -1610,8 +1608,8 @@ def create_info_display(info_message: str) -> Panel:
         Info panel
     """
     return Panel(
-        Text(info_message, style="bold #0000FF"),
+        Text(info_message, style=get_style("info", bold=True)),
         title="Info",
-        border_style="#0000FF",
+        border_style=get_color("info"),
         expand=False,
     )

@@ -23,12 +23,13 @@ from .config import (
     update_config_token_limit,
 )
 from .display import DisplayManager, create_error_display, create_info_display
-from .enums import DisplayMode, OutputFormat, SortBy
+from .enums import DisplayMode, OutputFormat, SortBy, ThemeType
 from .file_monitor import FileMonitor, FileState, JSONLReader, parse_session_from_path
 from .list_command import display_usage_list
 from .models import DeduplicationState, Project, UsageSnapshot
 from .notification_manager import NotificationManager
 from .options import MonitorOptions, TestWebhookOptions
+from .theme import apply_temporary_theme, get_color, get_theme_manager
 from .token_calculator import aggregate_usage, detect_token_limit_from_data, process_jsonl_line
 from .xdg_dirs import get_config_file_path
 
@@ -165,7 +166,7 @@ def _initialize_config(config_file: Path | None) -> tuple[Config, Path | None]:
     return config, actual_config_file
 
 
-def _print_config_info(config: Config) -> None:
+def _print_config_info(config: Config, theme_override: ThemeType | None = None) -> None:
     """Print loaded configuration values and time information."""
     # Show loaded configuration values
     console.print("\n[bold green]Configuration Values:[/bold green]")
@@ -179,6 +180,12 @@ def _print_config_info(config: Config) -> None:
     console.print(f"  • Show progress bars: {config.display.show_progress_bars}")
     console.print(f"  • Show active sessions: {config.display.show_active_sessions}")
     console.print(f"  • Refresh interval: {config.display.refresh_interval}s")
+
+    # Show theme - display override if present, otherwise config value
+    if theme_override is not None:
+        console.print(f"  • Theme: {theme_override.value} [dim](override)[/dim]")
+    else:
+        console.print(f"  • Theme: {config.display.theme.value}")
 
     # Show time information
     from datetime import datetime
@@ -480,6 +487,7 @@ def monitor(
         bool, typer.Option("--snapshot", help="Take a single snapshot and exit (for debugging)")
     ] = False,
     compact: Annotated[bool, typer.Option("--compact", help="Use compact display mode (minimal view)")] = False,
+    theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
 ) -> None:
     """Monitor Claude Code token usage in real-time."""
     import asyncio
@@ -497,6 +505,7 @@ def monitor(
             block_start_override=block_start_override,
             snapshot=snapshot,
             compact=compact,
+            theme=theme,
         )
     )
 
@@ -512,11 +521,22 @@ async def _monitor_async(
     block_start_override: int | None,
     snapshot: bool,
     compact: bool,
+    theme: ThemeType | None,
 ) -> None:
     """Async implementation of monitor command."""
     # Initialize configuration
     config, actual_config_file = _initialize_config(config_file)
-    _print_config_info(config)
+
+    # Apply temporary theme override if provided (before printing config)
+    if theme is not None:
+        apply_temporary_theme(theme)
+
+    _print_config_info(config, theme)
+
+    # Create themed console after theme is applied
+    from .theme import create_themed_console
+
+    themed_console = create_themed_console()
 
     # Parse monitor options
     options = _parse_monitor_options(
@@ -582,7 +602,7 @@ async def _monitor_async(
 
         # Display snapshot
         with DisplayManager(
-            console=console,
+            console=themed_console,
             refresh_interval=config.display.refresh_interval,
             update_in_place=False,  # Don't update in place for snapshot
             show_sessions=config.display.show_active_sessions,
@@ -591,21 +611,27 @@ async def _monitor_async(
         ) as display_manager:
             await display_manager.update(usage_snapshot)
 
-        console.print("\n[green]Snapshot complete.[/green]")
+        from .theme import get_color
+
+        themed_console.print(f"\n[{get_color('success')}]Snapshot complete.[/{get_color('success')}]")
         return
 
     # Start display
     with DisplayManager(
-        console=console,
+        console=themed_console,
         refresh_interval=config.display.refresh_interval,
         update_in_place=config.display.update_in_place,
         show_sessions=config.display.show_active_sessions,
         time_format=config.display.time_format,
         config=config,
     ) as display_manager:
-        console.print(f"[green]Monitoring token usage (refresh every {config.polling_interval}s)...[/green]")
+        from .theme import get_color
 
-        console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+        themed_console.print(
+            f"[{get_color('success')}]Monitoring token usage (refresh every {config.polling_interval}s)...[/{get_color('success')}]"
+        )
+
+        themed_console.print("[dim]Press Ctrl+C to stop[/dim]\n")
 
         # Monitor loop
         while not stop_monitoring:
@@ -641,12 +667,12 @@ async def _monitor_async(
                 time.sleep(config.polling_interval)
 
             except Exception as e:
-                console.print(create_error_display(f"Monitor error: {e}"))
+                themed_console.print(create_error_display(f"Monitor error: {e}"))
                 time.sleep(config.polling_interval)
 
     # Clean up
     monitor.save_state()
-    console.print("\n[green]Monitor stopped.[/green]")
+    themed_console.print(f"\n[{get_color('success')}]Monitor stopped.[/{get_color('success')}]")
 
 
 @app.command(name="list")
@@ -655,21 +681,35 @@ def list_usage(
     sort_by: Annotated[SortBy, typer.Option("--sort-by", "-s", help="Sort results by field")] = SortBy.TOKENS,
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Output file path")] = None,
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
 ) -> None:
     """List all token usage data."""
     # Load configuration (defaults to XDG config location)
     config_file_to_load = config_file if config_file else get_config_file_path()
     config = load_config(config_file)
 
+    # Apply temporary theme override if provided
+    if theme is not None:
+        apply_temporary_theme(theme)
+
+    # Create themed console after theme application
+    from .theme import create_themed_console
+
+    themed_console = create_themed_console()
+
     # Check if Claude directories exist
     claude_paths = config.get_claude_paths()
     if not claude_paths:
-        console.print(create_error_display("No Claude directories found!"))
+        themed_console.print(create_error_display("No Claude directories found!"))
         sys.exit(1)
 
     # Scan all projects
     if output_format == OutputFormat.TABLE:
-        console.print(f"[cyan]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/cyan]")
+        from .theme import get_color
+
+        themed_console.print(
+            f"[{get_color('info')}]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/{get_color('info')}]"
+        )
     projects = scan_all_projects(config, use_cache=False)
 
     # Detect token limit if not set
@@ -679,13 +719,17 @@ def list_usage(
         if detected_limit:
             config.token_limit = detected_limit
             if output_format == OutputFormat.TABLE:
-                console.print(f"[yellow]Auto-detected token limit: {config.token_limit:,}[/yellow]")
+                themed_console.print(
+                    f"[{get_color('warning')}]Auto-detected token limit: {config.token_limit:,}[/{get_color('warning')}]"
+                )
 
             # Update config file if it exists
             if config_file_used.exists():
                 update_config_token_limit(config_file_used, config.token_limit)
                 if output_format == OutputFormat.TABLE:
-                    console.print("[green]Updated config file with token limit[/green]")
+                    themed_console.print(
+                        f"[{get_color('success')}]Updated config file with token limit[/{get_color('success')}]"
+                    )
         else:
             config.token_limit = get_default_token_limit()
 
@@ -698,7 +742,7 @@ def list_usage(
         output_format=output_format,
         sort_by=sort_by,
         output_file=output,
-        console=console,
+        console=themed_console,
         time_format=config.display.time_format,
     )
 
@@ -888,7 +932,7 @@ def _create_sessions_table(show_pricing: bool):
     table.add_column("Last Activity", style="dim")
 
     if show_pricing:
-        table.add_column("Cost", style="#00FF80", justify="right")
+        table.add_column("Cost", style=get_color("cost"), justify="right")
 
     return table
 
@@ -925,6 +969,55 @@ async def _calculate_session_cost(session) -> float:
     return cost
 
 
+async def _collect_filtered_sessions(projects, project_filter, session_filter, show_inactive, show_pricing):
+    """Collect sessions that match the filters."""
+    all_sessions = []
+    for project in projects.values():
+        for session in project.sessions.values():
+            if not _session_matches_filters(project, session, project_filter, session_filter):
+                continue
+
+            latest_block = session.latest_block
+            if not latest_block:
+                continue
+
+            is_active = latest_block.is_active
+            if not show_inactive and not is_active:
+                continue
+
+            cost = await _calculate_session_cost(session) if show_pricing else 0.0
+            all_sessions.append((project, session, latest_block, is_active, cost))
+
+    return all_sessions
+
+
+def _populate_sessions_table(table, all_sessions, config, show_pricing):
+    """Populate the sessions table with data."""
+    from .token_calculator import format_token_count, get_model_display_name
+    from .utils import format_datetime
+
+    for project, session, block, is_active, cost in all_sessions:
+        status = "🟢 Active" if is_active else "🔴 Inactive"
+        last_activity = block.actual_end_time or block.start_time
+        time_str = format_datetime(last_activity, config.display.time_format)
+
+        row_data = [
+            project.name,
+            session.session_id[:12] + "...",
+            get_model_display_name(block.model),
+            status,
+            format_token_count(session.total_tokens),
+            time_str,
+        ]
+
+        if show_pricing:
+            from .pricing import format_cost
+
+            row_data.append(format_cost(cost) if cost > 0 else "-")
+
+        table.add_row(*row_data)
+
+
 @app.command("list-sessions")
 def list_sessions(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
@@ -932,65 +1025,33 @@ def list_sessions(
     project_filter: Annotated[str | None, typer.Option("--project", "-p", help="Filter by project name")] = None,
     session_filter: Annotated[str | None, typer.Option("--session", "-s", help="Filter by session ID")] = None,
     show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+    theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
 ) -> None:
     """List all sessions with their status and activity information."""
     import asyncio
 
-    from .token_calculator import format_token_count, get_model_display_name
-
     async def _list_sessions_async() -> None:
         config = load_config(config_file)
+
+        # Apply temporary theme override if provided
+        if theme is not None:
+            apply_temporary_theme(theme)
+
         console.print(f"[dim]Scanning projects in {config.projects_dir}...[/]")
 
         projects = _scan_projects_for_sessions(config)
         table = _create_sessions_table(show_pricing)
 
-        # Collect all sessions
-        all_sessions = []
-        for project in projects.values():
-            for session in project.sessions.values():
-                if not _session_matches_filters(project, session, project_filter, session_filter):
-                    continue
-
-                latest_block = session.latest_block
-                if not latest_block:
-                    continue
-
-                is_active = latest_block.is_active
-                if not show_inactive and not is_active:
-                    continue
-
-                cost = await _calculate_session_cost(session) if show_pricing else 0.0
-                all_sessions.append((project, session, latest_block, is_active, cost))
+        # Collect and filter sessions
+        all_sessions = await _collect_filtered_sessions(
+            projects, project_filter, session_filter, show_inactive, show_pricing
+        )
 
         # Sort by last activity (newest first)
         all_sessions.sort(key=lambda x: x[2].actual_end_time or x[2].start_time, reverse=True)
 
-        # Add rows
-        for project, session, block, is_active, cost in all_sessions:
-            status = "🟢 Active" if is_active else "🔴 Inactive"
-            last_activity = block.actual_end_time or block.start_time
-
-            # Format time
-            from .utils import format_datetime
-
-            time_str = format_datetime(last_activity, config.display.time_format)
-
-            row_data = [
-                project.name,
-                session.session_id[:12] + "...",
-                get_model_display_name(block.model),
-                status,
-                format_token_count(session.total_tokens),
-                time_str,
-            ]
-
-            if show_pricing:
-                from .pricing import format_cost
-
-                row_data.append(format_cost(cost) if cost > 0 else "-")
-
-            table.add_row(*row_data)
+        # Populate table
+        _populate_sessions_table(table, all_sessions, config, show_pricing)
 
         if table.row_count == 0:
             console.print("[dim italic]No sessions found matching criteria[/]")
@@ -1188,7 +1249,7 @@ def _display_table_results(filtered_sessions, config, show_pricing):
     table.add_column("Latest Activity", style="dim")
 
     if show_pricing:
-        table.add_column("Cost", style="#00FF80", justify="right")
+        table.add_column("Cost", style=get_color("cost"), justify="right")
 
     for project, session, cost in filtered_sessions:
         is_active = any(block.is_active for block in session.blocks)
@@ -1315,3 +1376,62 @@ def filter_sessions(
             _display_csv_results(filtered_sessions, show_pricing)
 
     asyncio.run(_filter_sessions_async())
+
+
+@app.command("theme")
+def theme_command(
+    action: Annotated[str, typer.Argument(help="Action: list, set, or current")] = "list",
+    theme_name: Annotated[str | None, typer.Argument(help="Theme name for 'set' action")] = None,
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+) -> None:
+    """Manage display themes."""
+    console = Console()
+    theme_manager = get_theme_manager()
+
+    if action == "list":
+        themes = theme_manager.list_themes()
+        console.print("Available themes:", style="bold")
+        for theme_type, theme_def in themes.items():
+            current_marker = "→ " if theme_type == theme_manager.get_current_theme_type() else "  "
+            console.print(f"{current_marker}[bold]{theme_def.name}[/bold] ({theme_type.value})")
+            console.print(f"    {theme_def.description}", style="dim")
+
+    elif action == "current":
+        current_theme = theme_manager.get_current_theme()
+        console.print(
+            f"Current theme: [bold]{current_theme.name}[/bold] ({theme_manager.get_current_theme_type().value})"
+        )
+        console.print(f"Description: {current_theme.description}")
+
+    elif action == "set":
+        if not theme_name:
+            console.print("Error: Theme name required for 'set' action", style="red")
+            raise typer.Exit(1)
+
+        try:
+            theme_type = ThemeType(theme_name)
+
+            # Load config and update theme
+            config = load_config(config_file)
+            config.display.theme = theme_type
+
+            # Determine config file path - use default if not specified
+            if config_file is None:
+                config_file = get_config_file_path()
+
+            save_config(config, config_file)
+
+            theme_def = theme_manager.get_theme(theme_type)
+            console.print(f"Theme set to: [bold]{theme_def.name}[/bold]")
+            console.print("The new theme will be applied when you next run the monitor.", style="dim")
+
+        except ValueError as e:
+            available_themes = [t.value for t in ThemeType]
+            console.print(f"Error: Invalid theme '{theme_name}'", style="red")
+            console.print(f"Available themes: {', '.join(available_themes)}")
+            raise typer.Exit(1) from e
+
+    else:
+        console.print(f"Error: Unknown action '{action}'", style="red")
+        console.print("Available actions: list, set, current")
+        raise typer.Exit(1)

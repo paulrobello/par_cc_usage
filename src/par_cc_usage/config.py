@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-from .enums import DisplayMode, TimeFormat
+from .enums import DisplayMode, ThemeType, TimeFormat
 from .utils import expand_path
 from .xdg_dirs import (
     get_cache_dir,
@@ -49,6 +49,10 @@ class DisplayConfig(BaseModel):
     show_pricing: bool = Field(
         default=False,
         description="Show pricing information next to token counts",
+    )
+    theme: ThemeType = Field(
+        default=ThemeType.DEFAULT,
+        description="Theme to use for display styling: 'default', 'dark', 'light', 'accessibility', or 'minimal'",
     )
 
 
@@ -331,6 +335,7 @@ def _get_display_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_SHOW_TOOL_USAGE": "show_tool_usage",
         "PAR_CC_USAGE_DISPLAY_MODE": "display_mode",
         "PAR_CC_USAGE_SHOW_PRICING": "show_pricing",
+        "PAR_CC_USAGE_THEME": "theme",
     }
 
 
