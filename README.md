@@ -24,6 +24,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [💰 Cost Tracking & Pricing](#-cost-tracking--pricing)
   - [📁 File System Support](#-file-system-support)
   - [🌐 Configuration & Customization](#-configuration--customization)
+  - [🎨 Theme System](#-theme-system)
   - [🔔 Notification System](#-notification-system)
   - [🛠️ Developer Tools](#️-developer-tools)
 - [Installation](#installation)
@@ -59,7 +60,13 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Legacy File Migration](#legacy-file-migration)
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
-- [Recent Updates](#recent-updates)
+- [What's New](#whats-new)
+  - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
+  - [v0.1.3 - Code Quality Improvements](#v013---code-quality-improvements)
+  - [v0.1.2 - Pricing & Cost Tracking](#v012---pricing--cost-tracking)
+  - [v0.1.1 - Enhanced Analytics](#v011---enhanced-analytics)
+  - [v0.1.0 - Core Features](#v010---core-features)
+  - [older...](#older)
 - [Development](#development)
 
 ## Features
@@ -115,6 +122,14 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Time formats**: 12-hour or 24-hour time display options
 - **Project name cleanup**: Strip common path prefixes for cleaner display
 - **Flexible output**: Table, JSON, and CSV export formats
+
+### 🎨 Theme System
+- **Multiple built-in themes**: Choose from 5 carefully crafted themes for different preferences
+- **Light and dark themes**: Options for both dark terminal and light terminal users
+- **Accessibility support**: High contrast theme meeting WCAG AAA standards
+- **Session-based overrides**: Temporarily change themes for individual command runs
+- **Rich color integration**: Semantic color system with consistent visual language
+- **CLI theme management**: Built-in commands for theme configuration and preview
 
 ### 🔔 Notification System
 - **Discord integration**: Webhook notifications for billing block completion
@@ -216,6 +231,12 @@ pccu monitor --compact --interval 3  # Minimal display with frequent updates
 pccu monitor --show-pricing  # Enable cost calculations and display
 pccu monitor --show-sessions --show-pricing  # Session view with cost breakdown
 pccu monitor --show-pricing --config pricing-config.yaml  # Cost monitoring with config
+
+# Theme customization
+pccu monitor --theme light  # Use light theme for this session
+pccu monitor --theme dark --show-sessions  # Dark theme with session details
+pccu monitor --theme accessibility --show-pricing  # High contrast theme with pricing
+pccu monitor --theme minimal --compact  # Minimal theme with compact display
 ```
 
 #### Monitor Display Features
@@ -257,6 +278,11 @@ pccu list --sort-by tokens --show-pricing --format table
 
 # Save detailed report with costs to file
 pccu list --show-pricing --output usage-report.json --format json
+
+# Theme customization for list output
+pccu list --theme light --show-pricing  # Light theme with pricing
+pccu list --theme accessibility --format table  # High contrast theme
+pccu list --theme minimal --sort-by tokens  # Minimal theme with token sorting
 ```
 
 ### Configuration Management
@@ -280,6 +306,27 @@ pccu clear-cache
 
 # Clear cache with custom config
 pccu clear-cache --config my-config.yaml
+```
+
+### Theme Management
+
+```bash
+# List all available themes
+pccu theme list
+
+# Set default theme (saves to config)
+pccu theme set light
+
+# Set theme with custom config file
+pccu theme set dark --config my-config.yaml
+
+# Check current theme
+pccu theme current
+
+# Use temporary theme overrides (doesn't save to config)
+pccu monitor --theme light  # Light theme for this session only
+pccu list --theme accessibility  # High contrast theme for this command
+pccu list-sessions --theme minimal  # Minimal theme for session list
 ```
 
 ### Webhook Notifications
@@ -397,6 +444,7 @@ display:
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
   show_pricing: false  # Enable cost calculations and display (default: false)
+  theme: default  # Theme: 'default', 'dark', 'light', 'accessibility', or 'minimal'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
     - "-Users-"
     - "-home-"
@@ -422,6 +470,7 @@ notifications:
 - `PAR_CC_USAGE_UPDATE_IN_PLACE`: Update display in place
 - `PAR_CC_USAGE_REFRESH_INTERVAL`: Display refresh interval
 - `PAR_CC_USAGE_TIME_FORMAT`: Time format ('12h' or '24h')
+- `PAR_CC_USAGE_THEME`: Theme name ('default', 'dark', 'light', 'accessibility', or 'minimal')
 - `PAR_CC_USAGE_PROJECT_NAME_PREFIXES`: Comma-separated list of prefixes to strip from project names
 - `PAR_CC_USAGE_AGGREGATE_BY_PROJECT`: Aggregate token usage by project instead of sessions ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_DISCORD_WEBHOOK_URL`: Discord webhook URL for notifications
@@ -788,6 +837,112 @@ Each notification includes:
 - `notify_on_block_completion`: Enable/disable block completion notifications (default: true)
 - `cooldown_minutes`: Minimum minutes between notifications (default: 5)
 
+### Theme System
+
+PAR CC Usage includes a comprehensive theme system that allows you to customize the visual appearance of the CLI interface to match your preferences, terminal setup, and accessibility needs.
+
+#### Available Themes
+
+**Default Theme**: Original bright color scheme with vibrant colors
+- **Use case**: General usage with high contrast
+- **Colors**: Bright colors (cyan, yellow, green, red, magenta)
+- **Best for**: Dark terminals, users who prefer bright colors
+
+**Dark Theme**: Optimized for dark terminal backgrounds
+- **Use case**: Dark mode terminals with refined colors
+- **Colors**: Softer bright colors with better dark background contrast
+- **Best for**: Dark terminals, reduced eye strain
+
+**Light Theme**: Solarized Light inspired color palette
+- **Use case**: Light terminal backgrounds
+- **Colors**: Solarized Light palette (darker text, warm backgrounds)
+- **Best for**: Light terminals, bright environments
+
+**Accessibility Theme**: High contrast theme meeting WCAG AAA standards
+- **Use case**: Visual accessibility and screen readers
+- **Colors**: High contrast colors (black text on white background)
+- **Best for**: Accessibility needs, high contrast requirements
+
+**Minimal Theme**: Grayscale theme with minimal color usage
+- **Use case**: Distraction-free, professional environments
+- **Colors**: Grayscale palette (white, grays, black)
+- **Best for**: Minimal aesthetics, focus on content over colors
+
+#### Theme Configuration
+
+**Set Default Theme (saves to config file):**
+```bash
+# Set light theme as default
+pccu theme set light
+
+# Set accessibility theme as default
+pccu theme set accessibility
+
+# Set with custom config file
+pccu theme set dark --config my-config.yaml
+```
+
+**Temporary Theme Override (session only):**
+```bash
+# Override theme for single command
+pccu monitor --theme light
+pccu list --theme accessibility
+pccu list-sessions --theme minimal
+
+# Theme persists for the entire command execution
+pccu monitor --theme light --show-sessions --show-pricing
+```
+
+**Configuration File Setting:**
+```yaml
+display:
+  theme: light  # Options: 'default', 'dark', 'light', 'accessibility', 'minimal'
+```
+
+**Environment Variable:**
+```bash
+export PAR_CC_USAGE_THEME=accessibility
+```
+
+#### Theme Management Commands
+
+```bash
+# List all available themes with descriptions
+pccu theme list
+
+# Get current theme setting
+pccu theme current
+
+# Set default theme (saves to config)
+pccu theme set <theme-name>
+```
+
+#### Theme Features
+
+- **Semantic Color System**: Uses meaningful color names (success, warning, error, info) for consistency
+- **Rich Integration**: Full integration with Rich library for optimal terminal rendering
+- **Responsive Design**: Themes work across all display modes (normal, compact, sessions)
+- **Consistent Application**: Colors are applied uniformly across all UI elements
+- **Configuration Flexibility**: Multiple ways to set themes (CLI, config file, environment)
+
+#### Theme Scope
+
+Themes apply to all visual elements:
+- **Progress bars**: Token usage and block progress indicators
+- **Tables**: Project and session data tables
+- **Status indicators**: Active/inactive sessions, success/error states
+- **Burn rate displays**: Token consumption metrics
+- **Headers and borders**: UI structure elements
+- **Cost information**: Pricing and cost calculation displays (when enabled)
+
+#### Best Practices
+
+- **Light terminals**: Use `light` or `accessibility` themes
+- **Dark terminals**: Use `default` or `dark` themes
+- **Accessibility needs**: Use `accessibility` theme for high contrast
+- **Professional environments**: Use `minimal` theme for clean appearance
+- **Testing themes**: Use `--theme` flag to test before setting as default
+
 ## File Locations
 
 ### XDG Base Directory Specification
@@ -843,14 +998,41 @@ We're actively working on exciting new features to enhance your Claude Code moni
 - **Historical cost analysis**: Track spending patterns over time
 - **Budget alerts**: Configurable notifications when approaching cost thresholds
 
-### 🎨 Theme System
-- **Dark/Light themes**: Choose between dark and light color schemes
-
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
-## Recent Updates
+## What's New
 
-### Code Quality Improvements (December 2024)
+### v0.1.4 - Theme System Implementation
+
+**Complete Theme System**: Successfully implemented a comprehensive theme system with full Rich library integration and accessibility support:
+
+#### 🎨 Theme Features
+- **5 Built-in Themes**: Default, Dark, Light, Accessibility, and Minimal themes
+- **Solarized Light Integration**: Professional light theme based on Solarized Light color palette
+- **WCAG AAA Compliance**: High contrast accessibility theme meeting accessibility standards
+- **Semantic Color System**: Color abstraction with meaningful names (success, warning, error, info)
+- **Rich Library Integration**: Full integration with Rich console for optimal terminal rendering
+
+#### 🔧 Configuration Options
+- **Multiple Configuration Methods**: CLI flags, config file, environment variables
+- **Session-based Overrides**: `--theme` flag for temporary theme changes without saving
+- **Persistent Configuration**: Theme settings saved to XDG-compliant config files
+- **Theme Management Commands**: Built-in CLI commands for theme listing, setting, and current status
+
+#### 🌈 Theme Varieties
+- **Default Theme**: Original bright colors for general dark terminal usage
+- **Dark Theme**: Refined colors optimized for dark terminals with reduced eye strain
+- **Light Theme**: Solarized Light inspired palette perfect for light terminals
+- **Accessibility Theme**: High contrast black/white theme for visual accessibility needs
+- **Minimal Theme**: Grayscale palette for distraction-free, professional environments
+
+#### 🎯 Usage Examples
+- **Monitor with themes**: `pccu monitor --theme light --show-sessions`
+- **List with themes**: `pccu list --theme accessibility --show-pricing`
+- **Theme management**: `pccu theme set dark`, `pccu theme list`, `pccu theme current`
+- **Configuration**: `display.theme: light` in config file or `PAR_CC_USAGE_THEME=minimal`
+
+### v0.1.3 - Code Quality Improvements
 
 **Major Code Quality Overhaul**: Successfully completed a comprehensive code quality improvement initiative focused on reducing cyclomatic complexity and improving maintainability across all core modules:
 
@@ -876,6 +1058,22 @@ We're actively working on exciting new features to enhance your Claude Code moni
 - **All functions ≤10 complexity**: Enforced by automated linting
 - **Full type safety**: Complete type annotations with validation
 - **Zero linting errors**: Clean, consistent code style
+
+### v0.1.2 - Pricing & Cost Tracking
+
+**Cost Tracking Integration**: Added comprehensive cost tracking and pricing functionality with LiteLLM integration for accurate cost calculations across all Claude models.
+
+### v0.1.1 - Enhanced Analytics
+
+**Advanced Analytics**: Enhanced burn rate calculations, block management improvements, and refined display system with better user experience.
+
+### v0.1.0 - Core Features
+
+**Initial Release**: Core functionality including real-time monitoring, 5-hour billing blocks, multi-session support, and basic analytics.
+
+### older...
+
+Earlier versions focused on foundational architecture, file monitoring, and basic token tracking capabilities.
 
 ## Development
 
