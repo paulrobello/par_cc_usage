@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import signal
 import sys
@@ -693,6 +694,7 @@ def list_usage(
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Output file path")] = None,
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
 ) -> None:
     """List all token usage data."""
     # Load configuration (defaults to XDG config location)
@@ -748,13 +750,16 @@ def list_usage(
     snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
 
     # Display results
-    display_usage_list(
-        snapshot,
-        output_format=output_format,
-        sort_by=sort_by,
-        output_file=output,
-        console=themed_console,
-        time_format=config.display.time_format,
+    asyncio.run(
+        display_usage_list(
+            snapshot,
+            output_format=output_format,
+            sort_by=sort_by,
+            output_file=output,
+            console=themed_console,
+            time_format=config.display.time_format,
+            show_pricing=show_pricing,
+        )
     )
 
 

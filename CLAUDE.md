@@ -63,6 +63,10 @@ uv run pccu monitor --debug
 uv run pccu monitor --show-pricing --snapshot
 uv run pccu list --show-pricing
 
+# Test pricing with different output formats
+uv run pccu list --show-pricing --format json
+uv run pccu list --show-pricing --format csv --output usage_with_costs.csv
+
 # Debug pricing fallbacks (using Python directly)
 uv run python -c "
 import asyncio
@@ -86,6 +90,125 @@ uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 ```
 
 ## Architecture Overview
+
+### System Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph "Claude Code Projects"
+        CP1["~/.claude/projects/project1/"]
+        CP2["~/.claude/projects/project2/"]
+        CP3["~/.claude/projects/project3/"]
+        
+        CP1 --> JF1["session_abc.jsonl"]
+        CP1 --> JF2["session_def.jsonl"]
+        CP2 --> JF3["session_ghi.jsonl"]
+        CP3 --> JF4["session_jkl.jsonl"]
+    end
+    
+    subgraph "PAR CC Usage Core"
+        subgraph "File Monitoring Layer"
+            FM["file_monitor.py\nFile Position Tracking"]
+            FW["FileWatcher\nReal-time Detection"]
+            FC["File Cache\n~/.cache/par_cc_usage/"]
+        end
+        
+        subgraph "Data Processing Layer"
+            TC["token_calculator.py\nJSONL Processing"]
+            PV["Pydantic Validation"]
+            DD["Deduplication Logic"]
+            UB["Unified Block Creation"]
+        end
+        
+        subgraph "Data Models"
+            TU["TokenUsage"]
+            TB["TokenBlock"]
+            S["Session"]
+            P["Project"]
+            US["UsageSnapshot"]
+        end
+        
+        subgraph "Pricing System"
+            PC["PricingCache"]
+            LLM["LiteLLM API"]
+            CH["Cost Hierarchy\n1. Native Block\n2. Native Usage\n3. LiteLLM Calc"]
+        end
+        
+        subgraph "Display Layer"
+            MD["MonitorDisplay\nReal-time UI"]
+            LD["ListDisplay\nReporting"]
+            RT["Rich Terminal"]
+        end
+        
+        subgraph "Configuration"
+            XDG["XDG Directories"]
+            CFG["config.yaml"]
+            ENV["Environment Variables"]
+        end
+    end
+    
+    subgraph "Output Formats"
+        TABLE["Table Display"]
+        JSON["JSON Export"]
+        CSV["CSV Export"]
+        WH["Discord/Slack\nWebhooks"]
+    end
+    
+    subgraph "External APIs"
+        LLMAPI["LiteLLM Pricing API"]
+        DISCAPI["Discord Webhooks"]
+        SLACKAPI["Slack Webhooks"]
+    end
+    
+    %% Data Flow
+    JF1 --> FM
+    JF2 --> FM
+    JF3 --> FM
+    JF4 --> FM
+    
+    FM --> FC
+    FM --> TC
+    FW --> FM
+    
+    TC --> PV
+    PV --> DD
+    DD --> UB
+    
+    UB --> TU
+    TU --> TB
+    TB --> S
+    S --> P
+    P --> US
+    
+    TB --> CH
+    TU --> CH
+    PC --> CH
+    LLMAPI --> PC
+    
+    US --> MD
+    US --> LD
+    MD --> RT
+    LD --> TABLE
+    LD --> JSON
+    LD --> CSV
+    
+    XDG --> CFG
+    CFG --> MD
+    CFG --> LD
+    ENV --> CFG
+    
+    MD --> WH
+    WH --> DISCAPI
+    WH --> SLACKAPI
+    
+    %% Styling
+    style FM fill:#e1f5fe
+    style TC fill:#f3e5f5
+    style US fill:#e8f5e8
+    style CH fill:#fff3e0
+    style MD fill:#fce4ec
+    style LD fill:#f1f8e9
+```
 
 ### Core Components
 
@@ -135,8 +258,9 @@ uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 4. **Comprehensive Command Structure**:
    - `main.py`: Typer CLI app with main commands (monitor, list, init, etc.)
    - `commands.py`: Debug and analysis commands (debug-blocks, debug-unified, debug-activity, etc.)
-   - `list_command.py`: Specialized listing and reporting functionality with multiple output formats
+   - `list_command.py`: Specialized listing and reporting functionality with multiple output formats and pricing integration
    - **Notification System**: Discord and Slack webhook integration for block completion alerts
+   - **Pricing Integration**: Cost calculations available in both monitor and list modes with `--show-pricing` flag
 
 5. **Advanced Analytics**:
    - **Burn Rate Calculation**: Tokens per minute tracking with ETA estimation
@@ -161,16 +285,54 @@ uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 
 ### Data Model Relationships
 
+```mermaid
+flowchart TD
+    US[UsageSnapshot] --> P1[Project: par-cc-usage]
+    US --> P2[Project: my-app]
+    US --> P3[Project: ...]
+    
+    P1 --> S1[Session: abc123...]
+    P1 --> S2[Session: def456...]
+    P2 --> S3[Session: ghi789...]
+    
+    S1 --> TB1[TokenBlock: 14:00-19:00]
+    S1 --> TB2[TokenBlock: 20:00-01:00]
+    S2 --> TB3[TokenBlock: 09:00-14:00]
+    
+    TB1 --> TU1[TokenUsage: msg1]
+    TB1 --> TU2[TokenUsage: msg2]
+    TB1 --> TU3[TokenUsage: msg3]
+    TB1 --> MT1[model_tokens: {opus: 150K, sonnet: 75K}]
+    TB1 --> CC1[cost_usd: 12.50]
+    
+    TB2 --> TU4[TokenUsage: msg4]
+    TB2 --> MT2[model_tokens: {sonnet: 200K}]
+    TB2 --> CC2[cost_usd: null]
+    
+    TU1 --> TUC1[cost_usd: 2.50]
+    TU2 --> TUC2[cost_usd: null]
+    TU3 --> TUC3[cost_usd: 4.75]
+    
+    US -.-> UBT[unified_block_tokens\(\)]
+    US -.-> UBTM[unified_block_tokens_by_model\(\)]
+    US -.-> UBST[unified_block_start_time]
+    
+    style US fill:#e8f5e8
+    style TB1 fill:#fff3e0
+    style TB2 fill:#fff3e0
+    style TB3 fill:#fff3e0
+    style TU1 fill:#f3e5f5
+    style TU2 fill:#f3e5f5
+    style TU3 fill:#f3e5f5
+    style TU4 fill:#f3e5f5
 ```
-UsageSnapshot (aggregates everything)
-  ├── unified_block_tokens() → tokens for current billing window only
-  ├── unified_block_tokens_by_model() → per-model breakdown for billing window
-  └── Projects (by project name)
-       └── Sessions (by session ID)
-            └── TokenBlocks (5-hour periods)
-                 ├── TokenUsage (individual messages)
-                 └── model_tokens (per-model adjusted tokens with multipliers)
-```
+
+**Key Relationships**:
+- `UsageSnapshot` aggregates everything and provides unified block calculations
+- `Projects` contain multiple sessions, each with 5-hour token blocks
+- `TokenBlocks` track both individual `TokenUsage` messages and aggregated `model_tokens`
+- Cost data can exist at both TokenBlock level (`cost_usd`) and TokenUsage level
+- Unified block methods filter data to current 5-hour billing window
 
 ### Pricing System Architecture
 
@@ -193,7 +355,8 @@ The pricing system (`pricing.py`) provides accurate cost calculations with robus
 6. **Unknown Model Handling**: Models marked as "Unknown" → $0.00 cost
 
 #### Integration Points:
-- **Display Integration**: Cost columns automatically added to activity tables when `show_pricing` enabled
+- **Monitor Display Integration**: Cost columns automatically added to activity tables when `show_pricing` enabled
+- **List Command Integration**: Cost information included in table, JSON, and CSV outputs with `--show-pricing` flag
 - **Burn Rate Cost Estimation**: Real-time 5-hour block cost projection in burn rate line based on current spending rate
 - **Async Architecture**: All pricing operations are async to prevent UI blocking
 - **Error Resilience**: Pricing failures don't break functionality, gracefully fall back to no-cost display
@@ -212,23 +375,159 @@ The burn rate cost estimation provides intelligent cost projection for 5-hour bi
 **Display Format**: `"531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m"`
 - Token burn rate + estimated tokens + estimated cost + ETA
 
+#### List Command Pricing Integration:
+The `pccu list` command supports comprehensive cost analysis with the `--show-pricing` flag:
+
+1. **Intelligent Cost Calculation Hierarchy**:
+   ```mermaid
+   flowchart TD
+       A[Cost Calculation Request] --> B{Pricing Enabled?}
+       B -->|No| C[Return $0.00]
+       B -->|Yes| D{Block has cost_usd?}
+       D -->|Yes + Valid| E[Use Block Native Cost]
+       D -->|No/Invalid| F{Usage has cost_usd?}
+       F -->|Yes + Valid| G[Use Usage Native Cost]
+       F -->|No/Invalid| H[Calculate with LiteLLM]
+       
+       E --> I["cost_source: block_native"]
+       G --> J["cost_source: usage_native"]
+       H --> K["cost_source: litellm_calculated"]
+       
+       style E fill:#e1f5fe
+       style G fill:#f3e5f5
+       style H fill:#fff3e0
+   ```
+
+   - **Priority 1**: Native cost data from TokenBlock (`cost_usd` field) when available
+   - **Priority 2**: Native cost data from TokenUsage (`cost_usd` field) when block cost unavailable  
+   - **Priority 3**: LiteLLM calculation using cached pricing data (fallback)
+   - **Validation**: Native cost data is validated for reasonableness ($0.01-$1000.00) before use
+
+2. **Cost Source Transparency**: All exports include `cost_source` field indicating calculation method:
+   - `"block_native"`: Cost from TokenBlock native data (future-ready)
+   - `"usage_native"`: Cost from TokenUsage native data (future-ready)
+   - `"litellm_calculated"`: Cost calculated using LiteLLM pricing (current default)
+
+3. **Output Format Support**:
+   - **Table Display**: Adds a "Cost" column showing dollar amounts for each billing block
+   - **JSON Export**: Includes `cost` and `cost_source` fields in each block's data structure  
+   - **CSV Export**: Adds "Cost" and "Cost Source" columns to CSV headers and data rows
+   - **Async Integration**: All cost calculations are performed asynchronously to maintain performance
+
+**Usage Examples**:
+```bash
+# Display usage with costs in table format
+pccu list --show-pricing
+
+# Export usage data with costs as JSON
+pccu list --show-pricing --format json
+
+# Export usage data with costs as CSV  
+pccu list --show-pricing --format csv --output usage_costs.csv
+
+# Combine with sorting and formatting
+pccu list --show-pricing --sort-by time --format table
+```
+
+**JSON Output Structure** (with pricing):
+```json
+[
+  {
+    "project": "par-cc-usage",
+    "session": "abc123...",
+    "model": "opus", 
+    "tokens": 142465091,
+    "active": false,
+    "cost": 12.68517,
+    "cost_source": "litellm_calculated"
+  }
+]
+```
+
+**Cost Calculation Future-Proofing**:
+- When Claude begins providing native cost data in JSONL files, the system automatically prefers it
+- Current implementation falls back to LiteLLM calculations ensuring backward compatibility
+- Cost source tracking enables transparency and debugging of cost calculation methods
+
 ### Critical File Interactions
 
-1. **Monitor Mode Flow**:
-   - `main.py:monitor()` → Parses structured `MonitorOptions` via `_parse_monitor_options()`
-   - `xdg_dirs.py:get_config_file_path()` → Determines XDG-compliant config file location
-   - `config.py:load_config()` → Loads config with automatic legacy migration support
-   - `main.py:_apply_command_overrides()` → Applies configuration overrides
-   - `file_monitor.py` → Detects changes, reads new lines (cache stored in XDG cache directory)
-   - `token_calculator.py:_validate_jsonl_data()` → Validates with Pydantic models
-   - `token_calculator.py:process_jsonl_line()` → Processes with extracted helper functions
-   - `display.py:MonitorDisplay` → Updates terminal UI
+#### Monitor Mode Data Flow
+```mermaid
+flowchart LR
+    A[main.py:monitor\(\)] --> B[xdg_dirs.py:get_config_file_path\(\)]
+    B --> C[config.py:load_config\(\)]
+    C --> D[main.py:_apply_command_overrides\(\)]
+    D --> E[file_monitor.py:poll_files\(\)]
+    E --> F[token_calculator.py:process_jsonl_line\(\)]
+    F --> G[token_calculator.py:aggregate_usage\(\)]
+    G --> H[display.py:MonitorDisplay.update\(\)]
+    
+    E --> E1[XDG Cache:\nfile_states.json]
+    F --> F1[Pydantic Validation]
+    G --> G1[UsageSnapshot Creation]
+    H --> H1[Rich Terminal UI]
+    
+    style A fill:#e1f5fe
+    style E fill:#fff3e0
+    style F fill:#f3e5f5
+    style G fill:#e8f5e8
+    style H fill:#fce4ec
+```
 
-2. **Unified Block Selection**:
-   - `token_calculator.py:aggregate_usage()` → Creates UsageSnapshot
-   - `token_calculator.py:create_unified_blocks()` → Implements optimal block selection algorithm (earliest active block preference)
-   - `models.py:UsageSnapshot.unified_block_start_time` → Returns current billing block start time
-   - Logic correctly identifies the current billing block by selecting the earliest active block that contains the current time
+#### List Command Cost Flow
+```mermaid
+flowchart TD
+    A[pccu list --show-pricing] --> B[list_command.py:display_usage_list\(\)]
+    B --> C[ListDisplay.__init__\(show_pricing=True\)]
+    C --> D[ListDisplay.display_table\(\) / export_json\(\) / export_csv\(\)]
+    D --> E["Loop: For each TokenBlock"]
+    E --> F[ListDisplay._calculate_block_cost\(\)]
+    F --> G{"Cost Hierarchy Decision"}
+    
+    G -->|Priority 1| H["block.cost_usd exists & valid"]
+    G -->|Priority 2| I["block.token_usage.cost_usd exists & valid"]
+    G -->|Priority 3| J["pricing.calculate_token_cost\(\)"]
+    
+    H --> K["Return block.cost_usd"]
+    I --> L["Return usage.cost_usd"]
+    J --> M["LiteLLM API Call"]
+    M --> N["Return calculated cost"]
+    
+    K --> O["Display/Export with cost_source"]
+    L --> O
+    N --> O
+    
+    style A fill:#e1f5fe
+    style F fill:#fff3e0
+    style G fill:#f3e5f5
+    style H fill:#e8f5e8
+    style I fill:#e8f5e8
+    style J fill:#fce4ec
+```
+
+#### Unified Block Selection Algorithm
+```mermaid
+flowchart TD
+    A[token_calculator.py:create_unified_blocks\(\)] --> B["Collect all blocks from all projects/sessions"]
+    B --> C["Filter: Keep only active blocks"]
+    C --> D["Find blocks containing current time"]
+    D --> E{"Blocks found?"}
+    
+    E -->|Yes| F["Select block with earliest start_time"]
+    E -->|No| G["Fallback: Select earliest active block"]
+    
+    F --> H["Return unified_block_start_time"]
+    G --> H
+    
+    H --> I["UsageSnapshot.unified_block_start_time property"]
+    I --> J["Used by unified_block_tokens\(\) methods"]
+    
+    style A fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
+    style F fill:#e8f5e8
+    style G fill:#fce4ec
+```
 
 ## Important Implementation Details
 

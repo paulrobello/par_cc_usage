@@ -8,6 +8,7 @@ from unittest.mock import Mock, mock_open, patch
 import tempfile
 import json
 import csv
+import asyncio
 
 import pytest
 from rich.console import Console
@@ -31,20 +32,20 @@ class TestListCommand:
         
         console = Console()
         # Should not raise an error even with no data
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=snapshot,
             output_format=OutputFormat.TABLE,
             console=console
-        )
+        ))
 
     def test_display_usage_list_table_format(self, sample_usage_snapshot, capsys):
         """Test display with table format."""
         console = Console()
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_usage_snapshot,
             output_format=OutputFormat.TABLE,
             console=console
-        )
+        ))
         
         captured = capsys.readouterr()
         assert len(captured.out) > 0
@@ -52,11 +53,11 @@ class TestListCommand:
     def test_display_usage_list_csv_format(self, sample_usage_snapshot, capsys):
         """Test display with CSV format."""
         console = Console()
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_usage_snapshot,
             output_format=OutputFormat.CSV,
             console=console
-        )
+        ))
         
         captured = capsys.readouterr()
         assert len(captured.out) > 0
@@ -66,11 +67,11 @@ class TestListCommand:
         import json
         
         console = Console()
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_usage_snapshot,
             output_format=OutputFormat.JSON,
             console=console
-        )
+        ))
         
         captured = capsys.readouterr()
         # Should be valid JSON
@@ -269,7 +270,7 @@ class TestListDisplay:
         display = ListDisplay(console=console)
         
         # Should not raise an error
-        display.display_table(snapshot, SortBy.TOKENS)
+        asyncio.run(display.display_table(snapshot, SortBy.TOKENS))
         
         # Verify console.print was called
         assert console.file.write.called
@@ -284,7 +285,7 @@ class TestListDisplay:
         display = ListDisplay(console=console)
         
         # Should not raise an error
-        display.display_table(snapshot, SortBy.TOKENS)
+        asyncio.run(display.display_table(snapshot, SortBy.TOKENS))
         
         # Verify console.print was called (even for empty table)
         assert console.file.write.called
@@ -299,7 +300,7 @@ class TestListDisplay:
             output_file = Path(f.name)
         
         try:
-            display.export_json(snapshot, output_file, SortBy.TOKENS)
+            asyncio.run(display.export_json(snapshot, output_file, SortBy.TOKENS))
             
             # Verify file was created and contains valid JSON
             assert output_file.exists()
@@ -324,7 +325,7 @@ class TestListDisplay:
             output_file = Path(f.name)
         
         try:
-            display.export_csv(snapshot, output_file, SortBy.TOKENS)
+            asyncio.run(display.export_csv(snapshot, output_file, SortBy.TOKENS))
             
             # Verify file was created and contains valid CSV
             assert output_file.exists()
@@ -383,13 +384,13 @@ class TestDisplayUsageListFunction:
     def test_display_json_to_console(self, sample_snapshot, capsys):
         """Test JSON output to console (no file)."""
         console = Console()
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_snapshot,
             output_format=OutputFormat.JSON,
             sort_by=SortBy.TOKENS,
             output_file=None,
             console=console
-        )
+        ))
         
         captured = capsys.readouterr()
         # Should contain JSON output
@@ -398,13 +399,13 @@ class TestDisplayUsageListFunction:
     def test_display_csv_without_output_file(self, sample_snapshot, capsys):
         """Test CSV format without output file shows error."""
         console = Console()
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_snapshot,
             output_format=OutputFormat.CSV,
             sort_by=SortBy.TOKENS,
             output_file=None,
             console=console
-        )
+        ))
         
         captured = capsys.readouterr()
         # Should show error message
@@ -417,13 +418,13 @@ class TestDisplayUsageListFunction:
         
         try:
             console = Console(file=Mock())
-            display_usage_list(
+            asyncio.run(display_usage_list(
                 snapshot=sample_snapshot,
                 output_format=OutputFormat.JSON,
                 sort_by=SortBy.TIME,
                 output_file=output_file,
                 console=console
-            )
+            ))
             
             # Verify file was created
             assert output_file.exists()
@@ -439,13 +440,13 @@ class TestDisplayUsageListFunction:
         
         try:
             console = Console(file=Mock())
-            display_usage_list(
+            asyncio.run(display_usage_list(
                 snapshot=sample_snapshot,
                 output_format=OutputFormat.CSV,
                 sort_by=SortBy.PROJECT,
                 output_file=output_file,
                 console=console
-            )
+            ))
             
             # Verify file was created
             assert output_file.exists()
@@ -460,13 +461,13 @@ class TestDisplayUsageListFunction:
         
         # Test all sort options
         for sort_by in [SortBy.PROJECT, SortBy.SESSION, SortBy.TOKENS, SortBy.TIME, SortBy.MODEL]:
-            display_usage_list(
+            asyncio.run(display_usage_list(
                 snapshot=sample_snapshot,
                 output_format=OutputFormat.TABLE,
                 sort_by=sort_by,
                 console=console,
                 time_format="12h"
-            )
+            ))
             
             # Should not raise any errors
             assert console.file.write.called
@@ -474,14 +475,172 @@ class TestDisplayUsageListFunction:
     def test_display_with_12h_time_format(self, sample_snapshot):
         """Test display with 12h time format."""
         console = Console(file=Mock())
-        display_usage_list(
+        asyncio.run(display_usage_list(
             snapshot=sample_snapshot,
             output_format=OutputFormat.TABLE,
             sort_by=SortBy.TOKENS,
             console=console,
             time_format="12h"
-        )
+        ))
         
         # Should not raise any errors
         assert console.file.write.called
+
+
+class TestCostCalculationHierarchy:
+    """Test the cost calculation hierarchy and native cost support."""
+
+    def create_token_block_with_native_cost(self, block_cost: float | None = None, usage_cost: float | None = None) -> TokenBlock:
+        """Create a token block with optional native cost data."""
+        # Create token usage
+        token_usage = TokenUsage(
+            input_tokens=1000,
+            cache_creation_input_tokens=500,
+            cache_read_input_tokens=200,
+            output_tokens=300,
+            cost_usd=usage_cost,
+        )
+        
+        # Create token block
+        block = TokenBlock(
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc) + timedelta(hours=5),
+            session_id="test-session",
+            project_name="test-project",
+            model="claude-3-sonnet-20240229",
+            token_usage=token_usage,
+            cost_usd=block_cost if block_cost is not None else 0.0,
+        )
+        
+        return block
+
+    def test_validate_native_cost_valid_values(self):
+        """Test that valid native cost values are accepted."""
+        display = ListDisplay(show_pricing=True)
+        
+        # Valid costs should return True
+        assert display._validate_native_cost(0.01) == True
+        assert display._validate_native_cost(1.0) == True
+        assert display._validate_native_cost(10.5) == True
+        assert display._validate_native_cost(999.99) == True
+
+    def test_validate_native_cost_invalid_values(self):
+        """Test that invalid native cost values are rejected."""
+        display = ListDisplay(show_pricing=True)
+        
+        # Invalid costs should return False
+        assert display._validate_native_cost(None) == False
+        assert display._validate_native_cost(0.0) == False
+        assert display._validate_native_cost(-1.0) == False
+        assert display._validate_native_cost(1500.0) == False  # Suspiciously high
+
+    def test_get_cost_source_block_native(self):
+        """Test cost source detection for block native cost."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(block_cost=5.50)
+        
+        assert display._get_cost_source(block) == "block_native"
+
+    def test_get_cost_source_usage_native(self):
+        """Test cost source detection for usage native cost."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(usage_cost=3.25)
+        
+        assert display._get_cost_source(block) == "usage_native"
+
+    def test_get_cost_source_litellm_calculated(self):
+        """Test cost source detection for LiteLLM calculated cost."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost()
+        
+        assert display._get_cost_source(block) == "litellm_calculated"
+
+    def test_get_cost_source_priority_block_over_usage(self):
+        """Test that block native cost takes priority over usage native cost."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(block_cost=5.50, usage_cost=3.25)
+        
+        assert display._get_cost_source(block) == "block_native"
+
+    @pytest.mark.asyncio
+    async def test_calculate_block_cost_block_native_priority(self):
+        """Test that block native cost is used when available."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(block_cost=5.50)
+        
+        cost = await display._calculate_block_cost(block)
+        assert cost == 5.50
+
+    @pytest.mark.asyncio
+    async def test_calculate_block_cost_usage_native_fallback(self):
+        """Test that usage native cost is used when block cost not available."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(usage_cost=3.25)
+        
+        cost = await display._calculate_block_cost(block)
+        assert cost == 3.25
+
+    @pytest.mark.asyncio
+    async def test_calculate_block_cost_litellm_fallback(self):
+        """Test that LiteLLM calculation is used when no native cost available."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost()
+        
+        # Mock the calculate_token_cost function
+        with patch('par_cc_usage.list_command.calculate_token_cost') as mock_calc:
+            from par_cc_usage.pricing import TokenCost
+            mock_calc.return_value = TokenCost(total_cost=2.75)
+            
+            cost = await display._calculate_block_cost(block)
+            assert cost == 2.75
+            mock_calc.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_calculate_block_cost_invalid_native_fallback(self):
+        """Test that invalid native cost falls back to LiteLLM calculation."""
+        display = ListDisplay(show_pricing=True)
+        block = self.create_token_block_with_native_cost(block_cost=-1.0, usage_cost=0.0)
+        
+        # Mock the calculate_token_cost function
+        with patch('par_cc_usage.list_command.calculate_token_cost') as mock_calc:
+            from par_cc_usage.pricing import TokenCost
+            mock_calc.return_value = TokenCost(total_cost=2.75)
+            
+            cost = await display._calculate_block_cost(block)
+            assert cost == 2.75
+            mock_calc.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_calculate_block_cost_pricing_disabled(self):
+        """Test that cost calculation returns 0 when pricing is disabled."""
+        display = ListDisplay(show_pricing=False)
+        block = self.create_token_block_with_native_cost(block_cost=5.50)
+        
+        cost = await display._calculate_block_cost(block)
+        assert cost == 0.0
+
+    @pytest.mark.asyncio
+    async def test_cost_hierarchy_priority_order(self):
+        """Test the complete cost calculation priority order."""
+        display = ListDisplay(show_pricing=True)
+        
+        # Test 1: Block cost takes highest priority
+        block1 = self.create_token_block_with_native_cost(block_cost=10.0, usage_cost=5.0)
+        cost1 = await display._calculate_block_cost(block1)
+        assert cost1 == 10.0
+        
+        # Test 2: Usage cost when block cost not available
+        block2 = self.create_token_block_with_native_cost(usage_cost=5.0)
+        cost2 = await display._calculate_block_cost(block2)
+        assert cost2 == 5.0
+        
+        # Test 3: LiteLLM fallback when no native cost
+        block3 = self.create_token_block_with_native_cost()
+        with patch('par_cc_usage.list_command.calculate_token_cost') as mock_calc:
+            from par_cc_usage.pricing import TokenCost
+            mock_calc.return_value = TokenCost(total_cost=2.5)
+            
+            cost3 = await display._calculate_block_cost(block3)
+            assert cost3 == 2.5
+            mock_calc.assert_called_once()
 

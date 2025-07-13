@@ -61,11 +61,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
   - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
   - [v0.1.3 - Code Quality Improvements](#v013---code-quality-improvements)
   - [v0.1.2 - Pricing & Cost Tracking](#v012---pricing--cost-tracking)
-  - [v0.1.1 - Enhanced Analytics](#v011---enhanced-analytics)
   - [older...](#older)
 - [Development](#development)
 
@@ -100,8 +100,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 ### 💰 Cost Tracking & Pricing
 - **Real-time cost calculations**: Live cost tracking using LiteLLM pricing data
 - **Per-model cost breakdown**: Accurate cost attribution for each Claude model
-- **Activity table pricing**: Optional cost columns in project and session views
+- **Monitor pricing integration**: Optional cost columns in project and session views with `--show-pricing`
+- **List command pricing**: Full cost analysis support in table, JSON, and CSV outputs with `--show-pricing` and intelligent cost hierarchy
+- **Burn rate cost estimation**: Real-time 5-hour block cost projection based on current spending rate
 - **Configurable pricing display**: Enable/disable cost tracking via configuration or command-line
+- **Export with costs**: JSON and CSV exports include cost data and cost source transparency when pricing is enabled
 - **Integrated pricing cache**: Efficient pricing lookups with built-in caching
 - **Intelligent fallbacks**: When exact model names aren't found, uses pattern matching to find closest pricing
 - **Unknown model handling**: Models marked as "Unknown" automatically display $0.00 cost
@@ -271,8 +274,14 @@ pccu list --sort-by project
 pccu list --sort-by time
 pccu list --sort-by model
 
-# Include cost information in output
+# Include cost information in output (table format)
 pccu list --show-pricing
+
+# Export usage data with costs as JSON
+pccu list --show-pricing --format json
+
+# Export usage data with costs as CSV
+pccu list --show-pricing --format csv --output usage-with-costs.csv
 
 # Combine sorting and pricing
 pccu list --sort-by tokens --show-pricing --format table
@@ -722,17 +731,22 @@ When `show_pricing` is enabled, cost information appears in:
 3. **Activity Tables**: 
    - Project aggregation mode: Cost column showing project-level costs
    - Session aggregation mode: Cost column showing session-level costs
-4. **List Command Output**: Cost information in table, JSON, and CSV formats
+4. **List Command Output**: Cost information in table, JSON, and CSV formats with cost source tracking
 
 #### Pricing Data
 
 PAR CC Usage uses LiteLLM's comprehensive pricing database for accurate, up-to-date model costs with intelligent fallback handling:
 
 **Core Pricing Features:**
+- **Intelligent cost hierarchy**: Three-tier cost calculation system for maximum accuracy
+  1. **Native cost data (Priority 1)**: Uses cost data from Claude JSONL files when available
+  2. **LiteLLM calculation (Priority 2)**: Falls back to real-time pricing calculations
+  3. **Cost source transparency**: All outputs include cost calculation source for debugging
 - **Real-time pricing data**: Uses LiteLLM's pricing database for current model costs
 - **Comprehensive model support**: Covers all Claude model variants with accurate per-token pricing
 - **Token type handling**: Proper pricing for input, output, cache creation, and cache read tokens
 - **Automatic model mapping**: Maps Claude Code model names to LiteLLM pricing keys
+- **Future-proof design**: Automatically uses native Claude cost data when available
 
 **Intelligent Fallback System:**
 - **Unknown model handling**: Models marked as "Unknown" automatically display $0.00 cost
@@ -743,6 +757,45 @@ PAR CC Usage uses LiteLLM's comprehensive pricing database for accurate, up-to-d
 - **Fuzzy matching**: Partial name matching for model variants and prefixes
 - **Generic Claude fallbacks**: Unrecognized Claude models fall back to Sonnet pricing as a safe default
 - **Graceful error handling**: Missing pricing data doesn't break functionality
+
+**Cost Calculation Hierarchy:**
+
+PAR CC Usage implements an intelligent three-tier cost calculation system for maximum accuracy:
+
+```bash
+# Example list output showing cost source transparency
+pccu list --show-pricing --format json
+[
+  {
+    "project": "my-app",
+    "session": "abc123...",
+    "model": "opus",
+    "tokens": 150000,
+    "active": true,
+    "cost": 12.50,
+    "cost_source": "block_native"     # Native cost from Claude
+  },
+  {
+    "project": "my-app", 
+    "session": "def456...",
+    "model": "sonnet",
+    "tokens": 75000,
+    "active": true,
+    "cost": 3.25,
+    "cost_source": "litellm_calculated"  # Calculated with LiteLLM
+  }
+]
+```
+
+**Cost Source Types:**
+- `"block_native"`: Cost from TokenBlock native data (highest priority)
+- `"usage_native"`: Cost from TokenUsage native data (medium priority)  
+- `"litellm_calculated"`: Cost calculated using LiteLLM pricing (fallback)
+
+**Cost Validation:**
+- Native cost data is validated for reasonableness ($0.01-$1000.00)
+- Invalid native costs automatically fall back to LiteLLM calculation
+- Suspiciously high costs (>$1000) are logged and ignored
 
 **Examples of Fallback Behavior:**
 - `"Unknown"` → $0.00 cost (no charges applied)
@@ -1002,6 +1055,46 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.1.6 - Intelligent Cost Hierarchy
+
+**Advanced Cost Calculation System**: Implemented a sophisticated three-tier cost calculation hierarchy for the `pccu list` command, providing maximum accuracy and future-proofing for native Claude cost data:
+
+#### 💰 Intelligent Cost Features
+- **Three-Tier Cost Hierarchy**: Priority-based cost calculation system:
+  1. **Native Block Cost** (Priority 1): Uses `cost_usd` from TokenBlock when available
+  2. **Native Usage Cost** (Priority 2): Uses `cost_usd` from TokenUsage when block cost unavailable
+  3. **LiteLLM Calculation** (Priority 3): Falls back to real-time pricing calculations
+- **Cost Source Transparency**: All exports include `cost_source` field showing calculation method:
+  - `"block_native"`: Cost from TokenBlock native data (future-ready)
+  - `"usage_native"`: Cost from TokenUsage native data (future-ready)
+  - `"litellm_calculated"`: Cost calculated using LiteLLM pricing (current default)
+- **Cost Validation**: Native cost data validated for reasonableness ($0.01-$1000.00)
+- **Future-Proof Design**: Automatically uses native Claude cost data when available
+
+#### 📊 Enhanced List Command
+- **Full Output Format Support**: Pricing works with table, JSON, and CSV formats
+- **Async Cost Calculations**: Non-blocking cost calculations maintain performance
+- **Cost Source Tracking**: Complete transparency in cost calculation methods
+- **Export Integration**: JSON and CSV exports include cost and cost_source fields
+
+#### 📈 Usage Examples
+```bash
+# Display usage with costs in table format
+pccu list --show-pricing
+
+# Export with cost source transparency
+pccu list --show-pricing --format json
+
+# CSV export with cost data
+pccu list --show-pricing --format csv --output costs.csv
+```
+
+#### 🔧 Technical Improvements
+- **566 Tests Passing**: Comprehensive test coverage including 12 new cost hierarchy tests
+- **Cost Hierarchy Validation**: Full validation of native cost data before use
+- **Performance Optimization**: Efficient async cost calculations with LiteLLM caching
+- **Documentation Enhancement**: Added comprehensive architecture diagrams and cost flow charts
 
 ### v0.1.5 - Debug Flag Enhancement
 
