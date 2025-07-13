@@ -304,8 +304,13 @@ class TestMonitorCommand:
 
                             result = runner.invoke(app, ["monitor", "--debug"])
 
-                            # Should have configured logging for DEBUG level
-                            mock_logging.assert_called_with(level=logging.DEBUG, format="%(message)s")
+                            # Should have configured logging for DEBUG level with null handler
+                            mock_logging.assert_called_once()
+                            call_args = mock_logging.call_args
+                            assert call_args[1]['level'] == logging.DEBUG
+                            assert call_args[1]['format'] == "%(message)s"
+                            assert len(call_args[1]['handlers']) == 1
+                            assert isinstance(call_args[1]['handlers'][0], logging.NullHandler)
 
     def test_monitor_debug_flag_disabled(self, mock_config):
         """Test monitor command with debug flag disabled (default)."""

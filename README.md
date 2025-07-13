@@ -61,6 +61,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.7 - Monitor Display Stability](#v017---monitor-display-stability)
   - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
   - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
@@ -76,6 +77,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **5-hour billing blocks**: Unified block system that accurately reflects Claude's billing structure
 - **Multi-session support**: When multiple sessions are active, they share billing blocks intelligently
 - **Visual progress indicators**: Real-time progress bars for current billing period
+- **Stable console interface**: Clean, jump-free display with automatic suppression of disruptive output
 
 ### 🔥 Advanced Burn Rate Analytics
 - **Per-minute tracking**: Granular burn rate display (tokens/minute) for precise monitoring
@@ -1055,6 +1057,24 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.1.7 - Monitor Display Stability
+
+**Clean Console Interface**: Major improvements to monitor mode stability and user experience with zero console jumping or interruptions:
+
+#### 🖥️ Console Stability Features
+- **Automatic Output Suppression**: All disruptive console output automatically suppressed during continuous monitor mode
+- **Debug Mode Integration**: Debug logging (`--debug`) uses `NullHandler` to prevent console jumping while maintaining functionality
+- **Silent Error Handling**: File processing errors logged silently without breaking the clean display interface
+- **Smart Token Limit Messages**: Token limit exceeded notifications suppressed in monitor mode but preserved in snapshot mode
+- **Exception Resilience**: Monitor loop exceptions use logging instead of console output to maintain display stability
+- **Clean Real-Time Experience**: Ensures zero console jumping, text interruptions, or display artifacts during monitoring
+
+#### 🔧 Technical Improvements
+- Enhanced error handling with `suppress_errors` parameter for file processing
+- Improved logging configuration for monitor mode with `NullHandler`
+- Smart output suppression for token limit updates during continuous monitoring
+- Robust exception handling that preserves display integrity
 
 ### v0.1.6 - Intelligent Cost Hierarchy
 

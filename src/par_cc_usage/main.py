@@ -52,6 +52,8 @@ def process_file(
     config: Config,
     base_dir: Path,
     dedup_state: DeduplicationState | None = None,
+    *,
+    suppress_errors: bool = False,
 ) -> int:
     """Process a single JSONL file.
 
@@ -62,6 +64,7 @@ def process_file(
         config: Configuration
         base_dir: Base directory for session parsing
         dedup_state: Deduplication state (optional)
+        suppress_errors: Whether to suppress error output (for monitor mode)
 
     Returns:
         Number of messages processed
@@ -77,17 +80,19 @@ def process_file(
                 messages_processed += 1
                 file_state.last_position = position
     except Exception as e:
-        console.print(f"[red]Error processing {file_path}: {e}[/red]")
+        if not suppress_errors:
+            console.print(f"[red]Error processing {file_path}: {e}[/red]")
 
     return messages_processed
 
 
-def scan_all_projects(config: Config, use_cache: bool = True) -> dict[str, Project]:
+def scan_all_projects(config: Config, use_cache: bool = True, *, suppress_stats: bool = False) -> dict[str, Project]:
     """Scan all projects and build usage data.
 
     Args:
         config: Configuration
         use_cache: Whether to use cached file positions (False for list command)
+        suppress_stats: Whether to suppress deduplication stats output (for monitor mode)
 
     Returns:
         Dictionary of projects
@@ -138,7 +143,7 @@ def scan_all_projects(config: Config, use_cache: bool = True) -> dict[str, Proje
         process_file(file_path, file_state, projects, config, base_dir, dedup_state)
 
     # Log deduplication stats if any duplicates found
-    if dedup_state.duplicate_count > 0:
+    if dedup_state.duplicate_count > 0 and not suppress_stats:
         console.print(
             f"[dim]Processed {dedup_state.total_messages} messages, "
             f"skipped {dedup_state.duplicate_count} duplicates[/dim]"
@@ -228,7 +233,9 @@ def _apply_command_overrides(config: Config, options: MonitorOptions) -> None:
         console.print(f"[yellow]Overriding display mode from command line:[/yellow] {options.display_mode.value}")
 
 
-def _check_token_limit_update(config: Config, actual_config_file: Path | None, current_usage: int) -> None:
+def _check_token_limit_update(
+    config: Config, actual_config_file: Path | None, current_usage: int, *, suppress_output: bool = False
+) -> None:
     """Check if token limit needs update and update config if necessary."""
     if config.token_limit and current_usage > config.token_limit:
         # Update token limit to current usage
@@ -238,10 +245,12 @@ def _check_token_limit_update(config: Config, actual_config_file: Path | None, c
         # Save updated config if we have a config file
         if actual_config_file:
             update_config_token_limit(actual_config_file, current_usage)
-            console.print(
-                f"\n[bold yellow]Token limit exceeded![/bold yellow] "
-                f"Updated from {old_limit:,} to {current_usage:,} tokens"
-            )
+            # Only print to console if not suppressed (avoid disrupting monitor display)
+            if not suppress_output:
+                console.print(
+                    f"\n[bold yellow]Token limit exceeded![/bold yellow] "
+                    f"Updated from {old_limit:,} to {current_usage:,} tokens"
+                )
 
 
 def _initialize_monitor_components(
@@ -461,7 +470,9 @@ def _process_modified_files(
                 continue
 
         if base_dir:
-            messages = process_file(file_path, file_state, projects, config, base_dir, dedup_state)
+            messages = process_file(
+                file_path, file_state, projects, config, base_dir, dedup_state, suppress_errors=True
+            )
             if messages > 0:
                 logger.debug(f"Processed {messages} messages from {file_path.name}")
 
@@ -498,8 +509,15 @@ def monitor(
     import asyncio
 
     # Configure logging level based on debug flag
+    # For monitor mode, we suppress console output to avoid disrupting the display
     if debug:
-        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+        # Create a null handler to suppress debug output during monitor mode
+
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(message)s",
+            handlers=[logging.NullHandler()],  # Suppress console output during monitor mode
+        )
     else:
         logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
@@ -665,7 +683,7 @@ async def _monitor_async(
 
                 # Check if current usage exceeds configured limit
                 current_usage = usage_snapshot.active_tokens
-                _check_token_limit_update(config, actual_config_file, current_usage)
+                _check_token_limit_update(config, actual_config_file, current_usage, suppress_output=True)
 
                 # Update snapshot with potentially new limit
                 usage_snapshot.total_limit = config.token_limit or 0
@@ -679,7 +697,8 @@ async def _monitor_async(
                 time.sleep(config.polling_interval)
 
             except Exception as e:
-                themed_console.print(create_error_display(f"Monitor error: {e}"))
+                # Log error without disrupting the monitor display
+                logger.error(f"Monitor error: {e}")
                 time.sleep(config.polling_interval)
 
     # Clean up

@@ -56,8 +56,11 @@ uv run pccu test-webhook
 # Take a single debug snapshot (monitor once and exit)
 uv run pccu monitor --snapshot
 
-# Enable debug output to see processing messages
+# Enable debug output (debug messages are suppressed in monitor mode to maintain clean display)
 uv run pccu monitor --debug
+
+# Note: Debug output is automatically suppressed during continuous monitor mode
+# to prevent console jumping and maintain a clean, stable display interface
 
 # Test pricing functionality including burn rate cost estimation
 uv run pccu monitor --show-pricing --snapshot
@@ -216,7 +219,7 @@ flowchart TB
    - `file_monitor.py`: Watches Claude project directories for JSONL file changes using file position tracking
    - `token_calculator.py`: Parses JSONL lines and calculates token usage per 5-hour blocks with deduplication
    - `models.py`: Core data structures (TokenUsage, TokenBlock, Session, Project, UsageSnapshot) with timezone support
-   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics and cost tracking
+   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, and stable console output (no jumping or interruptions)
    - `pricing.py`: LiteLLM integration for accurate cost calculations across all Claude models
 
 2. **Unified Block System**:
@@ -269,6 +272,14 @@ flowchart TB
    - **Tool Usage Tracking**: Track and display Claude Code tool usage (Read, Edit, Bash, etc.) with counts
    - **Activity Pattern Detection**: Historical usage analysis with configurable time windows
 
+6. **Monitor Display Stability**:
+   - **Clean Console Output**: Automatic suppression of disruptive messages during monitor mode
+   - **Debug Mode Integration**: Debug logging uses `NullHandler` to prevent console jumping
+   - **Error Handling**: File processing errors are logged silently without disrupting the display
+   - **Token Limit Updates**: Token limit exceeded messages are suppressed in continuous monitor mode
+   - **Exception Resilience**: Monitor loop exceptions are logged without breaking the display interface
+   - **Stable Interface**: No console jumping or text interruptions during real-time monitoring
+
 ### Key Architectural Decisions
 
 1. **Optimal Block Logic**: Billing block selection uses hour-boundary preference for consistent billing period representation
@@ -282,6 +293,7 @@ flowchart TB
 9. **Tool Usage Extraction**: Parses JSONL message content arrays to extract tool_use blocks and track tool names and call counts
 10. **Structured JSON Validation**: Uses Pydantic models for type-safe JSONL parsing and validation
 11. **Type-Safe Configuration**: Centralized enums and structured dataclasses eliminate string-based configurations
+12. **Console Stability**: Monitor mode suppresses all disruptive output (errors, debug messages, notifications) to maintain clean, stable real-time display
 
 ### Data Model Relationships
 
@@ -549,6 +561,14 @@ flowchart TD
 - Token counts use abbreviated format (e.g., "1.2M" for millions)
 - Time formats are configurable (12h/24h)
 - Project name prefixes can be stripped for cleaner display
+
+### Console Stability in Monitor Mode
+- **Output Suppression**: All disruptive console output is automatically suppressed during continuous monitor mode
+- **Debug Logging**: Uses `NullHandler` to prevent debug messages from interrupting the display when `--debug` is enabled
+- **Error Handling**: File processing errors are logged silently without breaking the display interface
+- **Token Limit Messages**: Token limit exceeded notifications are suppressed in monitor mode but still shown in snapshot mode
+- **Exception Resilience**: Monitor loop exceptions use logging instead of console output to maintain display stability
+- **Clean Interface**: Ensures no console jumping, text interruptions, or display artifacts during real-time monitoring
 
 ### Notification System
 - Discord and Slack webhooks for block completion notifications
