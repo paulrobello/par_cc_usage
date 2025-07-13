@@ -61,11 +61,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
   - [v0.1.3 - Code Quality Improvements](#v013---code-quality-improvements)
   - [v0.1.2 - Pricing & Cost Tracking](#v012---pricing--cost-tracking)
   - [v0.1.1 - Enhanced Analytics](#v011---enhanced-analytics)
-  - [v0.1.0 - Core Features](#v010---core-features)
   - [older...](#older)
 - [Development](#development)
 
@@ -221,6 +221,7 @@ pccu monitor --config production-config.yaml
 # Testing and debugging scenarios
 pccu monitor --no-cache --block-start 18  # Fresh scan + custom block timing
 pccu monitor --block-start 14 --show-sessions  # Override block start time
+pccu monitor --debug  # Enable debug output to see processing messages
 
 # Production monitoring examples
 pccu monitor --interval 10 --token-limit 500000  # Conservative monitoring
@@ -1002,6 +1003,26 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.1.5 - Debug Flag Enhancement
+
+**Improved Monitor Experience**: Successfully implemented a debug flag system that eliminates display jumping in monitor mode while providing optional diagnostic output:
+
+#### 🐛 Debug Features
+- **Clean Monitor Display**: Processing messages are now suppressed by default, preventing display jumping during active monitoring
+- **Optional Debug Output**: Use `--debug` flag to enable detailed processing messages when troubleshooting
+- **Smart Logging Configuration**: Automatic logging level adjustment based on debug flag state
+- **Comprehensive Test Coverage**: 554+ tests including specific debug functionality validation
+
+#### 📝 Usage Examples  
+- **Clean monitoring**: `pccu monitor` (no processing messages, stable display)
+- **Debug monitoring**: `pccu monitor --debug` (shows processing messages for troubleshooting)
+- **Debug with other options**: `pccu monitor --debug --show-sessions --show-pricing`
+
+#### 🔧 Technical Improvements
+- **Logger Integration**: Converted console output to proper logging infrastructure
+- **MonitorOptions Enhancement**: Added debug field to options dataclass with full type safety
+- **Documentation Updates**: Updated both CLAUDE.md and README.md with debug flag usage examples
+
 ### v0.1.4 - Theme System Implementation
 
 **Complete Theme System**: Successfully implemented a comprehensive theme system with full Rich library integration and accessibility support:
@@ -1066,10 +1087,6 @@ We're actively working on exciting new features to enhance your Claude Code moni
 ### v0.1.1 - Enhanced Analytics
 
 **Advanced Analytics**: Enhanced burn rate calculations, block management improvements, and refined display system with better user experience.
-
-### v0.1.0 - Core Features
-
-**Initial Release**: Core functionality including real-time monitoring, 5-hour billing blocks, multi-session support, and basic analytics.
 
 ### older...
 

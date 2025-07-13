@@ -24,6 +24,7 @@ class MonitorOptions:
     block_start_override_utc: datetime | None = None
     snapshot: bool = False
     display_mode: DisplayMode | None = None
+    debug: bool = False
 
 
 @dataclass

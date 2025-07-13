@@ -56,6 +56,9 @@ uv run pccu test-webhook
 # Take a single debug snapshot (monitor once and exit)
 uv run pccu monitor --snapshot
 
+# Enable debug output to see processing messages
+uv run pccu monitor --debug
+
 # Test pricing functionality including burn rate cost estimation
 uv run pccu monitor --show-pricing --snapshot
 uv run pccu list --show-pricing

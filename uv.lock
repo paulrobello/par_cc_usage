@@ -455,7 +455,7 @@ wheels = [
 
 [[package]]
 name = "par-cc-usage"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

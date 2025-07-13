@@ -3,6 +3,7 @@ Tests for the main module.
 """
 
 import json
+import logging
 import signal
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -285,7 +286,67 @@ class TestMonitorCommand:
                             assert mock_parse.called
                             call_args = mock_parse.call_args[0]
                             # The compact parameter should be False (it's the 9th parameter, index 8)
-                            assert call_args[8] is False  # compact parameter
+                            assert call_args[9] is False  # compact parameter
+                            # The debug parameter should be False (it's the 10th parameter, index 10)
+                            assert call_args[10] is False  # debug parameter
+
+    def test_monitor_debug_flag_enabled(self, mock_config):
+        """Test monitor command with --debug flag enabled."""
+        runner = CliRunner()
+
+        with patch('par_cc_usage.main.load_config', return_value=mock_config):
+            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                with patch('par_cc_usage.main.DisplayManager') as mock_display:
+                    with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
+                        with patch('par_cc_usage.main.logging.basicConfig') as mock_logging:
+                            mock_init.return_value = ([], Mock(), Mock(), Mock())
+                            mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
+
+                            result = runner.invoke(app, ["monitor", "--debug"])
+
+                            # Should have configured logging for DEBUG level
+                            mock_logging.assert_called_with(level=logging.DEBUG, format="%(message)s")
+
+    def test_monitor_debug_flag_disabled(self, mock_config):
+        """Test monitor command with debug flag disabled (default)."""
+        runner = CliRunner()
+
+        with patch('par_cc_usage.main.load_config', return_value=mock_config):
+            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                with patch('par_cc_usage.main.DisplayManager') as mock_display:
+                    with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
+                        with patch('par_cc_usage.main.logging.basicConfig') as mock_logging:
+                            mock_init.return_value = ([], Mock(), Mock(), Mock())
+                            mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
+
+                            result = runner.invoke(app, ["monitor"])
+
+                            # Should have configured logging for WARNING level (default)
+                            mock_logging.assert_called_with(level=logging.WARNING, format="%(message)s")
+
+    @patch('par_cc_usage.main.logger')
+    def test_monitor_debug_message_logging(self, mock_logger, mock_config):
+        """Test that debug messages are logged when processing files."""
+        from pathlib import Path
+        from par_cc_usage.main import _process_modified_files
+        from par_cc_usage.file_monitor import FileState
+        
+        # Create a mock file path
+        test_file = Path("/test/file.jsonl")
+        mock_file_state = FileState(path=test_file, size=100, mtime=123456)
+        
+        # Mock the necessary components for _process_modified_files
+        with patch('par_cc_usage.main.process_file', return_value=3):
+            _process_modified_files(
+                [(test_file, mock_file_state)],  # List of tuples
+                [Path("/test")],  # claude_paths
+                {},  # projects
+                mock_config,  # config
+                Mock()  # dedup_state
+            )
+        
+        # Should have called logger.debug with the processing message
+        mock_logger.debug.assert_called_with("Processed 3 messages from file.jsonl")
 
 
 class TestListCommand:

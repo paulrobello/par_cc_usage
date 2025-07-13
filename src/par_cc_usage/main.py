@@ -299,6 +299,7 @@ def _parse_monitor_options(
     block_start_override: int | None,
     snapshot: bool,
     compact: bool,
+    debug: bool,
     config: Config,
 ) -> MonitorOptions:
     """Parse and create monitor options from command arguments.
@@ -314,6 +315,7 @@ def _parse_monitor_options(
         block_start_override: Block start override hour
         snapshot: Take single snapshot flag
         compact: Use compact display mode
+        debug: Enable debug output flag
         config: Configuration object
 
     Returns:
@@ -333,6 +335,7 @@ def _parse_monitor_options(
         block_start_override_utc=block_start_override_utc,
         snapshot=snapshot,
         display_mode=DisplayMode.COMPACT if compact else None,
+        debug=debug,
     )
 
 
@@ -459,7 +462,7 @@ def _process_modified_files(
         if base_dir:
             messages = process_file(file_path, file_state, projects, config, base_dir, dedup_state)
             if messages > 0:
-                console.print(f"[dim]Processed {messages} messages from {file_path.name}[/dim]")
+                logger.debug(f"Processed {messages} messages from {file_path.name}")
 
 
 @app.command()
@@ -488,9 +491,16 @@ def monitor(
     ] = False,
     compact: Annotated[bool, typer.Option("--compact", help="Use compact display mode (minimal view)")] = False,
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug output (shows processing messages)")] = False,
 ) -> None:
     """Monitor Claude Code token usage in real-time."""
     import asyncio
+
+    # Configure logging level based on debug flag
+    if debug:
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    else:
+        logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
     # Run the async monitor function
     asyncio.run(
@@ -550,6 +560,7 @@ async def _monitor_async(
         block_start_override,
         snapshot,
         compact,
+        False,  # debug is handled in sync function before asyncio.run
         config,
     )
 

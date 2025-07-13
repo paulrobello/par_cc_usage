@@ -19,6 +19,7 @@ class TestMonitorOptions:
         assert options.token_limit is None
         assert options.block_start_override is None
         assert options.no_cache is False
+        assert options.debug is False
 
     def test_monitor_options_with_compact_mode(self):
         """Test MonitorOptions with compact display mode."""
@@ -100,23 +101,27 @@ class TestMonitorOptions:
         options = MonitorOptions(
             snapshot=True,
             show_sessions=True,
-            no_cache=True
+            no_cache=True,
+            debug=True
         )
 
         assert options.snapshot is True
         assert options.show_sessions is True
         assert options.no_cache is True
+        assert options.debug is True
 
         # Test false values
         options2 = MonitorOptions(
             snapshot=False,
             show_sessions=False,
-            no_cache=False
+            no_cache=False,
+            debug=False
         )
 
         assert options2.snapshot is False
         assert options2.show_sessions is False
         assert options2.no_cache is False
+        assert options2.debug is False
 
     def test_monitor_options_token_limit_types(self):
         """Test MonitorOptions token_limit with different types."""
