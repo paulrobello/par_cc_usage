@@ -633,6 +633,8 @@ class TestToolUsageTableDisplay:
             model="sonnet"
         )
 
+        current_time = sample_timestamp + timedelta(hours=1, minutes=30)
+
         # Create a block with 5 tools (should use single column)
         usage = TokenUsage(input_tokens=100, output_tokens=50)
         block = TokenBlock(
@@ -642,7 +644,7 @@ class TestToolUsageTableDisplay:
             project_name="test_project",
             model="sonnet",
             token_usage=usage,
-            actual_end_time=sample_timestamp + timedelta(hours=1),
+            actual_end_time=current_time,  # Set to current time to be active
             tools_used={"Read", "Edit", "Bash", "Write", "Grep"},
             tool_call_counts={"Read": 10, "Edit": 8, "Bash": 6, "Write": 4, "Grep": 2},
             total_tool_calls=30
@@ -652,13 +654,15 @@ class TestToolUsageTableDisplay:
         project.add_session(session)
 
         snapshot = UsageSnapshot(
-            timestamp=sample_timestamp + timedelta(hours=1),
+            timestamp=current_time,
             projects={"test_project": project}
         )
 
-        with patch("par_cc_usage.models.datetime") as mock_dt:
-            mock_dt.now.return_value = sample_timestamp + timedelta(hours=1, minutes=30)
+        with patch("par_cc_usage.token_calculator.datetime") as mock_dt, patch("par_cc_usage.models.datetime") as mock_dt_models:
+            mock_dt.now.return_value = current_time
             mock_dt.timezone.utc = sample_timestamp.tzinfo
+            mock_dt_models.now.return_value = current_time
+            mock_dt_models.timezone.utc = sample_timestamp.tzinfo
 
             table = display._create_tool_usage_table(snapshot)
 
@@ -693,6 +697,8 @@ class TestToolUsageTableDisplay:
             model="sonnet"
         )
 
+        current_time = sample_timestamp + timedelta(hours=1, minutes=30)
+
         tools = {f"Tool{i:02d}": 20-i for i in range(18)}  # 18 tools with decreasing counts
         usage = TokenUsage(input_tokens=100, output_tokens=50)
         block = TokenBlock(
@@ -702,7 +708,7 @@ class TestToolUsageTableDisplay:
             project_name="test_project",
             model="sonnet",
             token_usage=usage,
-            actual_end_time=sample_timestamp + timedelta(hours=1),
+            actual_end_time=current_time,  # Set to current time to be active
             tools_used=set(tools.keys()),
             tool_call_counts=tools,
             total_tool_calls=sum(tools.values())
@@ -712,13 +718,15 @@ class TestToolUsageTableDisplay:
         project.add_session(session)
 
         snapshot = UsageSnapshot(
-            timestamp=sample_timestamp + timedelta(hours=1),
+            timestamp=current_time,
             projects={"test_project": project}
         )
 
-        with patch("par_cc_usage.models.datetime") as mock_dt:
-            mock_dt.now.return_value = sample_timestamp + timedelta(hours=1, minutes=30)
+        with patch("par_cc_usage.token_calculator.datetime") as mock_dt, patch("par_cc_usage.models.datetime") as mock_dt_models:
+            mock_dt.now.return_value = current_time
             mock_dt.timezone.utc = sample_timestamp.tzinfo
+            mock_dt_models.now.return_value = current_time
+            mock_dt_models.timezone.utc = sample_timestamp.tzinfo
 
             table = display._create_tool_usage_table(snapshot)
 
@@ -754,6 +762,8 @@ class TestToolUsageTableDisplay:
             model="sonnet"
         )
 
+        current_time = sample_timestamp + timedelta(hours=1, minutes=30)
+
         tools = {f"Tool{i:02d}": 40-i for i in range(40)}  # 40 tools with decreasing counts
         usage = TokenUsage(input_tokens=100, output_tokens=50)
         block = TokenBlock(
@@ -763,7 +773,7 @@ class TestToolUsageTableDisplay:
             project_name="test_project",
             model="sonnet",
             token_usage=usage,
-            actual_end_time=sample_timestamp + timedelta(hours=1),
+            actual_end_time=current_time,  # Set to current time to be active
             tools_used=set(tools.keys()),
             tool_call_counts=tools,
             total_tool_calls=sum(tools.values())
@@ -773,13 +783,15 @@ class TestToolUsageTableDisplay:
         project.add_session(session)
 
         snapshot = UsageSnapshot(
-            timestamp=sample_timestamp + timedelta(hours=1),
+            timestamp=current_time,
             projects={"test_project": project}
         )
 
-        with patch("par_cc_usage.models.datetime") as mock_dt:
-            mock_dt.now.return_value = sample_timestamp + timedelta(hours=1, minutes=30)
+        with patch("par_cc_usage.token_calculator.datetime") as mock_dt, patch("par_cc_usage.models.datetime") as mock_dt_models:
+            mock_dt.now.return_value = current_time
             mock_dt.timezone.utc = sample_timestamp.tzinfo
+            mock_dt_models.now.return_value = current_time
+            mock_dt_models.timezone.utc = sample_timestamp.tzinfo
 
             table = display._create_tool_usage_table(snapshot)
 
