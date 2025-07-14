@@ -56,7 +56,6 @@ class MessageData(BaseModel):
     content: list[MessageContent] = Field(default_factory=list)
     stop_reason: str | None = None
     stop_sequence: str | None = None
-    was_interrupted: bool = Field(False, alias="wasInterrupted")
 
     @field_validator("model")
     @classmethod

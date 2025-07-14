@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from .models import UsageSnapshot
 
 from .enums import DisplayMode, ThemeType, TimeFormat
 from .utils import expand_path
@@ -100,6 +103,34 @@ class Config(BaseModel):
     token_limit: int | None = Field(
         default=None,
         description="Token limit (auto-detect if not set)",
+    )
+    message_limit: int | None = Field(
+        default=None,
+        description="Message limit (auto-detect if not set)",
+    )
+    max_cost_encountered: float = Field(
+        default=0.0,
+        description="Maximum cost from any single block encountered in history (updated automatically)",
+    )
+    max_tokens_encountered: int = Field(
+        default=0,
+        description="Maximum tokens from any single block encountered in history (updated automatically)",
+    )
+    max_messages_encountered: int = Field(
+        default=0,
+        description="Maximum messages from any single block encountered in history (updated automatically)",
+    )
+    max_unified_block_tokens_encountered: int = Field(
+        default=0,
+        description="Maximum tokens from any unified block (5-hour period) encountered in history (updated automatically)",
+    )
+    max_unified_block_messages_encountered: int = Field(
+        default=0,
+        description="Maximum messages from any unified block (5-hour period) encountered in history (updated automatically)",
+    )
+    max_unified_block_cost_encountered: float = Field(
+        default=0.0,
+        description="Maximum cost from any unified block (5-hour period) encountered in history (updated automatically)",
     )
     cache_dir: Path = Field(
         default_factory=get_cache_dir,
@@ -250,6 +281,7 @@ def _parse_env_value(value: str, config_key: str) -> Any:
     if config_key in [
         "polling_interval",
         "token_limit",
+        "message_limit",
         "refresh_interval",
         "cooldown_minutes",
         "recent_activity_window_hours",
@@ -317,6 +349,7 @@ def _get_top_level_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_POLLING_INTERVAL": "polling_interval",
         "PAR_CC_USAGE_TIMEZONE": "timezone",
         "PAR_CC_USAGE_TOKEN_LIMIT": "token_limit",
+        "PAR_CC_USAGE_MESSAGE_LIMIT": "message_limit",
         "PAR_CC_USAGE_CACHE_DIR": "cache_dir",
         "PAR_CC_USAGE_DISABLE_CACHE": "disable_cache",
         "PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS": "recent_activity_window_hours",
@@ -409,6 +442,13 @@ def save_config(config: Config, config_file: Path) -> None:
         "polling_interval": config.polling_interval,
         "timezone": config.timezone,
         "token_limit": config.token_limit,
+        "message_limit": config.message_limit,
+        "max_cost_encountered": config.max_cost_encountered,
+        "max_tokens_encountered": config.max_tokens_encountered,
+        "max_messages_encountered": config.max_messages_encountered,
+        "max_unified_block_tokens_encountered": config.max_unified_block_tokens_encountered,
+        "max_unified_block_messages_encountered": config.max_unified_block_messages_encountered,
+        "max_unified_block_cost_encountered": config.max_unified_block_cost_encountered,
         "cache_dir": str(config.cache_dir),
         "display": {
             "show_progress_bars": config.display.show_progress_bars,
@@ -455,6 +495,19 @@ def update_config_token_limit(config_file: Path, token_limit: int) -> None:
         save_config(config, config_file)
 
 
+def update_config_message_limit(config_file: Path, message_limit: int) -> None:
+    """Update message limit in config file.
+
+    Args:
+        config_file: Path to config file
+        message_limit: New message limit
+    """
+    if config_file.exists():
+        config = load_config(config_file)
+        config.message_limit = message_limit
+        save_config(config, config_file)
+
+
 def get_default_token_limit() -> int:
     """Get default token limit based on detected model.
 
@@ -463,3 +516,168 @@ def get_default_token_limit() -> int:
     """
     # Default to 500k for now, can be made smarter later
     return 500_000
+
+
+def get_default_message_limit() -> int:
+    """Get default message limit based on detected model.
+
+    Returns:
+        Default message limit
+    """
+    # Default to 50 messages for now, can be made smarter later
+    return 50
+
+
+def _get_block_maximums(usage_snapshot: UsageSnapshot) -> tuple[int, int, float]:
+    """Get maximum values from individual blocks."""
+    max_block_tokens = 0
+    max_block_messages = 0
+    max_block_cost = 0.0
+
+    for project in usage_snapshot.projects.values():
+        for session in project.sessions.values():
+            for block in session.blocks:
+                max_block_tokens = max(max_block_tokens, block.adjusted_tokens)
+                max_block_messages = max(max_block_messages, block.message_count)
+                max_block_cost = max(max_block_cost, block.cost_usd)
+
+    return max_block_tokens, max_block_messages, max_block_cost
+
+
+def _update_individual_block_maximums(
+    config: Config, max_block_tokens: int, max_block_messages: int, max_block_cost: float
+) -> bool:
+    """Update individual block maximum encountered values."""
+    updated = False
+
+    if max_block_tokens > config.max_tokens_encountered:
+        config.max_tokens_encountered = max_block_tokens
+        updated = True
+
+    if max_block_messages > config.max_messages_encountered:
+        config.max_messages_encountered = max_block_messages
+        updated = True
+
+    if max_block_cost > config.max_cost_encountered:
+        config.max_cost_encountered = max_block_cost
+        updated = True
+
+    return updated
+
+
+def _update_unified_block_maximums(config: Config, unified_tokens: int, unified_messages: int) -> bool:
+    """Update unified block maximum encountered values."""
+    updated = False
+
+    if unified_tokens > config.max_unified_block_tokens_encountered:
+        config.max_unified_block_tokens_encountered = unified_tokens
+        updated = True
+
+    if unified_messages > config.max_unified_block_messages_encountered:
+        config.max_unified_block_messages_encountered = unified_messages
+        updated = True
+
+    return updated
+
+
+def _auto_scale_limits(config: Config, unified_tokens: int, unified_messages: int) -> bool:
+    """Auto-scale token and message limits if exceeded."""
+    updated = False
+
+    # Auto-scale token limit if exceeded
+    if config.token_limit is not None and unified_tokens > config.token_limit:
+        # Add 20% buffer to prevent constant updates
+        new_limit = int(unified_tokens * 1.2)
+        config.token_limit = new_limit
+        updated = True
+
+    # Auto-scale message limit if exceeded
+    if config.message_limit is not None and unified_messages > config.message_limit:
+        # Add 20% buffer to prevent constant updates
+        new_limit = int(unified_messages * 1.2)
+        config.message_limit = new_limit
+        updated = True
+
+    return updated
+
+
+def update_max_encountered_values(
+    config: Config, usage_snapshot: UsageSnapshot, config_file: Path | None = None
+) -> bool:
+    """Update max encountered values and auto-scale limits if needed.
+
+    Args:
+        config: Current configuration
+        usage_snapshot: Current usage snapshot to check for new maximums
+        config_file: Path to config file (defaults to XDG location)
+
+    Returns:
+        True if config was updated and saved, False otherwise
+    """
+    if config_file is None:
+        config_file = get_config_file_path()
+
+    updated = False
+
+    # Get individual block maximums
+    max_block_tokens, max_block_messages, max_block_cost = _get_block_maximums(usage_snapshot)
+
+    # Track unified block maximums
+    unified_tokens = usage_snapshot.unified_block_tokens()
+    unified_messages = usage_snapshot.unified_block_messages()
+
+    # Update individual block max encountered values
+    if _update_individual_block_maximums(config, max_block_tokens, max_block_messages, max_block_cost):
+        updated = True
+
+    # Update unified block max encountered values
+    if _update_unified_block_maximums(config, unified_tokens, unified_messages):
+        updated = True
+
+    # Auto-scale limits if needed
+    if _auto_scale_limits(config, unified_tokens, unified_messages):
+        updated = True
+
+    # Save config if any updates were made
+    if updated:
+        save_config(config, config_file)
+
+    return updated
+
+
+async def update_max_encountered_values_async(
+    config: Config, usage_snapshot: UsageSnapshot, config_file: Path | None = None
+) -> bool:
+    """Update max encountered values including cost and auto-scale limits if needed.
+
+    Args:
+        config: Current configuration
+        usage_snapshot: Current usage snapshot to check for new maximums
+        config_file: Path to config file (defaults to XDG location)
+
+    Returns:
+        True if config was updated and saved, False otherwise
+    """
+    if config_file is None:
+        config_file = get_config_file_path()
+
+    # First do the sync updates
+    updated = update_max_encountered_values(config, usage_snapshot, config_file)
+
+    # Now handle the async cost calculation
+    try:
+        unified_cost = await usage_snapshot.get_unified_block_total_cost()
+
+        if unified_cost > config.max_unified_block_cost_encountered:
+            config.max_unified_block_cost_encountered = unified_cost
+            updated = True
+
+        # Save config again if cost was updated
+        if updated:
+            save_config(config, config_file)
+
+    except Exception:
+        # If cost calculation fails, don't break the entire update process
+        pass
+
+    return updated

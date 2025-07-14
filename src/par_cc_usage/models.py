@@ -27,23 +27,43 @@ class TokenUsage:
     # Tool usage tracking
     tools_used: list[str] = field(default_factory=list)  # List of tool names used in this message
     tool_use_count: int = 0  # Total number of tool calls in this message
-    # Interruption tracking
-    was_interrupted: bool = False  # Whether this message was interrupted by user
+    # Message count tracking
+    message_count: int = 1  # Number of messages (typically 1 per TokenUsage instance)
+    # Actual token fields (for accurate pricing calculations)
+    actual_input_tokens: int = 0
+    actual_cache_creation_input_tokens: int = 0
+    actual_cache_read_input_tokens: int = 0
+    actual_output_tokens: int = 0
 
     @property
     def total_input(self) -> int:
-        """Calculate total input tokens."""
+        """Calculate total input tokens (display tokens)."""
         return self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
 
     @property
     def total_output(self) -> int:
-        """Calculate total output tokens."""
+        """Calculate total output tokens (display tokens)."""
         return self.output_tokens
 
     @property
     def total(self) -> int:
-        """Calculate total tokens."""
+        """Calculate total tokens (display tokens)."""
         return self.total_input + self.total_output
+
+    @property
+    def actual_total_input(self) -> int:
+        """Calculate total actual input tokens (for pricing)."""
+        return self.actual_input_tokens + self.actual_cache_creation_input_tokens + self.actual_cache_read_input_tokens
+
+    @property
+    def actual_total_output(self) -> int:
+        """Calculate total actual output tokens (for pricing)."""
+        return self.actual_output_tokens
+
+    @property
+    def actual_total(self) -> int:
+        """Calculate total actual tokens (for pricing)."""
+        return self.actual_total_input + self.actual_total_output
 
     def adjusted_total(self, multiplier: float = 1.0) -> int:
         """Calculate adjusted total with model multiplier."""
@@ -67,8 +87,14 @@ class TokenUsage:
             # Combine tool usage
             tools_used=combined_tools,
             tool_use_count=self.tool_use_count + other.tool_use_count,
-            # Interruption tracking (True if either was interrupted)
-            was_interrupted=self.was_interrupted or other.was_interrupted,
+            # Message count tracking
+            message_count=self.message_count + other.message_count,
+            # Actual token fields
+            actual_input_tokens=self.actual_input_tokens + other.actual_input_tokens,
+            actual_cache_creation_input_tokens=self.actual_cache_creation_input_tokens
+            + other.actual_cache_creation_input_tokens,
+            actual_cache_read_input_tokens=self.actual_cache_read_input_tokens + other.actual_cache_read_input_tokens,
+            actual_output_tokens=self.actual_output_tokens + other.actual_output_tokens,
         )
 
     def get_unique_hash(self) -> str:
@@ -102,9 +128,12 @@ class TokenBlock:
     tools_used: set[str] = field(default_factory=set[str])  # Unique tools used in this block
     total_tool_calls: int = 0  # Total number of tool calls in this block
     tool_call_counts: dict[str, int] = field(default_factory=dict[str, int])  # Per-tool call counts
-    # Interruption tracking
-    total_interruptions: int = 0  # Total number of interruptions in this block
-    interruptions_by_model: dict[str, int] = field(default_factory=dict[str, int])  # Per-model interruption counts
+    # Message count tracking
+    message_count: int = 0  # Total number of messages in this block
+    model_message_counts: dict[str, int] = field(default_factory=dict[str, int])  # Per-model message counts
+    # Actual token fields (for accurate pricing calculations)
+    actual_tokens: int = 0  # Total actual tokens for this block
+    actual_model_tokens: dict[str, int] = field(default_factory=dict[str, int])  # Per-model actual tokens
 
     @property
     def is_active(self) -> bool:
@@ -113,15 +142,18 @@ class TokenBlock:
         A block is active if:
         1. It's not a gap block
         2. Time since last activity < 5 hours (session duration)
-        3. Current time is not before the block's start time
+        3. Current time < block end time (start + 5 hours)
         """
         if self.is_gap:
             return False
 
         now = datetime.now(self.start_time.tzinfo)
 
-        # Check if current time is before the block's start time
-        if now < self.start_time:
+        # Calculate block end time (start + 5 hours)
+        block_end_time = self.start_time + timedelta(hours=5)
+
+        # Check if current time is after block end time
+        if now >= block_end_time:
             return False
 
         # Check time since last activity
@@ -140,12 +172,29 @@ class TokenBlock:
 
     @property
     def adjusted_tokens(self) -> int:
-        """Get adjusted token count from per-model totals."""
+        """Get adjusted token count from per-model totals (display tokens)."""
         if self.model_tokens:
             return sum(self.model_tokens.values())
         else:
             # Fallback to old method for backward compatibility
             return self.token_usage.adjusted_total(self.model_multiplier)
+
+    @property
+    def actual_tokens_total(self) -> int:
+        """Get actual token count from per-model totals (for pricing)."""
+        if self.actual_model_tokens:
+            return sum(self.actual_model_tokens.values())
+        else:
+            # Fallback to token_usage actual tokens if available
+            if self.token_usage.actual_total > 0:
+                return self.token_usage.actual_total
+            else:
+                # Last resort: use display tokens divided by multiplier
+                return (
+                    int(self.token_usage.total / self.model_multiplier)
+                    if self.model_multiplier > 0
+                    else self.token_usage.total
+                )
 
     @property
     def all_models_display(self) -> str:
@@ -263,6 +312,23 @@ class Project:
                     total_tokens += block.adjusted_tokens
         return total_tokens
 
+    def get_unified_block_messages(self, unified_start: datetime | None) -> int:
+        """Get project messages for the unified block time window."""
+        if unified_start is None:
+            total_messages = 0
+            for session in self.sessions.values():
+                for block in session.blocks:
+                    if block.is_active:
+                        total_messages += block.message_count
+            return total_messages
+
+        total_messages = 0
+        for session in self.sessions.values():
+            for block in session.blocks:
+                if block.is_active and self._block_overlaps_unified_window(block, unified_start):
+                    total_messages += block.message_count
+        return total_messages
+
     def get_unified_block_models(self, unified_start: datetime | None) -> set[str]:
         """Get models used in the unified block time window."""
         if unified_start is None:
@@ -343,6 +409,7 @@ class UsageSnapshot:
     timestamp: datetime
     projects: dict[str, Project] = field(default_factory=dict[str, Project])
     total_limit: int | None = None
+    message_limit: int | None = None
     block_start_override: datetime | None = None
 
     @property
@@ -354,6 +421,27 @@ class UsageSnapshot:
     def active_tokens(self) -> int:
         """Calculate tokens in active blocks only."""
         return sum(project.active_tokens for project in self.projects.values())
+
+    @property
+    def total_messages(self) -> int:
+        """Calculate total messages across all projects."""
+        total = 0
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    total += block.message_count
+        return total
+
+    @property
+    def active_messages(self) -> int:
+        """Calculate messages in active blocks only."""
+        total = 0
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    if block.is_active:
+                        total += block.message_count
+        return total
 
     @property
     def active_projects(self) -> list[Project]:
@@ -388,6 +476,30 @@ class UsageSnapshot:
                             model_tokens[model] += block.adjusted_tokens
 
         return model_tokens
+
+    def messages_by_model(self) -> dict[str, int]:
+        """Get message usage grouped by model from all active blocks."""
+        model_messages: dict[str, int] = {}
+
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                # Sum messages from all active blocks
+                for block in session.blocks:
+                    if block.is_active:
+                        if block.model_message_counts:
+                            # Use per-model message tracking if available
+                            for model, messages in block.model_message_counts.items():
+                                if model not in model_messages:
+                                    model_messages[model] = 0
+                                model_messages[model] += messages
+                        else:
+                            # Fallback to block message count
+                            model = block.model
+                            if model not in model_messages:
+                                model_messages[model] = 0
+                            model_messages[model] += block.message_count
+
+        return model_messages
 
     def unified_block_tokens(self) -> int:
         """Get tokens only from blocks that overlap with the unified block time window."""
@@ -425,6 +537,42 @@ class UsageSnapshot:
                             model_tokens[model] += block.adjusted_tokens
         return model_tokens
 
+    def unified_block_messages(self) -> int:
+        """Get messages only from blocks that overlap with the unified block time window."""
+        unified_start = self.unified_block_start_time
+        if not unified_start:
+            return 0
+
+        total = 0
+        for project in self.projects.values():
+            total += project.get_unified_block_messages(unified_start)
+        return total
+
+    def unified_block_messages_by_model(self) -> dict[str, int]:
+        """Get message usage by model only from blocks overlapping with unified block time window."""
+        unified_start = self.unified_block_start_time
+        if not unified_start:
+            return {}
+
+        model_messages: dict[str, int] = {}
+        for project in self.projects.values():
+            for session in project.sessions.values():
+                for block in session.blocks:
+                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
+                        if block.model_message_counts:
+                            # Use per-model message tracking if available
+                            for model, messages in block.model_message_counts.items():
+                                if model not in model_messages:
+                                    model_messages[model] = 0
+                                model_messages[model] += messages
+                        else:
+                            # Fallback to block message count
+                            model = block.model
+                            if model not in model_messages:
+                                model_messages[model] = 0
+                            model_messages[model] += block.message_count
+        return model_messages
+
     def unified_block_tool_usage(self) -> dict[str, int]:
         """Get tool usage counts only from blocks overlapping with unified block time window."""
         unified_start = self.unified_block_start_time
@@ -456,38 +604,6 @@ class UsageSnapshot:
                         total += block.total_tool_calls
         return total
 
-    def interruptions_by_model(self) -> dict[str, int]:
-        """Get interruption counts grouped by model from all active blocks."""
-        model_interruptions: dict[str, int] = {}
-
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active:
-                        for model, count in block.interruptions_by_model.items():
-                            if model not in model_interruptions:
-                                model_interruptions[model] = 0
-                            model_interruptions[model] += count
-
-        return model_interruptions
-
-    def unified_block_interruptions_by_model(self) -> dict[str, int]:
-        """Get interruption counts by model only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return {}
-
-        model_interruptions: dict[str, int] = {}
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        for model, count in block.interruptions_by_model.items():
-                            if model not in model_interruptions:
-                                model_interruptions[model] = 0
-                            model_interruptions[model] += count
-        return model_interruptions
-
     async def get_unified_block_cost_by_model(self) -> dict[str, float]:
         """Get cost breakdown by model only from blocks overlapping with unified block time window."""
         from .pricing import calculate_token_cost
@@ -506,14 +622,14 @@ class UsageSnapshot:
                             if full_model not in model_costs:
                                 model_costs[full_model] = 0.0
 
-                            # Calculate cost based on token usage
+                            # Calculate cost based on actual token usage (for accurate pricing)
                             usage = block.token_usage
                             cost = await calculate_token_cost(
                                 full_model,
-                                usage.input_tokens,
-                                usage.output_tokens,
-                                usage.cache_creation_input_tokens,
-                                usage.cache_read_input_tokens,
+                                usage.actual_input_tokens,
+                                usage.actual_output_tokens,
+                                usage.actual_cache_creation_input_tokens,
+                                usage.actual_cache_read_input_tokens,
                             )
                             model_costs[full_model] += cost.total_cost
 
@@ -538,14 +654,14 @@ class UsageSnapshot:
                             if full_model not in model_costs:
                                 model_costs[full_model] = 0.0
 
-                            # Calculate cost based on token usage
+                            # Calculate cost based on actual token usage (for accurate pricing)
                             usage = block.token_usage
                             cost = await calculate_token_cost(
                                 full_model,
-                                usage.input_tokens,
-                                usage.output_tokens,
-                                usage.cache_creation_input_tokens,
-                                usage.cache_read_input_tokens,
+                                usage.actual_input_tokens,
+                                usage.actual_output_tokens,
+                                usage.actual_cache_creation_input_tokens,
+                                usage.actual_cache_read_input_tokens,
                             )
                             model_costs[full_model] += cost.total_cost
 
@@ -555,30 +671,6 @@ class UsageSnapshot:
         """Get total cost from all active blocks."""
         model_costs = await self.get_total_cost_by_model()
         return sum(model_costs.values())
-
-    def total_interruptions(self) -> int:
-        """Get total interruptions across all active blocks."""
-        total = 0
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active:
-                        total += block.total_interruptions
-        return total
-
-    def unified_block_total_interruptions(self) -> int:
-        """Get total interruptions only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return 0
-
-        total = 0
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        total += block.total_interruptions
-        return total
 
     def add_project(self, project: Project) -> None:
         """Add a project to the snapshot."""

@@ -63,7 +63,7 @@ def debug_blocks(
     console.print(f"[bold]Current Time (UTC):[/bold] {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     # Create snapshot to use the unified block logic
-    snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
+    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
 
     console.print(f"[bold]Configured Timezone:[/bold] {config.timezone}")
     console.print(f"[bold]Snapshot Timestamp:[/bold] {snapshot.timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
@@ -232,7 +232,7 @@ def debug_unified_block(
     projects = scan_all_projects(config, use_cache=False)
 
     # Create snapshot
-    snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
+    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
 
     # Show step-by-step calculation
     console.print("[bold]Step 1: Current time configuration[/bold]")
@@ -371,7 +371,7 @@ def debug_recent_activity(
     console.print(table)
 
     # Analysis
-    snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
+    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
     _print_recent_activity_analysis(most_recent_active, snapshot, config, tz, expected_hour)
 
 
@@ -569,7 +569,7 @@ def debug_session_table(
     # Get usage data
     try:
         projects = scan_all_projects(config)
-        snapshot = aggregate_usage(projects, config.token_limit, config.timezone)
+        snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
     except Exception as e:
         console.print(f"[red]Error scanning projects: {e}[/red]")
         return

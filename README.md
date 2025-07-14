@@ -61,12 +61,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
   - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
   - [v0.1.7 - Monitor Display Stability](#v017---monitor-display-stability)
   - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
   - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
-  - [v0.1.3 - Code Quality Improvements](#v013---code-quality-improvements)
   - [older...](#older)
 - [Development](#development)
 
@@ -646,7 +646,7 @@ To reflect the actual cost differences between Claude models, tokens are adjuste
 ### Model Display Names
 Model identifiers are simplified for better readability:
 - `claude-opus-*` → **Opus**
-- `claude-sonnet-*` → **Sonnet** 
+- `claude-sonnet-*` → **Sonnet**
 - Unknown/other models → **Unknown**
 
 **Note**: Claude Code primarily uses Opus and Sonnet models. Any other model names (including Haiku) are normalized to "Unknown".
@@ -730,7 +730,7 @@ When `show_pricing` is enabled, cost information appears in:
 
 1. **Main Usage Summary**: Total cost displayed next to token counts (e.g., "84.1M $34.85")
 2. **Burn Rate Line**: Estimated total cost for 5-hour block based on current spending rate (e.g., "531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m")
-3. **Activity Tables**: 
+3. **Activity Tables**:
    - Project aggregation mode: Cost column showing project-level costs
    - Session aggregation mode: Cost column showing session-level costs
 4. **List Command Output**: Cost information in table, JSON, and CSV formats with cost source tracking
@@ -778,7 +778,7 @@ pccu list --show-pricing --format json
     "cost_source": "block_native"     # Native cost from Claude
   },
   {
-    "project": "my-app", 
+    "project": "my-app",
     "session": "def456...",
     "model": "sonnet",
     "tokens": 75000,
@@ -811,7 +811,7 @@ PAR CC Usage can send webhook notifications to Discord and/or Slack when 5-hour 
 
 #### Discord Setup
 
-1. **Create Discord Webhook**: 
+1. **Create Discord Webhook**:
    - Go to your Discord server settings
    - Navigate to Integrations > Webhooks
    - Create a new webhook and copy the URL
@@ -1057,6 +1057,32 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix
+
+**Visual Interface Improvements**: Enhanced monitor display with emoji icons for better readability and fixed critical cost tracking bug:
+
+#### 🎨 Emoji-Enhanced Display
+- **Visual Icons**: Added emoji indicators for improved readability
+  - 🪙 **Tokens**: Coin emoji for token counts and rates
+  - ✉️ **Messages**: Envelope emoji for message counts and rates  
+  - 💰 **Costs**: Money bag emoji for cost calculations
+  - ⚡ **Models**: Lightning emoji for Claude Sonnet model display
+  - 🔥 **Burn Rate**: Fire emoji for activity rate calculations
+  - 📊 **Total**: Bar chart emoji for summary statistics
+- **Consistent Format**: All model lines, burn rate, and total lines use unified emoji system
+- **Clean Layout**: Improved spacing and visual hierarchy in terminal interface
+
+#### 🐛 Critical Cost Tracking Fix
+- **Individual Block Maximums**: Fixed `max_cost_encountered` to track single block peaks instead of cumulative totals
+- **Accurate Total Line**: Cost display now shows realistic historical maximums (e.g., `$14.43 / $56.02` vs. incorrect `$14.43 / $4847.61`)
+- **Consistent Tracking**: Cost maximums now follow same pattern as token and message tracking
+- **Config Reset**: Automatic correction of inflated historical cost values
+
+#### 🔧 Code Quality Improvements
+- **Documentation Updates**: Enhanced architecture documentation with emoji system details
+- **Reference Cleanup**: Removed external tool references from codebase comments
+- **Display Consistency**: Unified emoji usage across all monitor display components
 
 ### v0.1.8 - Simplified Block Computation
 

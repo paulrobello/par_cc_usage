@@ -80,7 +80,7 @@ async def test():
     info = await debug_model_pricing('Unknown')
     cost = await calculate_token_cost('Unknown', 1000, 500)
     print(f'Unknown model: \${cost.total_cost}, info: {info}')
-    
+
     # Test fallback pricing
     cost = await calculate_token_cost('claude-opus-custom', 1000, 500)
     print(f'Custom opus model cost: \${cost.total_cost}')
@@ -102,27 +102,27 @@ flowchart TB
         CP1["~/.claude/projects/project1/"]
         CP2["~/.claude/projects/project2/"]
         CP3["~/.claude/projects/project3/"]
-        
+
         CP1 --> JF1["session_abc.jsonl"]
         CP1 --> JF2["session_def.jsonl"]
         CP2 --> JF3["session_ghi.jsonl"]
         CP3 --> JF4["session_jkl.jsonl"]
     end
-    
+
     subgraph "PAR CC Usage Core"
         subgraph "File Monitoring Layer"
             FM["file_monitor.py\nFile Position Tracking"]
             FW["FileWatcher\nReal-time Detection"]
             FC["File Cache\n~/.cache/par_cc_usage/"]
         end
-        
+
         subgraph "Data Processing Layer"
             TC["token_calculator.py\nJSONL Processing"]
             PV["Pydantic Validation"]
             DD["Deduplication Logic"]
             UB["Unified Block Creation"]
         end
-        
+
         subgraph "Data Models"
             TU["TokenUsage"]
             TB["TokenBlock"]
@@ -130,80 +130,80 @@ flowchart TB
             P["Project"]
             US["UsageSnapshot"]
         end
-        
+
         subgraph "Pricing System"
             PC["PricingCache"]
             LLM["LiteLLM API"]
             CH["Cost Hierarchy\n1. Native Block\n2. Native Usage\n3. LiteLLM Calc"]
         end
-        
+
         subgraph "Display Layer"
-            MD["MonitorDisplay\nReal-time UI"]
+            MD["MonitorDisplay\nReal-time UI\nEmoji-Enhanced\n🪙 ✉️ 💰"]
             LD["ListDisplay\nReporting"]
             RT["Rich Terminal"]
         end
-        
+
         subgraph "Configuration"
             XDG["XDG Directories"]
             CFG["config.yaml"]
             ENV["Environment Variables"]
         end
     end
-    
+
     subgraph "Output Formats"
         TABLE["Table Display"]
         JSON["JSON Export"]
         CSV["CSV Export"]
         WH["Discord/Slack\nWebhooks"]
     end
-    
+
     subgraph "External APIs"
         LLMAPI["LiteLLM Pricing API"]
         DISCAPI["Discord Webhooks"]
         SLACKAPI["Slack Webhooks"]
     end
-    
+
     %% Data Flow
     JF1 --> FM
     JF2 --> FM
     JF3 --> FM
     JF4 --> FM
-    
+
     FM --> FC
     FM --> TC
     FW --> FM
-    
+
     TC --> PV
     PV --> DD
     DD --> UB
-    
+
     UB --> TU
     TU --> TB
     TB --> S
     S --> P
     P --> US
-    
+
     TB --> CH
     TU --> CH
     PC --> CH
     LLMAPI --> PC
-    
+
     US --> MD
     US --> LD
     MD --> RT
     LD --> TABLE
     LD --> JSON
     LD --> CSV
-    
+
     XDG --> CFG
     CFG --> MD
     CFG --> LD
     ENV --> CFG
-    
+
     MD --> WH
     WH --> DISCAPI
     WH --> SLACKAPI
-    
+
     %% Styling
     style FM fill:#e1f5fe
     style TC fill:#f3e5f5
@@ -219,7 +219,7 @@ flowchart TB
    - `file_monitor.py`: Watches Claude project directories for JSONL file changes using file position tracking
    - `token_calculator.py`: Parses JSONL lines and calculates token usage per 5-hour blocks with deduplication
    - `models.py`: Core data structures (TokenUsage, TokenBlock, Session, Project, UsageSnapshot) with timezone support
-   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, and stable console output (no jumping or interruptions)
+   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, emoji-enhanced formatting (🪙 tokens, ✉️ messages, 💰 costs), and stable console output (no jumping or interruptions)
    - `pricing.py`: LiteLLM integration for accurate cost calculations across all Claude models
 
 2. **Unified Block System**:
@@ -293,6 +293,8 @@ flowchart TB
 10. **Structured JSON Validation**: Uses Pydantic models for type-safe JSONL parsing and validation
 11. **Type-Safe Configuration**: Centralized enums and structured dataclasses eliminate string-based configurations
 12. **Console Stability**: Monitor mode suppresses all disruptive output (errors, debug messages, notifications) to maintain clean, stable real-time display
+13. **Emoji-Enhanced UX**: Visual icons (🪙 ✉️ 💰) improve readability and user experience in terminal interfaces
+14. **Individual Block Cost Tracking**: Cost maximums track single block peaks, not cumulative totals, for accurate billing representation
 
 ### Data Model Relationships
 
@@ -301,33 +303,33 @@ flowchart TD
     US[UsageSnapshot] --> P1[Project: par-cc-usage]
     US --> P2[Project: my-app]
     US --> P3[Project: ...]
-    
+
     P1 --> S1[Session: abc123...]
     P1 --> S2[Session: def456...]
     P2 --> S3[Session: ghi789...]
-    
+
     S1 --> TB1[TokenBlock: 14:00-19:00]
     S1 --> TB2[TokenBlock: 20:00-01:00]
     S2 --> TB3[TokenBlock: 09:00-14:00]
-    
+
     TB1 --> TU1[TokenUsage: msg1]
     TB1 --> TU2[TokenUsage: msg2]
     TB1 --> TU3[TokenUsage: msg3]
     TB1 --> MT1[model_tokens: {opus: 150K, sonnet: 75K}]
     TB1 --> CC1[cost_usd: 12.50]
-    
+
     TB2 --> TU4[TokenUsage: msg4]
     TB2 --> MT2[model_tokens: {sonnet: 200K}]
     TB2 --> CC2[cost_usd: null]
-    
+
     TU1 --> TUC1[cost_usd: 2.50]
     TU2 --> TUC2[cost_usd: null]
     TU3 --> TUC3[cost_usd: 4.75]
-    
+
     US -.-> UBT[unified_block_tokens\(\)]
     US -.-> UBTM[unified_block_tokens_by_model\(\)]
     US -.-> UBST[unified_block_start_time]
-    
+
     style US fill:#e8f5e8
     style TB1 fill:#fff3e0
     style TB2 fill:#fff3e0
@@ -358,7 +360,7 @@ The pricing system (`pricing.py`) provides accurate cost calculations with robus
 1. **Direct Match**: Exact model name lookup in LiteLLM pricing cache
 2. **Variation Matching**: Tests common Claude model name patterns (e.g., `anthropic/claude-*`)
 3. **Fuzzy Matching**: Partial string matching for similar model names
-4. **Pattern-Based Fallbacks**: 
+4. **Pattern-Based Fallbacks**:
    - Models containing "opus" → Claude Opus pricing
    - Models containing "sonnet" → Claude Sonnet pricing
    - Models containing "haiku" → Claude Haiku pricing
@@ -383,8 +385,8 @@ The burn rate cost estimation provides intelligent cost projection for 5-hour bi
 5. **Sync Compatibility**: `_calculate_burn_rate_sync()` method for non-pricing contexts
 6. **Graceful Fallback**: Cost estimation failures don't break burn rate display
 
-**Display Format**: `"531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m"`
-- Token burn rate + estimated tokens + estimated cost + ETA
+**Display Format**: `"🪙 531K/m ✉️ 5/m  Est: 🪙 159.3M (90%) ✉️ 1,742  💰 $65.51  ETA: 2h 28m"`
+- Emoji-enhanced format: 🪙 token burn rate + ✉️ message rate + 🪙 estimated tokens + ✉️ estimated messages + 💰 estimated cost + ETA
 
 #### List Command Pricing Integration:
 The `pccu list` command supports comprehensive cost analysis with the `--show-pricing` flag:
@@ -399,11 +401,11 @@ The `pccu list` command supports comprehensive cost analysis with the `--show-pr
        D -->|No/Invalid| F{Usage has cost_usd?}
        F -->|Yes + Valid| G[Use Usage Native Cost]
        F -->|No/Invalid| H[Calculate with LiteLLM]
-       
+
        E --> I["cost_source: block_native"]
        G --> J["cost_source: usage_native"]
        H --> K["cost_source: litellm_calculated"]
-       
+
        style E fill:#e1f5fe
        style G fill:#f3e5f5
        style H fill:#fff3e0
@@ -446,7 +448,7 @@ pccu list --show-pricing --sort-by time --format table
   {
     "project": "par-cc-usage",
     "session": "abc123...",
-    "model": "opus", 
+    "model": "opus",
     "tokens": 142465091,
     "active": false,
     "cost": 12.68517,
@@ -472,12 +474,12 @@ flowchart LR
     E --> F[token_calculator.py:process_jsonl_line\(\)]
     F --> G[token_calculator.py:aggregate_usage\(\)]
     G --> H[display.py:MonitorDisplay.update\(\)]
-    
+
     E --> E1[XDG Cache:\nfile_states.json]
     F --> F1[Pydantic Validation]
     G --> G1[UsageSnapshot Creation]
     H --> H1[Rich Terminal UI]
-    
+
     style A fill:#e1f5fe
     style E fill:#fff3e0
     style F fill:#f3e5f5
@@ -494,20 +496,20 @@ flowchart TD
     D --> E["Loop: For each TokenBlock"]
     E --> F[ListDisplay._calculate_block_cost\(\)]
     F --> G{"Cost Hierarchy Decision"}
-    
+
     G -->|Priority 1| H["block.cost_usd exists & valid"]
     G -->|Priority 2| I["block.token_usage.cost_usd exists & valid"]
     G -->|Priority 3| J["pricing.calculate_token_cost\(\)"]
-    
+
     H --> K["Return block.cost_usd"]
     I --> L["Return usage.cost_usd"]
     J --> M["LiteLLM API Call"]
     M --> N["Return calculated cost"]
-    
+
     K --> O["Display/Export with cost_source"]
     L --> O
     N --> O
-    
+
     style A fill:#e1f5fe
     style F fill:#fff3e0
     style G fill:#f3e5f5
@@ -523,13 +525,13 @@ flowchart TD
     B --> C{"Has data?"}
     C -->|Yes| D["Get current UTC time"]
     C -->|No| E["Return None"]
-    
+
     D --> F["Floor time to hour using calculate_block_start\(\)"]
     F --> G["Return hour-floored start time"]
-    
+
     G --> H["UsageSnapshot.unified_block_start_time property"]
     H --> I["Used by unified_block_tokens\(\) methods"]
-    
+
     style A fill:#e1f5fe
     style D fill:#fff3e0
     style F fill:#f3e5f5
@@ -553,9 +555,13 @@ flowchart TD
 - **Legacy Migration**: Automatic detection and migration of config files from current directory to XDG locations
 
 ### Display Formatting
-- Token counts use abbreviated format (e.g., "1.2M" for millions)
-- Time formats are configurable (12h/24h)
-- Project name prefixes can be stripped for cleaner display
+- **Emoji-Enhanced Interface**: Uses visual icons for improved readability
+  - 🪙 for tokens, ✉️ for messages, 💰 for costs
+  - ⚡ for Sonnet model, 🔥 for burn rate, 📊 for totals
+- **Abbreviated Counts**: Token counts use format (e.g., "1.2M" for millions)
+- **Time Formats**: Configurable (12h/24h) display options
+- **Project Names**: Prefixes can be stripped for cleaner display
+- **Cost Tracking**: Individual block maximums (not cumulative totals)
 
 ### Console Stability in Monitor Mode
 - **Output Suppression**: All disruptive console output is automatically suppressed during continuous monitor mode
@@ -564,6 +570,22 @@ flowchart TD
 - **Token Limit Messages**: Token limit exceeded notifications are suppressed in monitor mode but still shown in snapshot mode
 - **Exception Resilience**: Monitor loop exceptions use logging instead of console output to maintain display stability
 - **Clean Interface**: Ensures no console jumping, text interruptions, or display artifacts during real-time monitoring
+
+### Enhanced Display System
+- **Emoji-Enhanced Formatting**: Visual icons for better readability
+  - 🪙 **Tokens**: Represents token counts and rates
+  - ✉️ **Messages**: Represents message counts and rates
+  - 💰 **Costs**: Represents cost calculations and estimates
+  - ⚡ **Models**: Lightning for Claude Sonnet, other emojis for different models
+  - 🔥 **Burn Rate**: Fire emoji for activity rate calculations
+  - 📊 **Total**: Bar chart emoji for summary statistics
+
+**Example Monitor Display Format**:
+```
+│ ⚡ Sonnet  🪙 10.8M - ✉️ 118 - 💰 $5.33                                       │
+│ 🔥 Burn        🪙 532K/m ✉️ 5/m  Est: 🪙 159.7M ( 38%) ✉️ 1,742  💰 $78.69     │
+│ 📊 Total         3%    🪙 10.8M / 78.3M - ✉️ 118 / 917 - 💰 $5.33 / $56.02 │
+```
 
 ### Notification System
 - Discord and Slack webhooks for block completion notifications
@@ -578,7 +600,7 @@ PAR CC Usage implements the XDG Base Directory Specification for proper file org
 
 - **Config Directory**: `~/.config/par_cc_usage/` (respects `XDG_CONFIG_HOME`)
   - `config.yaml` - Main configuration file
-- **Cache Directory**: `~/.cache/par_cc_usage/` (respects `XDG_CACHE_HOME`) 
+- **Cache Directory**: `~/.cache/par_cc_usage/` (respects `XDG_CACHE_HOME`)
   - `file_states.json` - File monitoring cache
 - **Data Directory**: `~/.local/share/par_cc_usage/` (respects `XDG_DATA_HOME`)
   - Reserved for future application data

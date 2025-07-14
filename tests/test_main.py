@@ -304,13 +304,13 @@ class TestMonitorCommand:
 
                             result = runner.invoke(app, ["monitor", "--debug"])
 
-                            # Should have configured logging for DEBUG level with null handler
+                            # Should have configured logging for DEBUG level with file handler
                             mock_logging.assert_called_once()
                             call_args = mock_logging.call_args
                             assert call_args[1]['level'] == logging.DEBUG
-                            assert call_args[1]['format'] == "%(message)s"
+                            assert call_args[1]['format'] == "%(asctime)s - %(message)s"
                             assert len(call_args[1]['handlers']) == 1
-                            assert isinstance(call_args[1]['handlers'][0], logging.NullHandler)
+                            assert isinstance(call_args[1]['handlers'][0], logging.FileHandler)
 
     def test_monitor_debug_flag_disabled(self, mock_config):
         """Test monitor command with debug flag disabled (default)."""
@@ -335,11 +335,11 @@ class TestMonitorCommand:
         from pathlib import Path
         from par_cc_usage.main import _process_modified_files
         from par_cc_usage.file_monitor import FileState
-        
+
         # Create a mock file path
         test_file = Path("/test/file.jsonl")
         mock_file_state = FileState(path=test_file, size=100, mtime=123456)
-        
+
         # Mock the necessary components for _process_modified_files
         with patch('par_cc_usage.main.process_file', return_value=3):
             _process_modified_files(
@@ -349,7 +349,7 @@ class TestMonitorCommand:
                 mock_config,  # config
                 Mock()  # dedup_state
             )
-        
+
         # Should have called logger.debug with the processing message
         mock_logger.debug.assert_called_with("Processed 3 messages from file.jsonl")
 

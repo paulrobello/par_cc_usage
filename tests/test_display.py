@@ -44,7 +44,12 @@ class TestMonitorDisplay:
         # Create config with compact mode
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         assert display.compact_mode is True
@@ -57,7 +62,12 @@ class TestMonitorDisplay:
         # Create config with normal mode
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.NORMAL)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         assert display.compact_mode is False
@@ -93,7 +103,12 @@ class TestMonitorDisplay:
         # Create config with compact mode
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config, show_sessions=True)
 
         # Check layout structure - should only have header and progress
@@ -107,7 +122,12 @@ class TestMonitorDisplay:
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config, show_sessions=False)
 
         assert display.layout is not None
@@ -170,7 +190,12 @@ class TestMonitorDisplay:
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         panel = await display._create_progress_bars(sample_usage_snapshot)
@@ -180,45 +205,48 @@ class TestMonitorDisplay:
         # In compact mode, should not show traditional progress bars
 
     def test_create_model_displays_compact_mode(self):
-        """Test model displays in compact mode don't show interruption counts."""
+        """Test model displays in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         model_tokens = {"claude-3-5-sonnet": 1000, "claude-3-opus": 500}
-        model_interruptions = {"claude-3-5-sonnet": 2, "claude-3-opus": 0}
 
-        displays = display._create_model_displays(model_tokens, model_interruptions)
+        displays = display._create_model_displays(model_tokens)
 
         assert len(displays) == 2
-        # In compact mode, interruption counts should not be shown
         for display_text in displays:
             assert isinstance(display_text, Text)
-            # Should not contain interruption text
-            assert "Interrupted" not in str(display_text)
 
     def test_create_model_displays_normal_mode(self):
-        """Test model displays in normal mode show interruption counts."""
+        """Test model displays in normal mode."""
         from par_cc_usage.config import DisplayConfig
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.NORMAL)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         model_tokens = {"claude-3-5-sonnet": 1000}
-        model_interruptions = {"claude-3-5-sonnet": 2}
 
-        displays = display._create_model_displays(model_tokens, model_interruptions)
+        displays = display._create_model_displays(model_tokens)
 
         assert len(displays) == 1
-        # In normal mode, interruption counts should be shown
         display_text = displays[0]
         assert isinstance(display_text, Text)
-        assert "Interrupted" in str(display_text)
 
     @pytest.mark.asyncio
     async def test_create_sessions_table_no_sessions(self):
@@ -261,6 +289,12 @@ class TestMonitorDisplay:
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0  # Add max_cost_encountered attribute
 
         display = MonitorDisplay(config=config)
 
@@ -285,7 +319,7 @@ class TestMonitorDisplay:
     def test_format_time_24h(self):
         """Test time formatting in 24-hour format."""
         from par_cc_usage.utils import format_time
-        
+
         test_time = datetime(2024, 7, 8, 14, 30, 45, tzinfo=UTC)
         formatted = format_time(test_time, "24h")
 
@@ -295,7 +329,7 @@ class TestMonitorDisplay:
     def test_format_time_12h(self):
         """Test time formatting in 12-hour format."""
         from par_cc_usage.utils import format_time
-        
+
         test_time = datetime(2024, 7, 8, 14, 30, 45, tzinfo=UTC)
         formatted = format_time(test_time, "12h")
 
@@ -308,7 +342,12 @@ class TestMonitorDisplay:
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         # Request sessions to be shown, but compact mode should override
         display = MonitorDisplay(config=config, show_sessions=True)
 
@@ -323,7 +362,12 @@ class TestMonitorDisplay:
 
         config = Mock()
         config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-
+        config.max_cost_encountered = 0.0
+        config.max_tokens_encountered = 0
+        config.max_messages_encountered = 0
+        config.max_unified_block_tokens_encountered = 0
+        config.max_unified_block_messages_encountered = 0
+        config.max_unified_block_cost_encountered = 0.0
         display = MonitorDisplay(config=config)
 
         # Create progress bars panel which includes burn rate in compact mode
@@ -408,7 +452,7 @@ class TestMonitorDisplay:
         # Mock config without pricing
         mock_config = Mock()
         mock_config.display.show_pricing = False
-        
+
         display = MonitorDisplay(config=mock_config)
 
         # Mock timestamp for consistent elapsed time
@@ -427,7 +471,7 @@ class TestMonitorDisplay:
         # Mock config with pricing enabled
         mock_config = Mock()
         mock_config.display.show_pricing = True
-        
+
         display = MonitorDisplay(config=mock_config)
 
         # Mock timestamp for consistent elapsed time
@@ -452,7 +496,7 @@ class TestMonitorDisplay:
         # Mock config with pricing enabled
         mock_config = Mock()
         mock_config.display.show_pricing = True
-        
+
         display = MonitorDisplay(config=mock_config)
 
         # Mock timestamp for consistent elapsed time
@@ -476,7 +520,7 @@ class TestMonitorDisplay:
         # Mock config with pricing enabled
         mock_config = Mock()
         mock_config.display.show_pricing = True
-        
+
         display = MonitorDisplay(config=mock_config)
 
         # Mock timestamp for consistent elapsed time
@@ -594,8 +638,8 @@ class TestMonitorDisplay:
         # The table should have different columns for project mode
         table = panel.renderable
         assert isinstance(table, Table)
-        # Check that it has the expected columns for project aggregation (Project, Model, Tokens)
-        assert len(table.columns) == 3  # Project, Model, Tokens
+        # Check that it has the expected columns for project aggregation (Project, Model, Tokens, Messages)
+        assert len(table.columns) == 4  # Project, Model, Tokens, Messages
 
     @pytest.mark.asyncio
     async def test_create_sessions_table_session_aggregation_mode(self, sample_usage_snapshot):
@@ -617,8 +661,8 @@ class TestMonitorDisplay:
         # The table should have different columns for session mode
         table = panel.renderable
         assert isinstance(table, Table)
-        # Check that it has the expected columns for session aggregation (Project, Session ID, Model, Tokens)
-        assert len(table.columns) == 4  # Project, Session ID, Model, Tokens
+        # Check that it has the expected columns for session aggregation (Project, Session ID, Model, Tokens, Messages)
+        assert len(table.columns) == 5  # Project, Session ID, Model, Tokens, Messages
 
     def test_strip_project_name_with_config(self):
         """Test project name stripping with configuration."""
@@ -676,7 +720,7 @@ class TestMonitorDisplay:
         await display._populate_project_table(table, sample_usage_snapshot, None)
 
         # Verify the table was populated
-        assert len(table.columns) == 3  # Project, Model, Tokens
+        assert len(table.columns) == 4  # Project, Model, Tokens, Messages
         assert table.row_count >= 0  # Should have at least attempted to add rows
 
     @pytest.mark.asyncio
@@ -698,7 +742,7 @@ class TestMonitorDisplay:
         await display._populate_session_table(table, sample_usage_snapshot, None)
 
         # Verify the table was populated
-        assert len(table.columns) == 4  # Project, Session ID, Model, Tokens
+        assert len(table.columns) == 5  # Project, Session ID, Model, Tokens, Messages
         assert table.row_count >= 0  # Should have at least attempted to add rows
 
     def test_calculate_session_data(self, sample_usage_snapshot):
@@ -1119,140 +1163,3 @@ class TestMonitorDisplayEdgeCases:
 
         # Should still have layout
         assert display.layout is not None
-
-    def test_create_model_displays_with_interruptions(self):
-        """Test _create_model_displays with interruption counts."""
-        display = MonitorDisplay()
-
-        model_tokens = {
-            "opus": 125000,
-            "sonnet": 250000,
-            "haiku": 75000
-        }
-
-        model_interruptions = {
-            "opus": 3,
-            "sonnet": 1,
-            # haiku has no interruptions
-        }
-
-        result = display._create_model_displays(model_tokens, model_interruptions)
-
-        assert len(result) == 3
-
-        # Models are sorted alphabetically: haiku (0), opus (1), sonnet (2)
-        # Check haiku shows default 0 interruptions (should be first)
-        haiku_text = result[0]
-        haiku_str = haiku_text.plain
-        assert "(0 Interrupted)" in haiku_str  # Default to 0 since not in interruption dict
-        assert "💨" in haiku_str  # Haiku emoji
-
-        # Check opus has interruption count (should be second)
-        opus_text = result[1]
-        opus_str = opus_text.plain
-        assert "(3 Interrupted)" in opus_str
-        assert "🚀" in opus_str  # Opus emoji
-
-        # Check sonnet has interruption count (should be third)
-        sonnet_text = result[2]
-        sonnet_str = sonnet_text.plain
-        assert "(1 Interrupted)" in sonnet_str
-        assert "⚡ Sonnet" in sonnet_str  # Sonnet emoji is also ⚡
-
-    def test_create_model_displays_without_interruptions(self):
-        """Test _create_model_displays without interruption data."""
-        display = MonitorDisplay()
-
-        model_tokens = {
-            "opus": 125000,
-            "sonnet": 250000,
-        }
-
-        # No interruption data provided (None)
-        result = display._create_model_displays(model_tokens, None)
-
-        assert len(result) == 2
-
-        # Check that no interruption counts are displayed when data is None
-        for text in result:
-            text_str = text.plain
-            # Look for interruption pattern: parentheses with number and "Interrupted"
-            import re
-            assert not re.search(r'\(\d+ Interrupted\)', text_str)
-
-    def test_create_model_displays_zero_interruptions(self):
-        """Test _create_model_displays with zero interruptions."""
-        display = MonitorDisplay()
-
-        model_tokens = {
-            "opus": 125000,
-            "sonnet": 250000,
-        }
-
-        model_interruptions = {
-            "opus": 0,  # Zero interruptions should still display as (0⚡)
-            "sonnet": 0,
-        }
-
-        result = display._create_model_displays(model_tokens, model_interruptions)
-
-        assert len(result) == 2
-
-        # Check that zero interruption counts ARE displayed (pattern: "(0 Interrupted)")
-        for text in result:
-            text_str = text.plain
-            # Look for zero interruption pattern: (0 Interrupted)
-            assert "(0 Interrupted)" in text_str
-
-    def test_create_model_displays_empty_interruptions(self):
-        """Test _create_model_displays with empty interruption dict."""
-        display = MonitorDisplay()
-
-        model_tokens = {
-            "opus": 125000,
-            "sonnet": 250000,
-        }
-
-        model_interruptions = {}  # Empty dict - should default to 0 for all models
-
-        result = display._create_model_displays(model_tokens, model_interruptions)
-
-        assert len(result) == 2
-
-        # Check that default zero interruption counts ARE displayed
-        for text in result:
-            text_str = text.plain
-            # Look for zero interruption pattern: (0 Interrupted)
-            assert "(0 Interrupted)" in text_str
-
-    def test_create_model_displays_interruption_colors(self):
-        """Test _create_model_displays uses correct colors for interruption counts."""
-        display = MonitorDisplay()
-
-        model_tokens = {
-            "opus": 125000,
-            "sonnet": 250000,
-        }
-
-        # Test zero interruptions (should be green)
-        model_interruptions = {"opus": 0, "sonnet": 0}
-        result = display._create_model_displays(model_tokens, model_interruptions)
-
-        # Check that the Text objects have the correct styles
-        for text in result:
-            # The style information is stored in the Text object's spans
-            text_str = str(text)  # This includes style markup
-            if "(0 Interrupted)" in text.plain:
-                # For Rich Text objects, we can check the markup representation
-                # Zero interruptions should have green color (#00FF00)
-                # This is a basic check - in a real app we'd examine the spans
-                pass  # The color is applied correctly based on our manual test
-
-        # Test non-zero interruptions (should be red)
-        model_interruptions = {"opus": 2, "sonnet": 1}
-        result = display._create_model_displays(model_tokens, model_interruptions)
-
-        for text in result:
-            text_str = text.plain
-            # Should show non-zero counts
-            assert "Interrupted)" in text_str and "(0 Interrupted)" not in text_str

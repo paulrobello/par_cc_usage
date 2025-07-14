@@ -48,10 +48,6 @@ class ColorScheme(BaseModel):
     eta_normal: str = Field(description="Normal ETA display color")
     eta_urgent: str = Field(description="Urgent ETA display color")
 
-    # Interruption indicators
-    interruption_none: str = Field(description="No interruptions color (good)")
-    interruption_present: str = Field(description="Interruptions present color (warning)")
-
 
 @dataclass
 class ThemeDefinition:
@@ -99,8 +95,6 @@ class ThemeManager:
             burn_rate="#00FFFF",
             eta_normal="#00FFFF",
             eta_urgent="#FF0000",
-            interruption_none="#00FF00",
-            interruption_present="#FF6B6B",
         )
 
         default_rich_theme = Theme(
@@ -127,8 +121,6 @@ class ThemeManager:
                 "burn_rate": default_colors.burn_rate,
                 "eta_normal": default_colors.eta_normal,
                 "eta_urgent": default_colors.eta_urgent,
-                "interruption_none": default_colors.interruption_none,
-                "interruption_present": default_colors.interruption_present,
             }
         )
 
@@ -164,8 +156,6 @@ class ThemeManager:
             burn_rate="#00FFFF",
             eta_normal="#00FFFF",
             eta_urgent="#FF4444",
-            interruption_none="#00FF00",
-            interruption_present="#FF6B6B",
         )
 
         dark_rich_theme = Theme(
@@ -192,8 +182,6 @@ class ThemeManager:
                 "burn_rate": dark_colors.burn_rate,
                 "eta_normal": dark_colors.eta_normal,
                 "eta_urgent": dark_colors.eta_urgent,
-                "interruption_none": dark_colors.interruption_none,
-                "interruption_present": dark_colors.interruption_present,
             }
         )
 
@@ -229,8 +217,6 @@ class ThemeManager:
             burn_rate="#2aa198",  # Cyan
             eta_normal="#2aa198",  # Cyan
             eta_urgent="#dc322f",  # Red
-            interruption_none="#859900",  # Green
-            interruption_present="#dc322f",  # Red
         )
 
         light_rich_theme = Theme(
@@ -257,8 +243,6 @@ class ThemeManager:
                 "burn_rate": light_colors.burn_rate,
                 "eta_normal": light_colors.eta_normal,
                 "eta_urgent": light_colors.eta_urgent,
-                "interruption_none": light_colors.interruption_none,
-                "interruption_present": light_colors.interruption_present,
             }
         )
 
@@ -294,8 +278,6 @@ class ThemeManager:
             burn_rate="#006666",  # Teal
             eta_normal="#006666",  # Teal
             eta_urgent="#CC0000",  # Red
-            interruption_none="#00AA00",  # Green
-            interruption_present="#CC0000",  # Red
         )
 
         accessibility_rich_theme = Theme(
@@ -322,8 +304,6 @@ class ThemeManager:
                 "burn_rate": accessibility_colors.burn_rate,
                 "eta_normal": accessibility_colors.eta_normal,
                 "eta_urgent": accessibility_colors.eta_urgent,
-                "interruption_none": accessibility_colors.interruption_none,
-                "interruption_present": accessibility_colors.interruption_present,
             }
         )
 
@@ -359,8 +339,6 @@ class ThemeManager:
             burn_rate="#CCCCCC",  # Light gray
             eta_normal="#CCCCCC",  # Light gray
             eta_urgent="#FFFFFF",  # White
-            interruption_none="#AAAAAA",  # Gray
-            interruption_present="#CCCCCC",  # Light gray
         )
 
         minimal_rich_theme = Theme(
@@ -387,8 +365,6 @@ class ThemeManager:
                 "burn_rate": minimal_colors.burn_rate,
                 "eta_normal": minimal_colors.eta_normal,
                 "eta_urgent": minimal_colors.eta_urgent,
-                "interruption_none": minimal_colors.interruption_none,
-                "interruption_present": minimal_colors.interruption_present,
             }
         )
 

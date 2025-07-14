@@ -113,29 +113,6 @@ class TestTokenUsage:
         usage2 = TokenUsage()
         assert usage2.get_unique_hash() == "no-message-id:no-request-id"
 
-    def test_interruption_tracking(self):
-        """Test interruption tracking in TokenUsage."""
-        # Test default value
-        usage = TokenUsage()
-        assert usage.was_interrupted is False
-
-        # Test setting interruption
-        usage_interrupted = TokenUsage(was_interrupted=True)
-        assert usage_interrupted.was_interrupted is True
-
-    def test_addition_with_interruptions(self):
-        """Test that addition preserves interruption status."""
-        usage1 = TokenUsage(input_tokens=100, was_interrupted=False)
-        usage2 = TokenUsage(input_tokens=200, was_interrupted=True)
-
-        result = usage1 + usage2
-        assert result.was_interrupted is True  # True if either was interrupted
-
-        usage3 = TokenUsage(input_tokens=300, was_interrupted=False)
-        usage4 = TokenUsage(input_tokens=400, was_interrupted=False)
-
-        result2 = usage3 + usage4
-        assert result2.was_interrupted is False  # False if neither was interrupted
 
 
 class TestTokenBlock:
@@ -251,47 +228,6 @@ class TestTokenBlock:
         )
         assert block2.adjusted_tokens == 7500  # 1500 * 5
 
-    def test_interruption_tracking(self, sample_timestamp):
-        """Test interruption tracking in TokenBlock."""
-        usage = TokenUsage()
-        block = TokenBlock(
-            start_time=sample_timestamp,
-            end_time=sample_timestamp + timedelta(hours=5),
-            session_id="session_123",
-            project_name="test_project",
-            model="claude-3-opus-latest",
-            token_usage=usage,
-        )
-
-        # Test default values
-        assert block.total_interruptions == 0
-        assert block.interruptions_by_model == {}
-
-    def test_interruption_aggregation(self, sample_timestamp):
-        """Test that interruptions are properly aggregated by model."""
-        usage1 = TokenUsage(input_tokens=100, was_interrupted=True, model="claude-3-opus-latest")
-        usage2 = TokenUsage(input_tokens=200, was_interrupted=True, model="claude-3-sonnet-latest")
-        usage3 = TokenUsage(input_tokens=150, was_interrupted=False, model="claude-3-opus-latest")
-
-        block = TokenBlock(
-            start_time=sample_timestamp,
-            end_time=sample_timestamp + timedelta(hours=5),
-            session_id="session_123",
-            project_name="test_project",
-            model="claude-3-opus-latest",
-            token_usage=usage1,
-        )
-
-        # Simulate adding interruption tracking
-        block.total_interruptions = 2
-        block.interruptions_by_model = {
-            "claude-3-opus": 1,
-            "claude-3-sonnet": 1
-        }
-
-        assert block.total_interruptions == 2
-        assert block.interruptions_by_model["claude-3-opus"] == 1
-        assert block.interruptions_by_model["claude-3-sonnet"] == 1
 
 
 class TestSession:
@@ -1595,7 +1531,7 @@ class TestUsageSnapshot:
             model="claude-3-5-sonnet-latest",
         )
 
-        # Block that starts just before unified block ends
+        # Block that starts just before unified block ends but is inactive (old activity)
         usage1 = TokenUsage(input_tokens=100, output_tokens=100)
         block1 = TokenBlock(
             start_time=unified_start + timedelta(hours=4, minutes=59),  # 1 minute before end
@@ -1605,7 +1541,7 @@ class TestUsageSnapshot:
             model="claude-3-5-sonnet-latest",
             token_usage=usage1,
             model_tokens={"sonnet": 200},
-            actual_end_time=unified_start + timedelta(hours=6),
+            actual_end_time=unified_start - timedelta(hours=6),  # 6+ hours ago = inactive
         )
 
         # Block that ends just after unified block starts
@@ -1735,80 +1671,3 @@ class TestUsageSnapshot:
             from par_cc_usage.token_calculator import calculate_block_start
             expected_start = calculate_block_start(current_time)
             assert snapshot.unified_block_start_time == expected_start
-
-    def test_interruption_tracking_methods(self, sample_timestamp):
-        """Test interruption tracking methods in UsageSnapshot."""
-        snapshot = UsageSnapshot(timestamp=sample_timestamp)
-
-        # Create project with sessions and blocks containing interruptions
-        project = Project(name="test_project")
-        session = Session(
-            session_id="session_123",
-            project_name="test_project",
-            model="claude-3-opus-latest"
-        )
-
-        # Create blocks with interruption data
-        usage1 = TokenUsage(input_tokens=100, was_interrupted=True, model="claude-3-opus")
-        block1 = TokenBlock(
-            start_time=sample_timestamp,
-            end_time=sample_timestamp + timedelta(hours=5),
-            session_id="session_123",
-            project_name="test_project",
-            model="claude-3-opus",
-            token_usage=usage1,
-            total_interruptions=1,
-            interruptions_by_model={"opus": 1}
-        )
-
-        usage2 = TokenUsage(input_tokens=200, was_interrupted=True, model="claude-3-sonnet")
-        block2 = TokenBlock(
-            start_time=sample_timestamp + timedelta(hours=1),
-            end_time=sample_timestamp + timedelta(hours=6),
-            session_id="session_123",
-            project_name="test_project",
-            model="claude-3-sonnet",
-            token_usage=usage2,
-            total_interruptions=2,
-            interruptions_by_model={"sonnet": 2}
-        )
-
-        # Set actual_end_time to make blocks appear active
-        block1.actual_end_time = sample_timestamp + timedelta(minutes=30)
-        block2.actual_end_time = sample_timestamp + timedelta(hours=1, minutes=30)
-
-        session.blocks = [block1, block2]
-        project.add_session(session)
-        snapshot.add_project(project)
-
-        # Mock datetime.now to make the blocks appear active
-        with patch("par_cc_usage.models.datetime") as mock_dt:
-            mock_dt.now.return_value = sample_timestamp + timedelta(hours=2)
-            mock_dt.timezone = timezone
-
-            # Test interruptions by model aggregation
-            interruptions_by_model = snapshot.interruptions_by_model()
-            assert interruptions_by_model["opus"] == 1
-            assert interruptions_by_model["sonnet"] == 2
-
-            # Test total interruptions
-            total_interruptions = snapshot.total_interruptions()
-            assert total_interruptions == 3
-
-            # Test unified block methods
-            unified_interruptions_by_model = snapshot.unified_block_interruptions_by_model()
-            unified_total_interruptions = snapshot.unified_block_total_interruptions()
-
-            # Since we have active blocks, unified_block_start_time will return a value (smart strategy)
-            # and the unified methods should return data based on block overlap
-            assert len(unified_interruptions_by_model) >= 0  # Could be empty if no overlap
-            assert unified_total_interruptions >= 0
-
-            # Test with an explicit unified block start time override
-            snapshot.block_start_override = sample_timestamp
-            unified_interruptions_by_model = snapshot.unified_block_interruptions_by_model()
-            unified_total_interruptions = snapshot.unified_block_total_interruptions()
-
-            # With explicit start time and overlapping blocks, should return interruption data
-            assert unified_interruptions_by_model == {"opus": 1, "sonnet": 2}
-            assert unified_total_interruptions == 3

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytz
@@ -21,12 +23,31 @@ def _get_model_multiplier(model: str) -> float:
 def _populate_model_tokens(block: TokenBlock, model: str, token_usage: TokenUsage) -> None:
     """Populate the model_tokens dictionary with adjusted tokens."""
     normalized_model = normalize_model_name(model)
-    multiplier = _get_model_multiplier(normalized_model)
-    adjusted_tokens = int(token_usage.total * multiplier)
 
+    # Use display tokens from token_usage (already multiplied)
+    display_tokens = token_usage.total
+
+    # Use actual tokens from token_usage (raw from JSONL)
+    actual_tokens = token_usage.actual_total
+
+    # Update display tokens (for UI)
     if normalized_model not in block.model_tokens:
         block.model_tokens[normalized_model] = 0
-    block.model_tokens[normalized_model] += adjusted_tokens
+    block.model_tokens[normalized_model] += display_tokens
+
+    # Update actual tokens (for pricing)
+    if normalized_model not in block.actual_model_tokens:
+        block.actual_model_tokens[normalized_model] = 0
+    block.actual_model_tokens[normalized_model] += actual_tokens
+
+
+def _populate_model_messages(block: TokenBlock, model: str, token_usage: TokenUsage) -> None:
+    """Populate the model_message_counts dictionary with message counts."""
+    normalized_model = normalize_model_name(model)
+
+    if normalized_model not in block.model_message_counts:
+        block.model_message_counts[normalized_model] = 0
+    block.model_message_counts[normalized_model] += token_usage.message_count
 
 
 def _update_block_tool_usage(block: TokenBlock, token_usage: TokenUsage) -> None:
@@ -46,19 +67,6 @@ def _update_block_tool_usage(block: TokenBlock, token_usage: TokenUsage) -> None
 
     # Add to total tool calls count
     block.total_tool_calls += token_usage.tool_use_count
-
-
-def _update_block_interruption_tracking(block: TokenBlock, token_usage: TokenUsage) -> None:
-    """Update block interruption tracking with data from token usage."""
-    if token_usage.was_interrupted:
-        # Increment total interruptions
-        block.total_interruptions += 1
-
-        # Track per-model interruptions
-        normalized_model = normalize_model_name(token_usage.model or "unknown")
-        if normalized_model not in block.interruptions_by_model:
-            block.interruptions_by_model[normalized_model] = 0
-        block.interruptions_by_model[normalized_model] += 1
 
 
 def parse_timestamp(timestamp_str: str) -> datetime:
@@ -256,14 +264,24 @@ def extract_token_usage(data: dict[str, Any], message_data: dict[str, Any]) -> T
     # Extract tool usage information
     tools_used, tool_use_count = extract_tool_usage(message_data)
 
-    # Extract interruption information
-    was_interrupted = message_data.get("wasInterrupted", False) or False
+    # Store actual tokens (raw from JSONL)
+    actual_input_tokens = input_tokens
+    actual_cache_creation_input_tokens = cache_creation_input_tokens
+    actual_cache_read_input_tokens = cache_read_input_tokens
+    actual_output_tokens = output_tokens
+
+    # Calculate display tokens (actual x multiplier)
+    multiplier = _get_model_multiplier(model)
+    display_input_tokens = int(input_tokens * multiplier)
+    display_cache_creation_input_tokens = int(cache_creation_input_tokens * multiplier)
+    display_cache_read_input_tokens = int(cache_read_input_tokens * multiplier)
+    display_output_tokens = int(output_tokens * multiplier)
 
     return TokenUsage(
-        input_tokens=input_tokens,
-        cache_creation_input_tokens=cache_creation_input_tokens,
-        cache_read_input_tokens=cache_read_input_tokens,
-        output_tokens=output_tokens,
+        input_tokens=display_input_tokens,
+        cache_creation_input_tokens=display_cache_creation_input_tokens,
+        cache_read_input_tokens=display_cache_read_input_tokens,
+        output_tokens=display_output_tokens,
         service_tier=service_tier,
         version=version,
         message_id=message_id,
@@ -274,7 +292,10 @@ def extract_token_usage(data: dict[str, Any], message_data: dict[str, Any]) -> T
         model=model,
         tools_used=tools_used,
         tool_use_count=tool_use_count,
-        was_interrupted=was_interrupted,
+        actual_input_tokens=actual_input_tokens,
+        actual_cache_creation_input_tokens=actual_cache_creation_input_tokens,
+        actual_cache_read_input_tokens=actual_cache_read_input_tokens,
+        actual_output_tokens=actual_output_tokens,
     )
 
 
@@ -384,17 +405,27 @@ def _update_existing_block(
         block.full_model_names.add(original_model)
         block.actual_end_time = timestamp
         block.cost_usd += token_usage.cost_usd or 0.0
+
+        # Update max cost in config if needed
+        _update_max_cost_if_needed(block.cost_usd)
+
         if token_usage.version and token_usage.version not in block.versions:
             block.versions.append(token_usage.version)
 
         # Update per-model tokens with multipliers
         _populate_model_tokens(block, model, token_usage)
 
+        # Update total actual tokens for the block
+        block.actual_tokens += token_usage.actual_total
+
+        # Update per-model message counts
+        _populate_model_messages(block, model, token_usage)
+
+        # Update total message count
+        block.message_count += token_usage.message_count
+
         # Update tool usage
         _update_block_tool_usage(block, token_usage)
-
-        # Update interruption tracking
-        _update_block_interruption_tracking(block, token_usage)
 
         return True
     except Exception:
@@ -428,6 +459,12 @@ def _should_create_new_block(session: Session, timestamp: datetime, session_dura
     last_activity = latest_block.actual_end_time or latest_block.start_time
     time_since_activity = (timestamp - last_activity).total_seconds()
     if time_since_activity > session_duration_hours * 3600:
+        return True
+
+    # Additional check: Create new block if we would cross into a different 5-hour window
+    # This ensures blocks align to hourly boundaries for consistent billing periods
+    current_block_start = calculate_block_start(timestamp)
+    if current_block_start > latest_block.start_time:
         return True
 
     return False
@@ -469,14 +506,23 @@ def _create_new_token_block(
         versions=[token_usage.version] if token_usage.version else [],
     )
 
+    # Update max cost in config if needed
+    _update_max_cost_if_needed(block.cost_usd)
+
     # Populate per-model tokens with multipliers
     _populate_model_tokens(block, model, token_usage)
 
+    # Set total actual tokens for the block
+    block.actual_tokens = token_usage.actual_total
+
+    # Populate per-model message counts
+    _populate_model_messages(block, model, token_usage)
+
+    # Initialize total message count
+    block.message_count = token_usage.message_count
+
     # Initialize tool usage
     _update_block_tool_usage(block, token_usage)
-
-    # Initialize interruption tracking
-    _update_block_interruption_tracking(block, token_usage)
 
     session.add_block(block)
 
@@ -534,7 +580,6 @@ def _process_message_data(
         "model": message_data.model,
         "usage": message_data.usage.model_dump() if message_data.usage else None,
         "content": [content.model_dump() for content in message_data.content],
-        "wasInterrupted": message_data.was_interrupted,
     }
 
     # Process token usage using existing logic
@@ -630,38 +675,56 @@ def process_jsonl_line(
         return
 
 
-def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Create unified block start time using simple hour-flooring approach.
+def _has_usage_data(projects: dict[str, Project]) -> bool:
+    """Check if projects contain any usage data."""
+    for project in projects.values():
+        if project.sessions:
+            return True
+    return False
 
-    Simple flooring the current time to the nearest hour in UTC, which creates consistent billing blocks.
+
+def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
+    """Find the current active block start time by finding the actually active block.
+
+    Finds the block that is currently active for unified billing calculations
+    (has recent activity within session duration and hasn't expired).
 
     Args:
         projects: Dictionary of projects with per-session blocks
 
     Returns:
-        The current billing block start time or None if no projects have data
+        The start time of the currently active block or None if no active block
     """
-    # Check if we have any projects with data
-    has_data = False
-    for project in projects.values():
-        for session in project.sessions.values():
-            if session.blocks:
-                has_data = True
-                break
-        if has_data:
-            break
-
-    if not has_data:
+    if not _has_usage_data(projects):
         return None
 
-    # Simply floor current time to the hour in UTC
-    now = datetime.now(UTC)
-    return calculate_block_start(now)
+    # Always return current hour-floored time when data exists
+    return calculate_block_start(datetime.now(UTC))
+
+
+def _floor_to_hour(timestamp: datetime) -> datetime:
+    """Floor a timestamp to the beginning of the hour in UTC.
+
+    Args:
+        timestamp: The timestamp to floor
+
+    Returns:
+        New datetime object floored to the UTC hour
+    """
+    # Convert to UTC if needed
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=UTC)
+    elif timestamp.tzinfo != UTC:
+        timestamp = timestamp.astimezone(UTC)
+
+    # Floor to the nearest hour
+    return timestamp.replace(minute=0, second=0, microsecond=0)
 
 
 def aggregate_usage(
     projects: dict[str, Project],
     token_limit: int | None = None,
+    message_limit: int | None = None,
     timezone_str: str = "America/Los_Angeles",
     block_start_override: datetime | None = None,
 ) -> UsageSnapshot:
@@ -670,6 +733,7 @@ def aggregate_usage(
     Args:
         projects: Dictionary of projects
         token_limit: Token limit for display
+        message_limit: Message limit for display
         timezone_str: Timezone for display
 
     Returns:
@@ -685,6 +749,7 @@ def aggregate_usage(
         timestamp=current_time,
         projects=projects,
         total_limit=token_limit,
+        message_limit=message_limit,
         block_start_override=block_start_override or unified_start,
     )
 
@@ -821,3 +886,34 @@ def format_token_count(count: int) -> str:
         return f"{count / 1_000:.0f}K"
     else:
         return str(count)
+
+
+def _update_max_cost_if_needed(block_cost: float, config_file_path: Path | None = None) -> None:
+    """Update max cost in config if block cost exceeds current max.
+
+    Args:
+        block_cost: Cost of the current block
+        config_file_path: Path to config file (optional, will auto-detect if None)
+    """
+    if block_cost <= 0:
+        return
+
+    # Import here to avoid circular imports
+    from .config import load_config, save_config
+    from .xdg_dirs import get_config_file_path
+
+    try:
+        # Load current config
+        if config_file_path is None:
+            config_file_path = get_config_file_path()
+
+        config = load_config()
+
+        # Check if block cost exceeds max
+        if block_cost > config.max_cost_encountered:
+            config.max_cost_encountered = block_cost
+            save_config(config, config_file_path)
+
+    except Exception as e:
+        # Log error but don't fail processing
+        logging.debug(f"Failed to update max cost in config: {e}")

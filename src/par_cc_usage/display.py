@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -18,6 +19,8 @@ from .models import Project, Session, UsageSnapshot
 from .theme import get_color, get_progress_color, get_style, get_theme_manager
 from .token_calculator import format_token_count, get_model_display_name
 from .utils import format_datetime, format_time_range
+
+logger = logging.getLogger(__name__)
 
 
 class MonitorDisplay:
@@ -125,6 +128,24 @@ class MonitorDisplay:
         header_text.append("\n")
         header_text.append(f"Current Time: {current_time}", style="dim")
 
+        # Add max unified block tokens if available and > 0
+        if self.config and self.config.max_unified_block_tokens_encountered > 0:
+            header_text.append("  │  ", style="dim")
+            header_text.append(
+                f"Max Block Tokens: {format_token_count(self.config.max_unified_block_tokens_encountered)}",
+                style=get_style("warning", bold=True),
+            )
+
+        # Add max unified block cost if available and > 0
+        if self.config and self.config.max_unified_block_cost_encountered > 0:
+            from .pricing import format_cost
+
+            header_text.append("  │  ", style="dim")
+            header_text.append(
+                f"Max Block Cost: {format_cost(self.config.max_unified_block_cost_encountered)}",
+                style=get_style("warning", bold=True),
+            )
+
         return Panel(
             header_text,
             title="PAR Claude Code Usage Monitor",
@@ -213,13 +234,15 @@ class MonitorDisplay:
             return "❓"
 
     def _create_model_displays(
-        self, model_tokens: dict[str, int], model_interruptions: dict[str, int] | None = None
+        self,
+        model_tokens: dict[str, int],
+        model_messages: dict[str, int] | None = None,
     ) -> list[Text]:
         """Create model token displays.
 
         Args:
             model_tokens: Token count by model
-            model_interruptions: Interruption count by model (optional)
+            model_messages: Message count by model (optional)
 
         Returns:
             List of formatted model displays
@@ -231,14 +254,12 @@ class MonitorDisplay:
 
             model_text = Text()
             model_text.append(f"{emoji} {display_name:8}", style="bold")
-            model_text.append(f"{format_token_count(tokens):>12}", style=get_color("token_count"))
+            model_text.append(f"🪙 {format_token_count(tokens)}", style=get_color("token_count"))
 
-            # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
-            if model_interruptions is not None and not self.compact_mode:
-                interruption_count = model_interruptions.get(model, 0)
-                # Green for 0 interruptions (good), red for actual interruptions (warning)
-                color = get_color("interruption_none") if interruption_count == 0 else get_color("interruption_present")
-                model_text.append(f"  ({interruption_count} Interrupted)", style=color)
+            # Add message count if available
+            if model_messages is not None:
+                message_count = model_messages.get(model, 0)
+                model_text.append(f" - ✉️ {message_count:,}", style=get_color("token_count"))
 
             model_displays.append(model_text)
         return model_displays
@@ -246,14 +267,14 @@ class MonitorDisplay:
     async def _create_model_displays_with_pricing(
         self,
         model_tokens: dict[str, int],
-        model_interruptions: dict[str, int] | None = None,
+        model_messages: dict[str, int] | None = None,
         snapshot: UsageSnapshot | None = None,
     ) -> list[Text]:
         """Create model token displays with pricing information.
 
         Args:
             model_tokens: Token count by model
-            model_interruptions: Interruption count by model (optional)
+            model_messages: Message count by model (optional)
             snapshot: Usage snapshot for accurate cost calculation
 
         Returns:
@@ -285,20 +306,18 @@ class MonitorDisplay:
 
             model_text = Text()
             model_text.append(f"{emoji} {display_name:8}", style="bold")
-            model_text.append(f"{format_token_count(tokens):>12}", style=get_color("token_count"))
+            model_text.append(f"🪙 {format_token_count(tokens)}", style=get_color("token_count"))
+
+            # Add message count if available
+            if model_messages is not None:
+                message_count = model_messages.get(model, 0)
+                model_text.append(f" - ✉️ {message_count:,}", style=get_color("token_count"))
 
             # Add pricing if enabled
             if self.config and self.config.display.show_pricing:
                 cost = model_costs.get(model, 0.0)
                 if cost > 0:
-                    model_text.append(f"  {format_cost(cost)}", style=get_color("cost"))
-
-            # Add interruption count if interruption data exists and not in compact mode (always show, even if 0)
-            if model_interruptions is not None and not self.compact_mode:
-                interruption_count = model_interruptions.get(model, 0)
-                # Green for 0 interruptions (good), red for actual interruptions (warning)
-                color = get_color("interruption_none") if interruption_count == 0 else get_color("interruption_present")
-                model_text.append(f"  ({interruption_count} Interrupted)", style=color)
+                    model_text.append(f" - 💰 {format_cost(cost)}", style=get_color("cost"))
 
             model_displays.append(model_text)
         return model_displays
@@ -337,6 +356,120 @@ class MonitorDisplay:
                         total_tool_calls += block.total_tool_calls
         return tool_counts, total_tool_calls
 
+    def _collect_progress_data(self, snapshot: UsageSnapshot) -> tuple[dict[str, int], dict[str, int], int, int, int]:
+        """Collect data needed for progress bars."""
+        # Get token usage by model for unified block only
+        model_tokens = snapshot.unified_block_tokens_by_model()
+        model_messages = snapshot.unified_block_messages_by_model()
+        total_tokens = snapshot.unified_block_tokens()
+
+        # If no unified block data, fall back to all active tokens and models
+        if not model_tokens and total_tokens == 0:
+            model_tokens = snapshot.tokens_by_model()
+            model_messages = snapshot.messages_by_model()
+            total_tokens = snapshot.active_tokens
+
+        # Use max tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
+        base_limit = snapshot.total_limit or 500_000
+        if self.config and self.config.max_tokens_encountered > 0:
+            total_limit = self.config.max_tokens_encountered
+        else:
+            total_limit = base_limit
+
+        return model_tokens, model_messages, total_tokens, total_limit, base_limit
+
+    async def _get_total_cost(self, snapshot: UsageSnapshot) -> float:
+        """Get total cost if pricing is enabled."""
+        if not (self.config and self.config.display.show_pricing):
+            return 0.0
+
+        try:
+            return await snapshot.get_unified_block_total_cost()
+        except Exception:
+            # If cost calculation fails, continue without cost display
+            return 0.0
+
+    def _create_progress_text(
+        self, total_tokens: int, total_limit: int, total_messages: int, total_message_limit: int, total_cost: float
+    ) -> str:
+        """Create progress text with tokens, messages, and optional cost."""
+        parts = []
+
+        # Tokens part
+        tokens_text = f"🪙 {format_token_count(total_tokens)}"
+        if self.config and self.config.max_unified_block_tokens_encountered > 0:
+            max_tokens_text = format_token_count(self.config.max_unified_block_tokens_encountered)
+            tokens_text += f" / {max_tokens_text}"
+        parts.append(tokens_text)
+
+        # Messages part
+        if total_messages > 0:
+            messages_text = f"✉️ {total_messages}"
+            if self.config and self.config.max_unified_block_messages_encountered > 0:
+                max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
+                messages_text += f" / {max_messages_text}"
+            parts.append(messages_text)
+
+        # Cost part
+        if total_cost > 0:
+            from .pricing import format_cost
+
+            cost_text = f"💰 {format_cost(total_cost)}"
+            if self.config and self.config.max_cost_encountered > 0:
+                max_cost_text = format_cost(self.config.max_cost_encountered)
+                cost_text += f" / {max_cost_text}"
+            parts.append(cost_text)
+
+        return "   " + " - ".join(parts)
+
+    def _create_compact_total_display(
+        self,
+        total_tokens: int,
+        total_limit: int,
+        base_limit: int,
+        total_messages: int,
+        total_message_limit: int,
+        total_cost: float,
+    ) -> Text:
+        """Create compact mode total display."""
+        percentage = (total_tokens / total_limit) * 100
+        _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
+
+        total_text = Text()
+        total_text.append("📊 Total   ", style=text_style)
+
+        # Build parts similar to normal mode
+        parts = []
+
+        # Tokens part
+        tokens_text = f"🪙 {format_token_count(total_tokens)}"
+        if self.config and self.config.max_unified_block_tokens_encountered > 0:
+            max_tokens_text = format_token_count(self.config.max_unified_block_tokens_encountered)
+            tokens_text += f" / {max_tokens_text}"
+        parts.append(tokens_text)
+
+        # Messages part
+        if total_messages > 0:
+            messages_text = f"✉️ {total_messages}"
+            if self.config and self.config.max_unified_block_messages_encountered > 0:
+                max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
+                messages_text += f" / {max_messages_text}"
+            parts.append(messages_text)
+
+        # Cost part
+        if total_cost > 0:
+            from .pricing import format_cost
+
+            cost_text = f"💰 {format_cost(total_cost)}"
+            if self.config and self.config.max_cost_encountered > 0:
+                max_cost_text = format_cost(self.config.max_cost_encountered)
+                cost_text += f" / {max_cost_text}"
+            parts.append(cost_text)
+
+        total_text.append(" - ".join(parts) + " ", style=text_style)
+        total_text.append(f"({percentage:>3.0f}%)", style=text_style)
+        return total_text
+
     async def _create_progress_bars(self, snapshot: UsageSnapshot) -> Panel:
         """Create progress bars for token usage.
 
@@ -346,42 +479,31 @@ class MonitorDisplay:
         Returns:
             Progress panel
         """
-        # Get token usage by model for unified block only
-        model_tokens = snapshot.unified_block_tokens_by_model()
-        total_tokens = snapshot.unified_block_tokens()
-        model_interruptions = snapshot.unified_block_interruptions_by_model()
+        # Collect all needed data
+        model_tokens, model_messages, total_tokens, total_limit, base_limit = self._collect_progress_data(snapshot)
 
-        # If no unified block data, fall back to all active tokens and models
-        if not model_tokens and total_tokens == 0:
-            model_tokens = snapshot.tokens_by_model()
-            total_tokens = snapshot.active_tokens
-            model_interruptions = snapshot.interruptions_by_model()
-
-        # Ensure limit is at least as high as current usage
-        base_limit = snapshot.total_limit or 500_000
-        total_limit = max(base_limit, total_tokens)
-
-        # Create per-model token displays (no progress bars)
+        # Create per-model token displays
         from rich.console import Group
         from rich.progress import BarColumn, Progress, TextColumn
 
-        # Use pricing display if enabled, otherwise use regular display
         if self.config and self.config.display.show_pricing:
-            model_displays = await self._create_model_displays_with_pricing(model_tokens, model_interruptions, snapshot)
+            model_displays = await self._create_model_displays_with_pricing(model_tokens, model_messages, snapshot)
         else:
-            model_displays = self._create_model_displays(model_tokens, model_interruptions)
+            model_displays = self._create_model_displays(model_tokens, model_messages)
 
         # Calculate burn rate and estimated total usage
         burn_rate_text = await self._calculate_burn_rate(snapshot, total_tokens, total_limit)
 
-        # Get total cost if pricing is enabled
-        total_cost = 0.0
-        if self.config and self.config.display.show_pricing:
-            try:
-                total_cost = await snapshot.get_unified_block_total_cost()
-            except Exception:
-                # If cost calculation fails, continue without cost display
-                total_cost = 0.0
+        # Calculate message metrics
+        total_messages = sum(model_messages.values()) if model_messages else 0
+        base_message_limit = snapshot.message_limit or 50
+        if self.config and self.config.max_messages_encountered > 0:
+            total_message_limit = self.config.max_messages_encountered
+        else:
+            total_message_limit = max(base_message_limit, total_messages)
+
+        # Get total cost
+        total_cost = await self._get_total_cost(snapshot)
 
         # Combine model displays and burn rate
         all_displays = []
@@ -389,18 +511,14 @@ class MonitorDisplay:
             all_displays.extend(model_displays)
         all_displays.append(burn_rate_text)
 
-        # Add total progress bar only if not in compact mode
+        # Add total progress display
         if not self.compact_mode:
-            # Total progress bar with color based on percentage
+            # Full progress bar mode
             percentage = (total_tokens / total_limit) * 100
             bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
-
-            # Create the tokens text with optional cost
-            tokens_text = f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}"
-            if total_cost > 0:
-                from .pricing import format_cost
-
-                tokens_text += f" {format_cost(total_cost)}"
+            tokens_text = self._create_progress_text(
+                total_tokens, total_limit, total_messages, total_message_limit, total_cost
+            )
 
             total_progress = Progress(
                 TextColumn("📊 Total   ", style=text_style),
@@ -413,29 +531,14 @@ class MonitorDisplay:
             total_progress.add_task("Total", total=total_limit, completed=total_tokens)
             all_displays.append(total_progress)
         else:
-            # In compact mode, show total as simple text
-            percentage = (total_tokens / total_limit) * 100
-            _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
-
-            total_text = Text()
-            total_text.append("📊 Total   ", style=text_style)
-            total_text.append(
-                f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
+            # Compact mode - simple text display
+            total_text = self._create_compact_total_display(
+                total_tokens, total_limit, base_limit, total_messages, total_message_limit, total_cost
             )
-            if total_cost > 0:
-                from .pricing import format_cost
-
-                total_text.append(f"{format_cost(total_cost)} ", style=text_style)
-            total_text.append(f"({percentage:>3.0f}%)", style=text_style)
             all_displays.append(total_text)
 
         all_progress = Group(*all_displays)
-
-        return Panel(
-            all_progress,
-            title="Token Usage by Model",
-            border_style=get_color("border"),
-        )
+        return Panel(all_progress, title="Token Usage by Model", border_style=get_color("border"))
 
     def _create_tool_usage_table(self, snapshot: UsageSnapshot) -> Table:
         """Create tool usage table with dynamic sizing and column distribution.
@@ -571,14 +674,16 @@ class MonitorDisplay:
 
         try:
             current_cost = await snapshot.get_unified_block_total_cost()
+            logger.debug(f"Pricing calculation: current_cost={current_cost}, elapsed_minutes={elapsed_minutes}")
             if elapsed_minutes > 0 and current_cost > 0:
                 cost_per_minute = current_cost / elapsed_minutes
                 estimated_total_cost = cost_per_minute * 60 * 5.0  # 5 hours
                 from .pricing import format_cost
 
-                return f"  Est: {format_cost(estimated_total_cost)}"
-        except Exception:
-            pass
+                logger.debug(f"Pricing calculation: estimated_total_cost={estimated_total_cost}")
+                return f"  💰 {format_cost(estimated_total_cost)}"
+        except Exception as e:
+            logger.debug(f"Pricing calculation failed: {e}")
         return ""
 
     def _format_burn_rate_text(
@@ -590,17 +695,28 @@ class MonitorDisplay:
         eta_display: str,
         eta_before_block_end: bool,
         remaining_tokens: int,
+        message_burn_rate_per_minute: float = 0.0,
+        estimated_total_messages: float = 0.0,
     ) -> Text:
         """Format the burn rate display text."""
         percentage = (estimated_total / total_limit) * 100
         color = self._calculate_burn_rate_color(estimated_total, total_limit)
 
         burn_rate_text = Text()
-        burn_rate_text.append("🔥 Burn    ", style="bold")
-        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style=get_color("burn_rate"))
+        burn_rate_text.append("🔥 Burn        ", style="bold")
+        burn_rate_text.append(f"🪙 {format_token_count(int(burn_rate_per_minute))}/m", style=get_color("burn_rate"))
+
+        # Add message burn rate if there are messages
+        if message_burn_rate_per_minute > 0:
+            burn_rate_text.append(f" ✉️ {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
+
         burn_rate_text.append("  Est: ", style="dim")
-        burn_rate_text.append(f"{format_token_count(int(estimated_total)):>8}", style=color)
+        burn_rate_text.append(f"🪙 {format_token_count(int(estimated_total))}", style=color)
         burn_rate_text.append(f" ({percentage:>3.0f}%)", style=color)
+
+        # Add estimated message count if there are messages
+        if estimated_total_messages > 0:
+            burn_rate_text.append(f" ✉️ {int(estimated_total_messages):,}", style=color)
 
         if estimated_cost_text:
             burn_rate_text.append(estimated_cost_text, style=get_color("cost"))
@@ -639,10 +755,21 @@ class MonitorDisplay:
         if elapsed_minutes < 0.1:  # Less than 6 seconds
             return Text("Burn rate: calculating...", style="dim")
 
+        # Get message data for burn rate calculation
+        model_messages = snapshot.unified_block_messages_by_model()
+        if not model_messages:
+            model_messages = snapshot.messages_by_model()
+        total_messages = sum(model_messages.values()) if model_messages else 0
+
         # Calculate burn rate and estimates
         burn_rate_per_minute = total_tokens / elapsed_minutes
         burn_rate_per_hour = burn_rate_per_minute * 60
         estimated_total = burn_rate_per_hour * 5.0
+
+        # Calculate message burn rate
+        message_burn_rate_per_minute = total_messages / elapsed_minutes if total_messages > 0 else 0.0
+        message_burn_rate_per_hour = message_burn_rate_per_minute * 60
+        estimated_total_messages = message_burn_rate_per_hour * 5.0
 
         # Calculate ETA to token limit
         remaining_tokens = total_limit - total_tokens
@@ -662,6 +789,8 @@ class MonitorDisplay:
             eta_display,
             eta_before_block_end,
             remaining_tokens,
+            message_burn_rate_per_minute,
+            estimated_total_messages,
         )
 
     def _calculate_burn_rate_sync(self, snapshot: UsageSnapshot, total_tokens: int, total_limit: int) -> Text:
@@ -688,6 +817,12 @@ class MonitorDisplay:
         if elapsed_minutes < 0.1:  # Less than 6 seconds
             return Text("Burn rate: calculating...", style="dim")
 
+        # Get message data for burn rate calculation
+        model_messages = snapshot.unified_block_messages_by_model()
+        if not model_messages:
+            model_messages = snapshot.messages_by_model()
+        total_messages = sum(model_messages.values()) if model_messages else 0
+
         # Calculate burn rate (tokens per minute)
         burn_rate_per_minute = total_tokens / elapsed_minutes
 
@@ -696,6 +831,11 @@ class MonitorDisplay:
 
         # Calculate estimated total usage for the full 5-hour block
         estimated_total = burn_rate_per_hour * 5.0
+
+        # Calculate message burn rate
+        message_burn_rate_per_minute = total_messages / elapsed_minutes if total_messages > 0 else 0.0
+        message_burn_rate_per_hour = message_burn_rate_per_minute * 60
+        estimated_total_messages = message_burn_rate_per_hour * 5.0
 
         # Calculate ETA to token limit
         remaining_tokens = total_limit - total_tokens
@@ -707,13 +847,22 @@ class MonitorDisplay:
         percentage = (estimated_total / total_limit) * 100
         color = self._calculate_burn_rate_color(estimated_total, total_limit)
 
-        # Format the display (without cost)
+        # Format the display (without cost) - use the common formatting method
         burn_rate_text = Text()
-        burn_rate_text.append("🔥 Burn    ", style="bold")
-        burn_rate_text.append(f"{format_token_count(int(burn_rate_per_minute)):>8}/m", style=get_color("burn_rate"))
+        burn_rate_text.append("🔥 Burn        ", style="bold")
+        burn_rate_text.append(f"🪙 {format_token_count(int(burn_rate_per_minute))}/m", style=get_color("burn_rate"))
+
+        # Add message burn rate if there are messages
+        if message_burn_rate_per_minute > 0:
+            burn_rate_text.append(f" ✉️ {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
+
         burn_rate_text.append("  Est: ", style="dim")
-        burn_rate_text.append(f"{format_token_count(int(estimated_total)):>8}", style=color)
+        burn_rate_text.append(f"🪙 {format_token_count(int(estimated_total))}", style=color)
         burn_rate_text.append(f" ({percentage:>3.0f}%)", style=color)
+
+        # Add estimated message count if there are messages
+        if estimated_total_messages > 0:
+            burn_rate_text.append(f" ✉️ {int(estimated_total_messages):,}", style=color)
 
         # Add time until limit
         if remaining_tokens > 0:
@@ -813,6 +962,7 @@ class MonitorDisplay:
         table.add_column("Project", style=get_color("project_name"))
         table.add_column("Model", style=get_color("model_name"))
         table.add_column("Tokens", style=get_color("token_count"), justify="right")
+        table.add_column("Messages", style=get_color("token_count"), justify="right")
 
         if show_pricing:
             table.add_column("Cost", style=get_color("cost"), justify="right")
@@ -835,10 +985,10 @@ class MonitorDisplay:
                             usage = block.token_usage
                             cost = await calculate_token_cost(
                                 full_model,
-                                usage.input_tokens,
-                                usage.output_tokens,
-                                usage.cache_creation_input_tokens,
-                                usage.cache_read_input_tokens,
+                                usage.actual_input_tokens,
+                                usage.actual_output_tokens,
+                                usage.actual_cache_creation_input_tokens,
+                                usage.actual_cache_read_input_tokens,
                             )
                             project_cost += cost.total_cost
         except Exception:
@@ -854,6 +1004,7 @@ class MonitorDisplay:
             if project_tokens <= 0:
                 continue
 
+            project_messages = project.get_unified_block_messages(unified_start)
             project_models = project.get_unified_block_models(unified_start)
             project_latest_activity = project.get_unified_block_latest_activity(unified_start)
             project_tools = (
@@ -869,6 +1020,7 @@ class MonitorDisplay:
                 (
                     project,
                     project_tokens,
+                    project_messages,
                     project_models,
                     project_latest_activity,
                     project_tools,
@@ -891,6 +1043,7 @@ class MonitorDisplay:
         table: Table,
         project,
         project_tokens: int,
+        project_messages: int,
         model_display: str,
         cost_display: str,
         tool_display: str,
@@ -901,6 +1054,7 @@ class MonitorDisplay:
             self._strip_project_name(project.name),
             model_display,
             format_token_count(project_tokens),
+            str(project_messages),
         ]
 
         if show_pricing:
@@ -924,6 +1078,7 @@ class MonitorDisplay:
         for (
             project,
             project_tokens,
+            project_messages,
             project_models,
             _,
             project_tools,
@@ -951,7 +1106,14 @@ class MonitorDisplay:
                     tool_display = "-"
 
             self._add_project_table_row(
-                table, project, project_tokens, model_display, cost_display, tool_display, show_pricing
+                table,
+                project,
+                project_tokens,
+                project_messages,
+                model_display,
+                cost_display,
+                tool_display,
+                show_pricing,
             )
 
     def _add_session_table_columns(self, table: Table, show_pricing: bool) -> None:
@@ -960,6 +1122,7 @@ class MonitorDisplay:
         table.add_column("Session ID", style="dim")
         table.add_column("Model", style=get_color("model_name"))
         table.add_column("Tokens", style=get_color("token_count"), justify="right")
+        table.add_column("Messages", style=get_color("token_count"), justify="right")
 
         if show_pricing:
             table.add_column("Cost", style=get_color("cost"), justify="right")
@@ -992,6 +1155,7 @@ class MonitorDisplay:
         project,
         session,
         session_tokens: int,
+        session_messages: int,
         model_display: str,
         cost_display: str,
         tool_display: str,
@@ -1003,6 +1167,7 @@ class MonitorDisplay:
             session.session_id,
             model_display,
             format_token_count(session_tokens),
+            str(session_messages),
         ]
 
         if show_pricing:
@@ -1027,6 +1192,7 @@ class MonitorDisplay:
             project,
             session,
             session_tokens,
+            session_messages,
             session_models,
             _,
             session_tools,
@@ -1054,7 +1220,15 @@ class MonitorDisplay:
                     tool_display = "-"
 
             self._add_session_table_row(
-                table, project, session, session_tokens, model_display, cost_display, tool_display, show_pricing
+                table,
+                project,
+                session,
+                session_tokens,
+                session_messages,
+                model_display,
+                cost_display,
+                tool_display,
+                show_pricing,
             )
 
     def _calculate_session_data(
@@ -1085,9 +1259,10 @@ class MonitorDisplay:
 
     async def _calculate_session_data_with_cost(
         self, session: Session, unified_start: datetime | None, show_pricing: bool
-    ) -> tuple[int, set[str], datetime | None, set[str], int, float]:
-        """Calculate session tokens, models, latest activity, tools, tool calls, and cost."""
+    ) -> tuple[int, int, set[str], datetime | None, set[str], int, float]:
+        """Calculate session tokens, messages, models, latest activity, tools, tool calls, and cost."""
         session_tokens = 0
+        session_messages = 0
         session_models: set[str] = set()
         session_latest_activity = None
         session_tools: set[str] = set()
@@ -1100,6 +1275,7 @@ class MonitorDisplay:
 
             if include_block:
                 session_tokens += block.adjusted_tokens
+                session_messages += block.messages_processed
                 session_models.update(block.models_used)
                 session_tools.update(block.tools_used)
                 session_tool_calls += block.total_tool_calls
@@ -1118,17 +1294,25 @@ class MonitorDisplay:
                             usage = block.token_usage
                             cost = await calculate_token_cost(
                                 full_model,
-                                usage.input_tokens,
-                                usage.output_tokens,
-                                usage.cache_creation_input_tokens,
-                                usage.cache_read_input_tokens,
+                                usage.actual_input_tokens,
+                                usage.actual_output_tokens,
+                                usage.actual_cache_creation_input_tokens,
+                                usage.actual_cache_read_input_tokens,
                             )
                             session_cost += cost.total_cost
                     except Exception:
                         # If cost calculation fails, continue without adding to cost
                         pass
 
-        return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls, session_cost
+        return (
+            session_tokens,
+            session_messages,
+            session_models,
+            session_latest_activity,
+            session_tools,
+            session_tool_calls,
+            session_cost,
+        )
 
     def _create_sessions_table_sync(self, snapshot: UsageSnapshot) -> Panel:
         """Create active sessions table (sync version without pricing).
@@ -1433,28 +1617,41 @@ class MonitorDisplay:
         """
         # Get token usage by model for unified block only
         model_tokens = snapshot.unified_block_tokens_by_model()
+        model_messages = snapshot.unified_block_messages_by_model()
         total_tokens = snapshot.unified_block_tokens()
-        model_interruptions = snapshot.unified_block_interruptions_by_model()
 
         # If no unified block data, fall back to all active tokens and models
         if not model_tokens and total_tokens == 0:
             model_tokens = snapshot.tokens_by_model()
+            model_messages = snapshot.messages_by_model()
             total_tokens = snapshot.active_tokens
-            model_interruptions = snapshot.interruptions_by_model()
 
-        # Ensure limit is at least as high as current usage
+        # Use max tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
         base_limit = snapshot.total_limit or 500_000
-        total_limit = max(base_limit, total_tokens)
+        if self.config and self.config.max_tokens_encountered > 0:
+            total_limit = self.config.max_tokens_encountered
+        else:
+            total_limit = base_limit
 
         # Create per-model token displays (no progress bars)
         from rich.console import Group
         from rich.progress import BarColumn, Progress, TextColumn
 
         # Use regular display (no pricing in sync version)
-        model_displays = self._create_model_displays(model_tokens, model_interruptions)
+        model_displays = self._create_model_displays(model_tokens, model_messages)
 
         # Calculate burn rate and estimated total usage (sync version without cost)
         burn_rate_text = self._calculate_burn_rate_sync(snapshot, total_tokens, total_limit)
+
+        # Calculate total messages
+        total_messages = sum(model_messages.values()) if model_messages else 0
+
+        # Calculate message limit
+        base_message_limit = snapshot.message_limit or 50
+        if self.config and self.config.max_messages_encountered > 0:
+            total_message_limit = self.config.max_messages_encountered
+        else:
+            total_message_limit = max(base_message_limit, total_messages)
 
         # Combine model displays and burn rate (no pricing in sync version)
         all_displays = []
@@ -1468,8 +1665,10 @@ class MonitorDisplay:
             percentage = (total_tokens / total_limit) * 100
             bar_color, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
 
-            # Create the tokens text (no cost in sync version)
+            # Create the tokens text with messages (no cost in sync version)
             tokens_text = f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)}"
+            if total_messages > 0:
+                tokens_text += f" {total_messages:,}/ {total_message_limit:,}msg"
 
             total_progress = Progress(
                 TextColumn("📊 Total   ", style=text_style),
@@ -1491,6 +1690,8 @@ class MonitorDisplay:
             total_text.append(
                 f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
             )
+            if total_messages > 0:
+                total_text.append(f"{total_messages:,}/ {total_message_limit:,}msg ", style=text_style)
             total_text.append(f"({percentage:>3.0f}%)", style=text_style)
             all_displays.append(total_text)
 

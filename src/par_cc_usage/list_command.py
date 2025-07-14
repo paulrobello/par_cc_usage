@@ -102,8 +102,8 @@ class ListDisplay:
         logger.debug(f"Using LiteLLM calculated cost for model: {block.model}")
         cost_result = await calculate_token_cost(
             block.model,
-            block.token_usage.input_tokens + block.token_usage.cache_creation_input_tokens,
-            block.token_usage.output_tokens,
+            block.token_usage.actual_input_tokens + block.token_usage.actual_cache_creation_input_tokens,
+            block.token_usage.actual_output_tokens,
         )
         return cost_result.total_cost
 
