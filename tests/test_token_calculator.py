@@ -169,7 +169,7 @@ class TestCreateUnifiedBlocks:
         assert result is None
 
     def test_create_unified_blocks_no_active_blocks(self):
-        """Test create_unified_blocks with no active blocks."""
+        """Test create_unified_blocks with inactive blocks still returns current hour-floored time."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -193,10 +193,12 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        assert result is None
+        # Should return current hour-floored time since data exists
+        expected = calculate_block_start(datetime.now(timezone.utc))
+        assert result == expected
 
     def test_create_unified_blocks_single_active_block(self):
-        """Test create_unified_blocks with a single active block."""
+        """Test create_unified_blocks returns current hour-floored time."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -220,10 +222,12 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        assert result == block_start
+        # Should return current hour-floored time, not the block start time
+        expected = calculate_block_start(datetime.now(timezone.utc))
+        assert result == expected
 
-    def test_create_unified_blocks_multiple_active_blocks_returns_earliest(self):
-        """Test create_unified_blocks returns the earliest among multiple active blocks that contain current time."""
+    def test_create_unified_blocks_multiple_active_blocks_returns_current_hour(self):
+        """Test create_unified_blocks returns current hour-floored time with multiple blocks."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -265,11 +269,12 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_2"] = session2
 
         result = create_unified_blocks({"test_project": project})
-        # Should select the earliest active block that contains current time (block1)
-        assert result == block1_start
+        # Should return current hour-floored time regardless of block start times
+        expected = calculate_block_start(current_time)
+        assert result == expected
 
     def test_create_unified_blocks_inactive_vs_active(self):
-        """Test create_unified_blocks ignores inactive blocks and selects active ones."""
+        """Test create_unified_blocks returns current hour-floored time regardless of block activity."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -306,11 +311,12 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should select the active block, ignoring the inactive one
-        assert result == active_block_start
+        # Should return current hour-floored time since data exists
+        expected = calculate_block_start(current_time)
+        assert result == expected
 
     def test_create_unified_blocks_multiple_projects(self):
-        """Test create_unified_blocks across multiple projects returns earliest active that contains current time."""
+        """Test create_unified_blocks across multiple projects returns current hour-floored time."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -354,11 +360,12 @@ class TestCreateUnifiedBlocks:
         projects = {"project1": project1, "project2": project2}
         result = create_unified_blocks(projects)
 
-        # Should select the earliest active block that contains current time (block2 from project2)
-        assert result == block2_start
+        # Should return current hour-floored time regardless of which project has blocks
+        expected = calculate_block_start(current_time)
+        assert result == expected
 
     def test_create_unified_blocks_activity_boundary_cases(self):
-        """Test create_unified_blocks with blocks at activity time boundaries."""
+        """Test create_unified_blocks returns current hour-floored time even with inactive blocks."""
         from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
         from datetime import datetime, timedelta, timezone
 
@@ -383,8 +390,9 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should be None because the block is not active (>5 hours since activity)
-        assert result is None
+        # Should return current hour-floored time since data exists, regardless of activity
+        expected = calculate_block_start(current_time)
+        assert result == expected
 
 
 class TestInterruptionTracking:

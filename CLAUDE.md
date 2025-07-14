@@ -223,28 +223,27 @@ flowchart TB
    - `pricing.py`: LiteLLM integration for accurate cost calculations across all Claude models
 
 2. **Unified Block System**:
-   The unified billing block calculation uses an optimal approach to identify the current billing period:
-   - **Current Block Selection**: Selects blocks that contain the current time, preferring the earliest start time among active blocks
-   - **Hour-floored start times**: All blocks start at the top of the hour in UTC
+   The unified billing block calculation uses a simple and reliable approach to identify the current billing period:
+   - **Hour-floored Block Selection**: Current billing block is determined by flooring the current UTC time to the nearest hour
+   - **Consistent Start Times**: All blocks start at the top of the hour in UTC for predictable billing periods
    - **Manual Override**: CLI `--block-start HOUR` option for testing and corrections (hour 0-23)
-   - Logic in `token_calculator.py:create_unified_blocks()` function provides accurate billing block identification
+   - Logic in `token_calculator.py:create_unified_blocks()` function provides straightforward billing block identification
    - Debug with `pccu debug-unified` to see block selection details
    - Automatic gap detection for inactivity periods > 5 hours
 
    #### Unified Block Algorithm
-   The `create_unified_blocks()` function implements an optimal block selection approach:
+   The `create_unified_blocks()` function implements a simple hour-flooring approach:
 
-   1. **Collect All Blocks**: Gathers all blocks across all projects and sessions
-   2. **Filter Active Blocks**: Keeps only blocks that are currently active
-   3. **Find Current Blocks**: Identifies blocks that contain the current time
-   4. **Select Earliest**: Among current blocks, selects the one with the earliest start time
-   5. **Fallback Selection**: Uses earliest active block if no blocks contain the current time
+   1. **Check Data Availability**: Verifies that projects contain usage data
+   2. **Current Time Calculation**: Gets current UTC time
+   3. **Hour-flooring**: Floors current time to the nearest hour boundary using `calculate_block_start()`
+   4. **Return Block Start**: Returns the hour-floored time as the current billing block start
 
-   **Block Activity Logic**: A block is active if:
+   **Block Activity Logic**: Individual session blocks are active if:
    - Time since last activity < 5 hours (session duration)
    - Current time < block end time (start + 5 hours)
 
-   **Key Architectural Decision**: This approach ensures consistent billing period representation by selecting the earliest active block that contains the current time, providing stable and predictable billing block identification.
+   **Key Architectural Decision**: This approach ensures consistent billing period representation by using simple hour-floored UTC time calculation, providing stable and predictable billing block identification that aligns with standard hourly billing practices.
 
 3. **Enhanced Configuration System**:
    - `config.py`: Pydantic-based configuration with structured environment variable parsing
@@ -282,7 +281,7 @@ flowchart TB
 
 ### Key Architectural Decisions
 
-1. **Optimal Block Logic**: Billing block selection uses hour-boundary preference for consistent billing period representation
+1. **Simple Block Logic**: Billing block selection uses direct hour-flooring of current UTC time for consistent and predictable billing period representation
 2. **XDG Base Directory Compliance**: Configuration, cache, and data files follow XDG specification for proper system integration
 3. **Legacy Migration Support**: Automatic detection and migration of existing config files to XDG locations
 4. **Deduplication**: Uses message IDs and request IDs to prevent double-counting tokens when files are re-read
@@ -520,25 +519,21 @@ flowchart TD
 #### Unified Block Selection Algorithm
 ```mermaid
 flowchart TD
-    A[token_calculator.py:create_unified_blocks\(\)] --> B["Collect all blocks from all projects/sessions"]
-    B --> C["Filter: Keep only active blocks"]
-    C --> D["Find blocks containing current time"]
-    D --> E{"Blocks found?"}
+    A[token_calculator.py:create_unified_blocks\(\)] --> B["Check if projects contain usage data"]
+    B --> C{"Has data?"}
+    C -->|Yes| D["Get current UTC time"]
+    C -->|No| E["Return None"]
     
-    E -->|Yes| F["Select block with earliest start_time"]
-    E -->|No| G["Fallback: Select earliest active block"]
+    D --> F["Floor time to hour using calculate_block_start\(\)"]
+    F --> G["Return hour-floored start time"]
     
-    F --> H["Return unified_block_start_time"]
-    G --> H
-    
-    H --> I["UsageSnapshot.unified_block_start_time property"]
-    I --> J["Used by unified_block_tokens\(\) methods"]
+    G --> H["UsageSnapshot.unified_block_start_time property"]
+    H --> I["Used by unified_block_tokens\(\) methods"]
     
     style A fill:#e1f5fe
-    style C fill:#fff3e0
-    style D fill:#f3e5f5
-    style F fill:#e8f5e8
-    style G fill:#fce4ec
+    style D fill:#fff3e0
+    style F fill:#f3e5f5
+    style G fill:#e8f5e8
 ```
 
 ## Important Implementation Details
@@ -547,7 +542,7 @@ flowchart TD
 - Blocks are 5 hours long, starting from the hour of first activity (UTC hour-floored)
 - New blocks are created when: time since block start > 5 hours OR time since last activity > 5 hours
 - Gap blocks are inserted for periods of inactivity > 5 hours
-- **Current Block Selection**: Uses optimal block selection that prefers hour boundaries for consistent billing representation
+- **Current Block Selection**: Uses simple hour-flooring of current UTC time for consistent and predictable billing representation
 - **Per-Model Token Tracking**: Each block maintains a `model_tokens` dictionary that tracks adjusted tokens per model with multipliers applied during token processing
 
 ### File Processing
@@ -671,7 +666,7 @@ All functions maintain cyclomatic complexity ≤ 10 through systematic refactori
 - **Configuration Loading** (`config.py`): Separated file loading, environment parsing, nested config handling, and legacy migration
 - **Monitor Function** (`main.py`): Split into initialization, token detection, and file processing helpers
 - **Debug Commands** (`commands.py`): Extracted display and data collection logic with complexity-optimized helper functions
-- **Block Selection** (`token_calculator.py`): Optimal unified block logic with earliest active block preference for consistent billing representation
+- **Block Selection** (`token_calculator.py`): Simple hour-flooring logic for consistent and predictable billing block representation
 - **JSONL Processing** (`token_calculator.py`): Isolated message validation and block creation
 - **Display System** (`display.py`): Modular UI components with separated rendering, calculation, and formatting logic
 - **Session Management** (`main.py`): Decomposed session listing, filtering, and analysis functions

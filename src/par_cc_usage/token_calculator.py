@@ -631,44 +631,32 @@ def process_jsonl_line(
 
 
 def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Create unified block start time using optimal block selection logic.
+    """Create unified block start time using simple hour-flooring approach.
 
-    This implementation finds the active block that contains the current time,
-    or falls back to the earliest active block if none contain the current time.
+    Simple flooring the current time to the nearest hour in UTC, which creates consistent billing blocks.
 
     Args:
         projects: Dictionary of projects with per-session blocks
 
     Returns:
-        The current billing block start time or None if no active blocks exist
+        The current billing block start time or None if no projects have data
     """
-    # Collect all blocks across all projects/sessions
-    all_blocks = []
+    # Check if we have any projects with data
+    has_data = False
     for project in projects.values():
         for session in project.sessions.values():
-            for block in session.blocks:
-                if not block.is_gap:  # Skip gap blocks
-                    all_blocks.append(block)
+            if session.blocks:
+                has_data = True
+                break
+        if has_data:
+            break
 
-    # Filter for active blocks
-    active_blocks = [block for block in all_blocks if block.is_active]
-
-    if not active_blocks:
+    if not has_data:
         return None
 
-    # Find blocks that contain the current time
+    # Simply floor current time to the hour in UTC
     now = datetime.now(UTC)
-    current_blocks = [block for block in active_blocks if block.start_time <= now < block.end_time]
-
-    if not current_blocks:
-        # Fallback to earliest active block
-        active_blocks.sort(key=lambda block: block.start_time)
-        return active_blocks[0].start_time
-
-    # Among blocks that contain the current time, return the earliest start time
-    # This ensures consistent billing block representation
-    current_blocks.sort(key=lambda block: block.start_time)
-    return current_blocks[0].start_time
+    return calculate_block_start(now)
 
 
 def aggregate_usage(

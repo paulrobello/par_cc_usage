@@ -61,12 +61,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
   - [v0.1.7 - Monitor Display Stability](#v017---monitor-display-stability)
   - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
   - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
   - [v0.1.3 - Code Quality Improvements](#v013---code-quality-improvements)
-  - [v0.1.2 - Pricing & Cost Tracking](#v012---pricing--cost-tracking)
   - [older...](#older)
 - [Development](#development)
 
@@ -1057,6 +1057,28 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.1.8 - Simplified Block Computation
+
+**Reliable Block Time Logic**: Replaced complex block selection algorithm with simple, predictable hour-flooring approach for consistent billing period representation:
+
+#### 🕐 Block Time Improvements
+- **Simple Hour-Flooring**: Current billing block determined by flooring current UTC time to nearest hour
+- **Predictable Behavior**: Consistent block start times that align with standard hourly billing practices
+- **Eliminated Complex Logic**: Removed multi-step block selection algorithm that could cause inconsistencies
+- **Reliable Billing Periods**: Hour-floored blocks provide stable and expected billing period boundaries
+
+#### 🔧 Technical Changes
+- Updated `create_unified_blocks()` function to use direct `calculate_block_start(datetime.now(UTC))`
+- Simplified unified block algorithm from 5-step process to direct hour-flooring calculation
+- Enhanced documentation to reflect straightforward block computation approach
+- Updated test suite to match new simplified behavior expectations
+
+#### 📚 Documentation Updates
+- Revised Unified Block System documentation with accurate algorithm description
+- Updated architectural diagrams to show simplified block computation flow
+- Removed references to complex "smart strategy" selection logic
+- Enhanced Key Architectural Decisions with simplified approach explanation
 
 ### v0.1.7 - Monitor Display Stability
 
