@@ -1058,20 +1058,21 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
-### v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix
+### v0.1.9 - Emoji-Enhanced Display & Comprehensive Test Suite
 
-**Visual Interface Improvements**: Enhanced monitor display with emoji icons for better readability and fixed critical cost tracking bug:
+**Visual Interface Improvements & System Resilience**: Enhanced monitor display with emoji icons and added extensive test coverage for improved reliability:
 
 #### 🎨 Emoji-Enhanced Display
 - **Visual Icons**: Added emoji indicators for improved readability
   - 🪙 **Tokens**: Coin emoji for token counts and rates
-  - ✉️ **Messages**: Envelope emoji for message counts and rates  
+  - 💬 **Messages**: Message emoji for message counts and rates (replaced ✉️ for consistent width)
   - 💰 **Costs**: Money bag emoji for cost calculations
   - ⚡ **Models**: Lightning emoji for Claude Sonnet model display
   - 🔥 **Burn Rate**: Fire emoji for activity rate calculations
   - 📊 **Total**: Bar chart emoji for summary statistics
 - **Consistent Format**: All model lines, burn rate, and total lines use unified emoji system
 - **Clean Layout**: Improved spacing and visual hierarchy in terminal interface
+- **Emoji Width Configuration**: Added emoji width handling for Rich console compatibility
 
 #### 🐛 Critical Cost Tracking Fix
 - **Individual Block Maximums**: Fixed `max_cost_encountered` to track single block peaks instead of cumulative totals
@@ -1079,10 +1080,20 @@ We're actively working on exciting new features to enhance your Claude Code moni
 - **Consistent Tracking**: Cost maximums now follow same pattern as token and message tracking
 - **Config Reset**: Automatic correction of inflated historical cost values
 
+#### 🧪 Comprehensive Test Suite
+- **22 New Test Files**: Added extensive test coverage with 7,047+ lines of test code
+- **Integration Tests**: End-to-end workflow testing from file processing to display output
+- **Performance Tests**: Large dataset handling and memory efficiency validation
+- **Edge Case Coverage**: Comprehensive testing for CLI, configuration, and display components
+- **Error Resilience**: File corruption, network failures, and monitor stability tests
+- **Test Infrastructure**: Mock helpers, fixtures, and utility functions for robust testing
+- **System Reliability**: Webhook reliability, pricing error handling, and token calculation edge cases
+
 #### 🔧 Code Quality Improvements
 - **Documentation Updates**: Enhanced architecture documentation with emoji system details
 - **Reference Cleanup**: Removed external tool references from codebase comments
 - **Display Consistency**: Unified emoji usage across all monitor display components
+- **Test Coverage**: Comprehensive test suite ensuring system reliability and edge case handling
 
 ### v0.1.8 - Simplified Block Computation
 
