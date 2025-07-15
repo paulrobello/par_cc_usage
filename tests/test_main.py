@@ -403,7 +403,10 @@ class TestSetLimitCommand:
                 assert result.exit_code == 0
                 mock_save.assert_called_once()
                 # The output depends on whether there was an existing limit
-                assert "token limit" in result.output.lower() and "500,000" in result.output
+                # Remove ANSI color codes for testing since they can split the number formatting
+                import re
+                clean_output = re.sub(r'\x1b\[[0-9;]*m', '', result.output)
+                assert "token limit" in result.output.lower() and "500,000" in clean_output
 
     def test_set_limit_invalid(self):
         """Test setting an invalid token limit."""
