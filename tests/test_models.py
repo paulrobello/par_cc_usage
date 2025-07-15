@@ -1360,9 +1360,9 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = current_time
             mock_dt.timezone = timezone
 
-            # Should return hour-floored start time of current time - matches new implementation
-            from par_cc_usage.token_calculator import calculate_block_start
-            expected_start = calculate_block_start(current_time)
+            # Should return start time of the active block (block1) - ccusage behavior
+            # Only block1 is active (recent activity), block2 is inactive (old activity)
+            expected_start = sample_timestamp  # block1 start time
             assert snapshot.unified_block_start_time == expected_start
 
     def test_unified_block_end_time(self, sample_timestamp):
@@ -1398,9 +1398,8 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = current_time
             mock_dt.timezone = timezone
 
-            # Should return hour-floored start time + 5 hours
-            from par_cc_usage.token_calculator import calculate_block_start
-            expected_start = calculate_block_start(current_time)
+            # Should return the active block start time + 5 hours (ccusage behavior)
+            expected_start = sample_timestamp  # Block start time
             expected_end = expected_start + timedelta(hours=5)
             assert snapshot.unified_block_end_time == expected_end
 
@@ -1667,7 +1666,7 @@ class TestUsageSnapshot:
             mock_dt.now.return_value = current_time
             mock_dt.timezone = timezone
 
-            # Should return hour-floored start time of current time
-            from par_cc_usage.token_calculator import calculate_block_start
-            expected_start = calculate_block_start(current_time)
+            # Should return the earliest active block start time (ccusage behavior)
+            # block1 is active (activity 3h ago, current < end), block2 is inactive (current == end)
+            expected_start = sample_timestamp + timedelta(hours=1)  # block1 started later but is the only active one
             assert snapshot.unified_block_start_time == expected_start

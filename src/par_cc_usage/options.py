@@ -73,9 +73,9 @@ class DisplayOptions:
     """Options for display configuration."""
 
     show_progress_bars: bool = True
-    show_active_sessions: bool = False
+    show_active_sessions: bool = True
     update_in_place: bool = True
-    refresh_interval: int = 1
+    refresh_interval: int = 5
     time_format: TimeFormat = TimeFormat.TWENTY_FOUR_HOUR
     project_name_prefixes: list[str] = field(default_factory=list)
     aggregate_by_project: bool = True

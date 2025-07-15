@@ -122,7 +122,7 @@ def create_mock_config(
         display=DisplayConfig(
             time_format=kwargs.get("time_format", "24h"),
             show_progress_bars=kwargs.get("show_progress_bars", True),
-            show_active_sessions=kwargs.get("show_active_sessions", False),
+            show_active_sessions=kwargs.get("show_active_sessions", True),
             update_in_place=kwargs.get("update_in_place", True),
             refresh_interval=kwargs.get("refresh_interval", 1),
             project_name_prefixes=kwargs.get("project_name_prefixes", []),

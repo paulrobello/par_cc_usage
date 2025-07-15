@@ -43,7 +43,7 @@ def mock_config(temp_dir):
         display=DisplayConfig(
             time_format="24h",
             show_progress_bars=True,
-            show_active_sessions=False,
+            show_active_sessions=True,
             update_in_place=True,
             refresh_interval=1,
             project_name_prefixes=["-Users-", "-home-"],
@@ -88,7 +88,7 @@ def sample_token_block(sample_timestamp):
         model="claude-3-opus-latest",
         timestamp=sample_timestamp,
     )
-    
+
     block = TokenBlock(
         start_time=sample_timestamp,
         end_time=sample_timestamp + timedelta(hours=5),
@@ -197,7 +197,7 @@ def mock_datetime(sample_timestamp):
 def mock_file_monitor(temp_dir):
     """Create a mock FileMonitor for testing."""
     from par_cc_usage.file_monitor import FileMonitor
-    
+
     monitor = FileMonitor(
         claude_paths=[temp_dir / "claude_projects"],
         cache_dir=temp_dir / "cache",
@@ -273,7 +273,7 @@ def deduplication_state():
         class MockDeduplicationState:
             def __init__(self):
                 self.seen_hashes = set()
-            
+
             def add(self, hash_value):
                 if hash_value is None:
                     return True
@@ -281,10 +281,10 @@ def deduplication_state():
                     return False
                 self.seen_hashes.add(hash_value)
                 return True
-            
+
             def contains(self, hash_value):
                 return hash_value in self.seen_hashes
-        
+
         return MockDeduplicationState()
 
 
@@ -322,14 +322,14 @@ def create_block_with_tokens(
     """Helper to create a TokenBlock with specified tokens."""
     end_time = start_time + timedelta(hours=duration_hours)
     multiplier = 5 if model == "opus" else 1
-    
+
     usage = TokenUsage(
         input_tokens=token_count // 2,
         output_tokens=token_count // 2,
         model=f"claude-3-{model}-latest" if model in ["opus", "sonnet", "haiku"] else model,
         timestamp=start_time,
     )
-    
+
     block = TokenBlock(
         start_time=start_time,
         end_time=end_time,

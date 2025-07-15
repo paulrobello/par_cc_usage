@@ -553,11 +553,11 @@ class TestDisplayConfigToolUsage:
     """Test display configuration for tool usage."""
 
     def test_display_config_tool_usage_default(self):
-        """Test that show_tool_usage defaults to False."""
+        """Test that show_tool_usage defaults to True."""
         from par_cc_usage.config import DisplayConfig
 
         config = DisplayConfig()
-        assert config.show_tool_usage is False
+        assert config.show_tool_usage is True
 
     def test_display_config_tool_usage_enabled(self):
         """Test enabling tool usage display."""

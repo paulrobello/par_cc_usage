@@ -35,6 +35,7 @@ class ColorScheme(BaseModel):
     model_name: str = Field(description="Model name display color")
     project_name: str = Field(description="Project name display color")
     tool_usage: str = Field(description="Tool usage display color")
+    tool_total: str = Field(description="Tool total count display color")
     cost: str = Field(description="Cost/pricing display color")
 
     # Progress and status indicators
@@ -87,6 +88,7 @@ class ThemeManager:
             model_name="green",
             project_name="#00FFFF",
             tool_usage="#FF9900",
+            tool_total="#00FFFF",
             cost="#00FF80",
             progress_low="#00FF00",
             progress_medium="#FFFF00",
@@ -148,6 +150,7 @@ class ThemeManager:
             model_name="bright_green",
             project_name="#00FFFF",
             tool_usage="#FF9900",
+            tool_total="#88AAFF",
             cost="#00FF80",
             progress_low="#00FF00",
             progress_medium="#FFFF00",
@@ -209,6 +212,7 @@ class ThemeManager:
             model_name="#859900",  # Solarized green
             project_name="#2aa198",  # Solarized cyan
             tool_usage="#cb4b16",  # Solarized orange
+            tool_total="#6c71c4",  # Solarized violet
             cost="#859900",  # Solarized green
             progress_low="#859900",  # Green
             progress_medium="#b58900",  # Yellow
@@ -270,6 +274,7 @@ class ThemeManager:
             model_name="#00AA00",  # High contrast green
             project_name="#006666",  # Teal
             tool_usage="#FF8800",  # High contrast orange
+            tool_total="#000080",  # Navy blue
             cost="#00AA00",  # High contrast green
             progress_low="#00AA00",  # Green
             progress_medium="#CC6600",  # Orange
@@ -331,6 +336,7 @@ class ThemeManager:
             model_name="#CCCCCC",  # Light gray
             project_name="#FFFFFF",  # White
             tool_usage="#AAAAAA",  # Gray
+            tool_total="#CCCCCC",  # Light gray
             cost="#CCCCCC",  # Light gray
             progress_low="#AAAAAA",  # Gray
             progress_medium="#CCCCCC",  # Light gray

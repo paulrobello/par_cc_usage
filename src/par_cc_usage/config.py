@@ -26,9 +26,9 @@ class DisplayConfig(BaseModel):
     """Display configuration settings."""
 
     show_progress_bars: bool = True
-    show_active_sessions: bool = False
+    show_active_sessions: bool = True
     update_in_place: bool = True
-    refresh_interval: int = 1  # seconds
+    refresh_interval: int = 5  # seconds
     time_format: TimeFormat = Field(
         default=TimeFormat.TWENTY_FOUR_HOUR,
         description="Time format: '12h' for 12-hour format, '24h' for 24-hour format",
@@ -42,7 +42,7 @@ class DisplayConfig(BaseModel):
         description="Aggregate token usage by project instead of individual sessions",
     )
     show_tool_usage: bool = Field(
-        default=False,
+        default=True,
         description="Display tool usage information in monitoring and lists",
     )
     display_mode: DisplayMode = Field(
@@ -50,7 +50,7 @@ class DisplayConfig(BaseModel):
         description="Display mode: 'normal' for full display, 'compact' for minimal view",
     )
     show_pricing: bool = Field(
-        default=False,
+        default=True,
         description="Show pricing information next to token counts",
     )
     theme: ThemeType = Field(

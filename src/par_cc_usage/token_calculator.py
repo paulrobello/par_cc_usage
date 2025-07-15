@@ -461,10 +461,10 @@ def _should_create_new_block(session: Session, timestamp: datetime, session_dura
     if time_since_activity > session_duration_hours * 3600:
         return True
 
-    # Additional check: Create new block if we would cross into a different 5-hour window
-    # This ensures blocks align to hourly boundaries for consistent billing periods
-    current_block_start = calculate_block_start(timestamp)
-    if current_block_start > latest_block.start_time:
+    # Additional check: Create new block if message timestamp >= block end time
+    # This matches ccusage logic: blocks become inactive when current time >= end time
+    block_end_time = latest_block.start_time + timedelta(hours=session_duration_hours)
+    if timestamp >= block_end_time:
         return True
 
     return False
@@ -683,23 +683,92 @@ def _has_usage_data(projects: dict[str, Project]) -> bool:
     return False
 
 
-def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Find the current active block start time by finding the actually active block.
+def _is_block_active(block: TokenBlock, now: datetime) -> bool:
+    """Check if a block is currently active for billing purposes.
 
-    Finds the block that is currently active for unified billing calculations
-    (has recent activity within session duration and hasn't expired).
+    A block is considered active if:
+    1. It's not a gap block
+    2. Current time is before block end time (start + 5 hours)
+    3. Time since last activity is < 5 hours
+
+    Args:
+        block: TokenBlock to check
+        now: Current time
+
+    Returns:
+        True if block is active
+    """
+    if block.is_gap:
+        return False
+
+    # Check if current time < block end time (start + 5 hours)
+    block_end_time = block.start_time + timedelta(hours=5)
+    if now >= block_end_time:
+        return False
+
+    # Check time since last activity < 5 hours
+    last_activity = block.actual_end_time or block.start_time
+    time_since_activity = (now - last_activity).total_seconds()
+    return time_since_activity < (5 * 3600)  # 5 hours in seconds
+
+
+def _is_block_active_ccusage_style(block: TokenBlock, now: datetime) -> bool:
+    """Check if a block is active using ccusage logic.
+
+    Matches ccusage isActive logic:
+    now.getTime() - actualEndTime.getTime() < sessionDurationMs && now < endTime
+
+    Args:
+        block: Token block to check
+        now: Current datetime in UTC
+
+    Returns:
+        True if block is active according to ccusage criteria
+    """
+    session_duration_seconds = 5 * 3600  # 5 hours in seconds
+    actual_end_time = block.actual_end_time or block.start_time
+    end_time = block.start_time + timedelta(hours=5)
+
+    time_since_activity = (now - actual_end_time).total_seconds()
+
+    return time_since_activity < session_duration_seconds and now < end_time
+
+
+def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
+    """Find the current active block start time based on actual activity.
+
+    Follows ccusage logic: finds the first active block chronologically
+    that meets the activity criteria (time since last activity < 5 hours
+    AND current time < block end time).
 
     Args:
         projects: Dictionary of projects with per-session blocks
 
     Returns:
-        The start time of the currently active block or None if no active block
+        The start time of the earliest active block or None if no active blocks
     """
     if not _has_usage_data(projects):
         return None
 
-    # Always return current hour-floored time when data exists
-    return calculate_block_start(datetime.now(UTC))
+    # Collect all blocks from all projects and sessions
+    all_blocks: list[TokenBlock] = []
+    for project in projects.values():
+        for session in project.sessions.values():
+            all_blocks.extend(session.blocks)
+
+    if not all_blocks:
+        return None
+
+    # Sort blocks chronologically (earliest first)
+    all_blocks.sort(key=lambda block: block.start_time)
+
+    # Find the first active block (matches ccusage logic)
+    now = datetime.now(UTC)
+    for block in all_blocks:
+        if _is_block_active_ccusage_style(block, now):
+            return block.start_time
+
+    return None
 
 
 def _floor_to_hour(timestamp: datetime) -> datetime:

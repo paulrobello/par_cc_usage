@@ -18,7 +18,7 @@ from .enums import DisplayMode
 from .models import Project, Session, UsageSnapshot
 from .theme import get_color, get_progress_color, get_style, get_theme_manager
 from .token_calculator import format_token_count, get_model_display_name
-from .utils import format_datetime, format_time_range
+from .utils import format_time, format_time_range
 
 logger = logging.getLogger(__name__)
 
@@ -118,33 +118,15 @@ class MonitorDisplay:
         """
         active_projects = len(snapshot.active_projects)
         active_sessions = snapshot.active_session_count
-        # Use the configured timezone from snapshot
-        current_time = format_datetime(snapshot.timestamp, self.time_format)
+        # Use the configured timezone from snapshot for time-only display
+        current_time = format_time(snapshot.timestamp, self.time_format)
 
         header_text = Text()
         header_text.append(f"Active Projects: {active_projects}", style=get_style("success", bold=True))
         header_text.append("  │  ", style="dim")
         header_text.append(f"Active Sessions: {active_sessions}", style=get_style("secondary", bold=True))
-        header_text.append("\n")
-        header_text.append(f"Current Time: {current_time}", style="dim")
-
-        # Add max unified block tokens if available and > 0
-        if self.config and self.config.max_unified_block_tokens_encountered > 0:
-            header_text.append("  │  ", style="dim")
-            header_text.append(
-                f"Max Block Tokens: {format_token_count(self.config.max_unified_block_tokens_encountered)}",
-                style=get_style("warning", bold=True),
-            )
-
-        # Add max unified block cost if available and > 0
-        if self.config and self.config.max_unified_block_cost_encountered > 0:
-            from .pricing import format_cost
-
-            header_text.append("  │  ", style="dim")
-            header_text.append(
-                f"Max Block Cost: {format_cost(self.config.max_unified_block_cost_encountered)}",
-                style=get_style("warning", bold=True),
-            )
+        header_text.append("  │  ", style="dim")
+        header_text.append(f"Current Time: {current_time}", style="bold #FF8800")
 
         return Panel(
             header_text,
@@ -195,7 +177,7 @@ class MonitorDisplay:
             BarColumn(bar_width=25),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn(format_time_range(block_start, block_end, self.time_format)),
-            TextColumn(f"({hours_left}h {minutes_left}m left)", style=get_style("warning", bold=True)),
+            TextColumn(f"({hours_left}h {minutes_left}m left)", style="dim"),
             console=self.console,
             expand=False,
         )
@@ -253,13 +235,13 @@ class MonitorDisplay:
             emoji = self._get_model_emoji(model)
 
             model_text = Text()
-            model_text.append(f"{emoji} {display_name:8}", style="bold")
+            model_text.append(f"{emoji} {display_name:7}", style="bold")
             model_text.append(f"🪙 {format_token_count(tokens)}", style=get_color("token_count"))
 
             # Add message count if available
             if model_messages is not None:
                 message_count = model_messages.get(model, 0)
-                model_text.append(f" - ✉️ {message_count:,}", style=get_color("token_count"))
+                model_text.append(f" - 💬 {message_count:,}", style=get_color("token_count"))
 
             model_displays.append(model_text)
         return model_displays
@@ -305,13 +287,13 @@ class MonitorDisplay:
             emoji = self._get_model_emoji(model)
 
             model_text = Text()
-            model_text.append(f"{emoji} {display_name:8}", style="bold")
+            model_text.append(f"{emoji} {display_name:7}", style="bold")
             model_text.append(f"🪙 {format_token_count(tokens)}", style=get_color("token_count"))
 
             # Add message count if available
             if model_messages is not None:
                 message_count = model_messages.get(model, 0)
-                model_text.append(f" - ✉️ {message_count:,}", style=get_color("token_count"))
+                model_text.append(f" - 💬 {message_count:,}", style=get_color("token_count"))
 
             # Add pricing if enabled
             if self.config and self.config.display.show_pricing:
@@ -404,7 +386,7 @@ class MonitorDisplay:
 
         # Messages part
         if total_messages > 0:
-            messages_text = f"✉️ {total_messages}"
+            messages_text = f"💬 {total_messages}"
             if self.config and self.config.max_unified_block_messages_encountered > 0:
                 max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
                 messages_text += f" / {max_messages_text}"
@@ -436,7 +418,7 @@ class MonitorDisplay:
         _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
 
         total_text = Text()
-        total_text.append("📊 Total   ", style=text_style)
+        total_text.append("📊 Total  ", style=text_style)
 
         # Build parts similar to normal mode
         parts = []
@@ -450,7 +432,7 @@ class MonitorDisplay:
 
         # Messages part
         if total_messages > 0:
-            messages_text = f"✉️ {total_messages}"
+            messages_text = f"💬 {total_messages}"
             if self.config and self.config.max_unified_block_messages_encountered > 0:
                 max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
                 messages_text += f" / {max_messages_text}"
@@ -505,13 +487,12 @@ class MonitorDisplay:
         # Get total cost
         total_cost = await self._get_total_cost(snapshot)
 
-        # Combine model displays and burn rate
+        # Combine model displays, total, and burn rate
         all_displays = []
         if model_displays:
             all_displays.extend(model_displays)
-        all_displays.append(burn_rate_text)
 
-        # Add total progress display
+        # Add total progress display first
         if not self.compact_mode:
             # Full progress bar mode
             percentage = (total_tokens / total_limit) * 100
@@ -521,7 +502,7 @@ class MonitorDisplay:
             )
 
             total_progress = Progress(
-                TextColumn("📊 Total   ", style=text_style),
+                TextColumn("📊 Total  ", style="bold"),
                 BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
                 TextColumn(tokens_text, style=text_style),
@@ -536,6 +517,9 @@ class MonitorDisplay:
                 total_tokens, total_limit, base_limit, total_messages, total_message_limit, total_cost
             )
             all_displays.append(total_text)
+
+        # Add burn rate below total
+        all_displays.append(burn_rate_text)
 
         all_progress = Group(*all_displays)
         return Panel(all_progress, title="Token Usage by Model", border_style=get_color("border"))
@@ -703,12 +687,12 @@ class MonitorDisplay:
         color = self._calculate_burn_rate_color(estimated_total, total_limit)
 
         burn_rate_text = Text()
-        burn_rate_text.append("🔥 Burn        ", style="bold")
+        burn_rate_text.append("🔥 Burn   ", style="bold")
         burn_rate_text.append(f"🪙 {format_token_count(int(burn_rate_per_minute))}/m", style=get_color("burn_rate"))
 
         # Add message burn rate if there are messages
         if message_burn_rate_per_minute > 0:
-            burn_rate_text.append(f" ✉️ {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
+            burn_rate_text.append(f" 💬 {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
 
         burn_rate_text.append("  Est: ", style="dim")
         burn_rate_text.append(f"🪙 {format_token_count(int(estimated_total))}", style=color)
@@ -716,7 +700,7 @@ class MonitorDisplay:
 
         # Add estimated message count if there are messages
         if estimated_total_messages > 0:
-            burn_rate_text.append(f" ✉️ {int(estimated_total_messages):,}", style=color)
+            burn_rate_text.append(f" 💬 {int(estimated_total_messages):,}", style=color)
 
         if estimated_cost_text:
             burn_rate_text.append(estimated_cost_text, style=get_color("cost"))
@@ -849,12 +833,12 @@ class MonitorDisplay:
 
         # Format the display (without cost) - use the common formatting method
         burn_rate_text = Text()
-        burn_rate_text.append("🔥 Burn        ", style="bold")
+        burn_rate_text.append("🔥 Burn   ", style="bold")
         burn_rate_text.append(f"🪙 {format_token_count(int(burn_rate_per_minute))}/m", style=get_color("burn_rate"))
 
         # Add message burn rate if there are messages
         if message_burn_rate_per_minute > 0:
-            burn_rate_text.append(f" ✉️ {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
+            burn_rate_text.append(f" 💬 {int(message_burn_rate_per_minute)}/m", style=get_color("burn_rate"))
 
         burn_rate_text.append("  Est: ", style="dim")
         burn_rate_text.append(f"🪙 {format_token_count(int(estimated_total))}", style=color)
@@ -862,7 +846,7 @@ class MonitorDisplay:
 
         # Add estimated message count if there are messages
         if estimated_total_messages > 0:
-            burn_rate_text.append(f" ✉️ {int(estimated_total_messages):,}", style=color)
+            burn_rate_text.append(f" 💬 {int(estimated_total_messages):,}", style=color)
 
         # Add time until limit
         if remaining_tokens > 0:
@@ -1101,7 +1085,9 @@ class MonitorDisplay:
             tool_display = ""
             if self.config.display.show_tool_usage:
                 if project_tools:
-                    tool_display = f"{', '.join(sorted(project_tools, key=str.lower))} ({project_tool_calls})"
+                    tools_list = ", ".join(sorted(project_tools, key=str.lower))
+                    total_colored = f"[{get_color('tool_total')}]({project_tool_calls})[/]"
+                    tool_display = f"{tools_list} {total_colored}"
                 else:
                     tool_display = "-"
 
@@ -1215,7 +1201,9 @@ class MonitorDisplay:
             tool_display = ""
             if self.config.display.show_tool_usage:
                 if session_tools:
-                    tool_display = f"{', '.join(sorted(session_tools, key=str.lower))} ({session_tool_calls})"
+                    tools_list = ", ".join(sorted(session_tools, key=str.lower))
+                    total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
+                    tool_display = f"{tools_list} {total_colored}"
                 else:
                     tool_display = "-"
 
@@ -1404,7 +1392,9 @@ class MonitorDisplay:
             if self.config.display.show_tool_usage:
                 if project_tools:
                     # Show tools and call count
-                    tool_display = f"{', '.join(sorted(project_tools, key=str.lower))} ({project_tool_calls})"
+                    tools_list = ", ".join(sorted(project_tools, key=str.lower))
+                    total_colored = f"[{get_color('tool_total')}]({project_tool_calls})[/]"
+                    tool_display = f"{tools_list} {total_colored}"
                 else:
                     tool_display = "-"
 
@@ -1458,7 +1448,9 @@ class MonitorDisplay:
             if self.config.display.show_tool_usage:
                 if session_tools:
                     # Show tools and call count
-                    tool_display = f"{', '.join(sorted(session_tools, key=str.lower))} ({session_tool_calls})"
+                    tools_list = ", ".join(sorted(session_tools, key=str.lower))
+                    total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
+                    tool_display = f"{tools_list} {total_colored}"
                 else:
                     tool_display = "-"
 
@@ -1653,13 +1645,12 @@ class MonitorDisplay:
         else:
             total_message_limit = max(base_message_limit, total_messages)
 
-        # Combine model displays and burn rate (no pricing in sync version)
+        # Combine model displays, total, and burn rate (no pricing in sync version)
         all_displays = []
         if model_displays:
             all_displays.extend(model_displays)
-        all_displays.append(burn_rate_text)
 
-        # Add total progress bar only if not in compact mode
+        # Add total progress bar first
         if not self.compact_mode:
             # Total progress bar with color based on percentage
             percentage = (total_tokens / total_limit) * 100
@@ -1671,7 +1662,7 @@ class MonitorDisplay:
                 tokens_text += f" {total_messages:,}/ {total_message_limit:,}msg"
 
             total_progress = Progress(
-                TextColumn("📊 Total   ", style=text_style),
+                TextColumn("📊 Total  ", style="bold"),
                 BarColumn(bar_width=25, complete_style=bar_color, finished_style=bar_color),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
                 TextColumn(tokens_text, style=text_style),
@@ -1686,7 +1677,7 @@ class MonitorDisplay:
             _, text_style = self._get_progress_colors(percentage, total_tokens, base_limit)
 
             total_text = Text()
-            total_text.append("📊 Total   ", style=text_style)
+            total_text.append("📊 Total  ", style=text_style)
             total_text.append(
                 f"{format_token_count(total_tokens):>8} / {format_token_count(total_limit)} ", style=text_style
             )
@@ -1694,6 +1685,9 @@ class MonitorDisplay:
                 total_text.append(f"{total_messages:,}/ {total_message_limit:,}msg ", style=text_style)
             total_text.append(f"({percentage:>3.0f}%)", style=text_style)
             all_displays.append(total_text)
+
+        # Add burn rate below total
+        all_displays.append(burn_rate_text)
 
         all_progress = Group(*all_displays)
 
@@ -1718,7 +1712,7 @@ class DisplayManager:
     def __init__(
         self,
         console: Console | None = None,
-        refresh_interval: float = 1.0,
+        refresh_interval: float = 5.0,
         update_in_place: bool = True,
         show_sessions: bool = False,
         time_format: str = "24h",

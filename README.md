@@ -214,8 +214,8 @@ pccu monitor
 # Compact mode for minimal display
 pccu monitor --compact
 
-# Enhanced monitoring with session details
-pccu monitor --show-sessions
+# Basic monitoring (sessions shown by default)
+pccu monitor
 
 # High-frequency monitoring with custom settings
 pccu monitor --interval 2 --token-limit 1000000 --show-sessions
@@ -252,7 +252,7 @@ pccu monitor --theme minimal --compact  # Minimal theme with compact display
 - **Burn rate cost estimation**: Intelligent cost projection for 5-hour blocks based on current spending rate (e.g., "531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m")
 - **Block progress**: Visual 5-hour billing block progress with time remaining
 - **Model breakdown**: Per-model token usage (Opus, Sonnet) with optional cost breakdown
-- **Session details**: Individual session tracking when `--show-sessions` is used
+- **Session details**: Individual session tracking (shown by default)
 - **Activity tables**: Project or session aggregation views with optional cost columns
 
 ### List Usage Data
@@ -450,7 +450,7 @@ disable_cache: false  # Set to true to disable file monitoring cache
 recent_activity_window_hours: 5  # Hours to consider as 'recent' activity for smart strategy (matches billing cycle)
 display:
   show_progress_bars: true
-  show_active_sessions: false  # Default: hidden for compact display
+  show_active_sessions: true  # Default: show session details
   update_in_place: true
   refresh_interval: 1
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
@@ -478,7 +478,7 @@ notifications:
 - `PAR_CC_USAGE_DISABLE_CACHE`: Disable file monitoring cache ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS`: Hours to consider as 'recent' activity for smart strategy (default: 5)
 - `PAR_CC_USAGE_SHOW_PROGRESS_BARS`: Show progress bars
-- `PAR_CC_USAGE_SHOW_ACTIVE_SESSIONS`: Show active sessions
+- `PAR_CC_USAGE_SHOW_ACTIVE_SESSIONS`: Show active sessions (default: true)
 - `PAR_CC_USAGE_UPDATE_IN_PLACE`: Update display in place
 - `PAR_CC_USAGE_REFRESH_INTERVAL`: Display refresh interval
 - `PAR_CC_USAGE_TIME_FORMAT`: Time format ('12h' or '24h')
@@ -572,8 +572,8 @@ PAR_CC_USAGE_DISPLAY_MODE=compact pccu monitor
 - **Config**: Set `display.display_mode: compact` in config file
 - **Environment**: Set `PAR_CC_USAGE_DISPLAY_MODE=compact`
 
-### Optional Session Details
-Use `--show-sessions` or set `show_active_sessions: true` in config to view:
+### Session Details (Default)
+Sessions are shown by default. Set `show_active_sessions: false` in config to hide. Shows:
 - Individual session information
 - Project and session IDs
 - Model types (Opus, Sonnet)
@@ -583,7 +583,7 @@ Use `--show-sessions` or set `show_active_sessions: true` in config to view:
 **Session Filtering**: The sessions table displays only sessions with activity that overlaps with the current 5-hour billing window. This ensures accurate billing representation - sessions are shown if they have any activity within the unified block time window, regardless of when they started.
 
 ### Project Aggregation Mode (Default)
-Project aggregation is enabled by default, showing token usage aggregated by project instead of individual sessions:
+Project aggregation is also enabled by default. When both session display and project aggregation are enabled (the default), you get:
 - **Project View**: Shows token usage aggregated by project instead of individual sessions
 - **Simplified Table**: Removes session ID column for cleaner display
 - **Same Filtering**: Uses the same unified block time window filtering as session mode
@@ -1048,9 +1048,6 @@ export XDG_DATA_HOME="/custom/data/path"
 We're actively working on exciting new features to enhance your Claude Code monitoring experience:
 
 ### 💰 Cost Tracking for Non-Subscribers
-- **Pay-per-use cost calculation**: Accurate cost estimates for users without Claude Pro subscriptions
-- **Real-time cost monitoring**: Live cost tracking alongside token usage
-- **Cost projections**: Estimated spending for the current billing block
 - **Historical cost analysis**: Track spending patterns over time
 - **Budget alerts**: Configurable notifications when approaching cost thresholds
 

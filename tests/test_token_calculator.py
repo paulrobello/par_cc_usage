@@ -193,9 +193,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return current hour-floored time since data exists
-        expected = calculate_block_start(datetime.now(timezone.utc))
-        assert result == expected
+        # Should return None since no active blocks exist
+        assert result is None
 
     def test_create_unified_blocks_single_active_block(self):
         """Test create_unified_blocks returns current hour-floored time."""
@@ -222,8 +221,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return current hour-floored time, not the block start time
-        expected = calculate_block_start(datetime.now(timezone.utc))
+        # Should return the block start time (ccusage behavior)
+        expected = block_start
         assert result == expected
 
     def test_create_unified_blocks_multiple_active_blocks_returns_current_hour(self):
@@ -269,8 +268,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_2"] = session2
 
         result = create_unified_blocks({"test_project": project})
-        # Should return current hour-floored time regardless of block start times
-        expected = calculate_block_start(current_time)
+        # Should return the earliest active block start time (ccusage behavior)
+        expected = block1_start  # block1 started earlier
         assert result == expected
 
     def test_create_unified_blocks_inactive_vs_active(self):
@@ -311,8 +310,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return current hour-floored time since data exists
-        expected = calculate_block_start(current_time)
+        # Should return the start time of the active block (ccusage behavior)
+        expected = active_block_start
         assert result == expected
 
     def test_create_unified_blocks_multiple_projects(self):
@@ -360,8 +359,8 @@ class TestCreateUnifiedBlocks:
         projects = {"project1": project1, "project2": project2}
         result = create_unified_blocks(projects)
 
-        # Should return current hour-floored time regardless of which project has blocks
-        expected = calculate_block_start(current_time)
+        # Should return the earliest active block start time (ccusage behavior)
+        expected = block2_start  # block2 started earlier and is still active
         assert result == expected
 
     def test_create_unified_blocks_activity_boundary_cases(self):
@@ -390,6 +389,5 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return current hour-floored time since data exists, regardless of activity
-        expected = calculate_block_start(current_time)
-        assert result == expected
+        # Should return None since no active blocks exist (ccusage behavior)
+        assert result is None

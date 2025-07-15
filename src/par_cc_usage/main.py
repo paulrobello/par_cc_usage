@@ -27,7 +27,7 @@ from .display import DisplayManager, create_error_display, create_info_display
 from .enums import DisplayMode, OutputFormat, SortBy, ThemeType
 from .file_monitor import FileMonitor, FileState, JSONLReader, parse_session_from_path
 from .list_command import display_usage_list
-from .models import DeduplicationState, Project, UsageSnapshot
+from .models import DeduplicationState, Project, TokenBlock, UsageSnapshot
 from .notification_manager import NotificationManager
 from .options import MonitorOptions, TestWebhookOptions
 from .theme import apply_temporary_theme, get_color, get_theme_manager
@@ -86,13 +86,59 @@ def process_file(
     return messages_processed
 
 
-def scan_all_projects(config: Config, use_cache: bool = True, *, suppress_stats: bool = False) -> dict[str, Project]:
+def _find_base_directory(file_path: Path, claude_paths: list[Path]) -> Path | None:
+    """Find which base directory a file belongs to."""
+    for claude_path in claude_paths:
+        try:
+            file_path.relative_to(claude_path)
+            return claude_path
+        except ValueError:
+            continue
+    return None
+
+
+def _get_or_create_file_state(file_path: Path, monitor: FileMonitor, use_cache: bool) -> FileState | None:
+    """Get existing file state or create new one."""
+    if file_path in monitor.file_states:
+        file_state = monitor.file_states[file_path]
+        # For list command, always read from beginning
+        if not use_cache:
+            file_state.last_position = 0
+        return file_state
+
+    # New file, create state
+    try:
+        stat = file_path.stat()
+        file_state = FileState(
+            path=file_path,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
+        )
+        monitor.file_states[file_path] = file_state
+        return file_state
+    except OSError:
+        return None
+
+
+def _print_dedup_stats(dedup_state: DeduplicationState, suppress_stats: bool) -> None:
+    """Print deduplication statistics if appropriate."""
+    if dedup_state.duplicate_count > 0 and not suppress_stats:
+        console.print(
+            f"[dim]Processed {dedup_state.total_messages} messages, "
+            f"skipped {dedup_state.duplicate_count} duplicates[/dim]"
+        )
+
+
+def scan_all_projects(
+    config: Config, use_cache: bool = True, *, suppress_stats: bool = False, monitor: FileMonitor | None = None
+) -> dict[str, Project]:
     """Scan all projects and build usage data.
 
     Args:
         config: Configuration
         use_cache: Whether to use cached file positions (False for list command)
         suppress_stats: Whether to suppress deduplication stats output (for monitor mode)
+        monitor: Existing FileMonitor instance to use (optional)
 
     Returns:
         Dictionary of projects
@@ -105,51 +151,24 @@ def scan_all_projects(config: Config, use_cache: bool = True, *, suppress_stats:
         console.print("[yellow]No Claude directories found![/yellow]")
         return projects
 
-    monitor = FileMonitor(claude_paths, config.cache_dir, config.disable_cache)
+    # Use existing monitor or create new one
+    if monitor is None:
+        monitor = FileMonitor(claude_paths, config.cache_dir, config.disable_cache)
     dedup_state = DeduplicationState()
 
     # Process all files
     for file_path in monitor.scan_files():
-        # Find which base directory this file belongs to
-        base_dir = None
-        for claude_path in claude_paths:
-            try:
-                file_path.relative_to(claude_path)
-                base_dir = claude_path
-                break
-            except ValueError:
-                continue
-
+        base_dir = _find_base_directory(file_path, claude_paths)
         if not base_dir:
             continue
 
-        if file_path not in monitor.file_states:
-            # New file, create state
-            try:
-                stat = file_path.stat()
-                file_state = FileState(
-                    path=file_path,
-                    mtime=stat.st_mtime,
-                    size=stat.st_size,
-                )
-                monitor.file_states[file_path] = file_state
-            except OSError:
-                continue
-        else:
-            file_state = monitor.file_states[file_path]
-            # For list command, always read from beginning
-            if not use_cache:
-                file_state.last_position = 0
+        file_state = _get_or_create_file_state(file_path, monitor, use_cache)
+        if not file_state:
+            continue
 
         process_file(file_path, file_state, projects, config, base_dir, dedup_state)
 
-    # Log deduplication stats if any duplicates found
-    if dedup_state.duplicate_count > 0 and not suppress_stats:
-        console.print(
-            f"[dim]Processed {dedup_state.total_messages} messages, "
-            f"skipped {dedup_state.duplicate_count} duplicates[/dim]"
-        )
-
+    _print_dedup_stats(dedup_state, suppress_stats)
     return projects
 
 
@@ -222,10 +241,8 @@ def _apply_command_overrides(config: Config, options: MonitorOptions) -> None:
         console.print(f"[yellow]Overriding token limit from command line:[/yellow] {options.token_limit:,}")
     if options.show_sessions:
         config.display.show_active_sessions = options.show_sessions
-    if options.show_tools:
-        config.display.show_tool_usage = options.show_tools
-    if options.show_pricing:
-        config.display.show_pricing = options.show_pricing
+    config.display.show_tool_usage = options.show_tools
+    config.display.show_pricing = options.show_pricing
     if options.no_cache:
         config.disable_cache = options.no_cache
         console.print("[yellow]Disabling cache from command line[/yellow]")
@@ -299,58 +316,81 @@ def _auto_detect_token_limit(config: Config, projects: dict[str, Project], actua
             config.token_limit = get_default_token_limit()
 
 
-async def _auto_update_max_cost(config: Config, projects: dict[str, Project], actual_config_file: Path | None) -> None:
-    """Auto-update max cost encountered if we find higher individual block costs in the data."""
+async def _calculate_block_cost(block: TokenBlock) -> float:
+    """Calculate the cost of a single block."""
     from .pricing import calculate_token_cost
 
+    # Check stored cost first
+    block_cost = block.cost_usd
+
+    # If no stored cost, calculate it using the pricing system
+    if block_cost == 0.0 and block.full_model_names:
+        try:
+            for full_model in block.full_model_names:
+                usage = block.token_usage
+                cost_result = await calculate_token_cost(
+                    full_model,
+                    usage.actual_input_tokens or usage.input_tokens,
+                    usage.actual_output_tokens or usage.output_tokens,
+                    usage.actual_cache_creation_input_tokens or usage.cache_creation_input_tokens,
+                    usage.actual_cache_read_input_tokens or usage.cache_read_input_tokens,
+                )
+                block_cost += cost_result.total_cost
+        except Exception:
+            # If cost calculation fails, continue with stored cost (likely 0.0)
+            pass
+
+    return block_cost
+
+
+async def _find_max_block_cost(projects: dict[str, Project]) -> float:
+    """Find the maximum cost across all blocks."""
     max_block_cost = 0.0
 
-    # Scan all blocks to find the highest individual block cost
     for project in projects.values():
         for session in project.sessions.values():
             for block in session.blocks:
-                # Check stored cost first
-                block_cost = block.cost_usd
-
-                # If no stored cost, calculate it using the pricing system
-                if block_cost == 0.0 and block.full_model_names:
-                    try:
-                        for full_model in block.full_model_names:
-                            usage = block.token_usage
-                            cost_result = await calculate_token_cost(
-                                full_model,
-                                usage.actual_input_tokens or usage.input_tokens,
-                                usage.actual_output_tokens or usage.output_tokens,
-                                usage.actual_cache_creation_input_tokens or usage.cache_creation_input_tokens,
-                                usage.actual_cache_read_input_tokens or usage.cache_read_input_tokens,
-                            )
-                            block_cost += cost_result.total_cost
-                    except Exception:
-                        # If cost calculation fails, continue with stored cost (likely 0.0)
-                        pass
-
-                # Check if this block has higher cost than our current maximum
+                block_cost = await _calculate_block_cost(block)
                 if block_cost > max_block_cost:
                     max_block_cost = block_cost
 
-    # Update config if we found a higher individual block cost
-    if max_block_cost > config.max_cost_encountered:
-        old_max = config.max_cost_encountered
-        config.max_cost_encountered = max_block_cost
+    return max_block_cost
 
-        # Save updated config if we have a config file
-        if actual_config_file:
-            from .config import save_config
 
-            save_config(config, actual_config_file)
+def _save_max_cost_update(
+    config: Config, max_cost: float, actual_config_file: Path | None, suppress_output: bool
+) -> None:
+    """Save max cost update to config and optionally print message."""
+    old_max = config.max_cost_encountered
+    config.max_cost_encountered = max_cost
+
+    if actual_config_file:
+        from .config import save_config
+
+        save_config(config, actual_config_file)
+
+        if not suppress_output:
             from .pricing import format_cost
 
             console.print(
-                f"[yellow]Updated max cost encountered: {format_cost(old_max)} → {format_cost(max_block_cost)}[/yellow]"
+                f"[yellow]Updated max cost encountered: {format_cost(old_max)} → {format_cost(max_cost)}[/yellow]"
             )
 
 
-def _auto_update_max_tokens(config: Config, projects: dict[str, Project], actual_config_file: Path | None) -> None:
+async def _auto_update_max_cost(
+    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
+    """Auto-update max cost encountered if we find higher individual block costs in the data."""
+    max_block_cost = await _find_max_block_cost(projects)
+
+    # Update config if we found a higher individual block cost
+    if max_block_cost > config.max_cost_encountered:
+        _save_max_cost_update(config, max_block_cost, actual_config_file, suppress_output)
+
+
+def _auto_update_max_tokens(
+    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
     """Auto-update max tokens encountered if we find higher individual block tokens in the data."""
     max_block_tokens = 0
 
@@ -374,12 +414,15 @@ def _auto_update_max_tokens(config: Config, projects: dict[str, Project], actual
             save_config(config, actual_config_file)
             from .token_calculator import format_token_count
 
-            console.print(
-                f"[yellow]Updated max tokens encountered: {format_token_count(old_max)} → {format_token_count(max_block_tokens)}[/yellow]"
-            )
+            if not suppress_output:
+                console.print(
+                    f"[yellow]Updated max tokens encountered: {format_token_count(old_max)} → {format_token_count(max_block_tokens)}[/yellow]"
+                )
 
 
-def _auto_update_max_messages(config: Config, projects: dict[str, Project], actual_config_file: Path | None) -> None:
+def _auto_update_max_messages(
+    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
     """Auto-update max messages encountered if we find higher individual block messages in the data."""
     max_block_messages = 0
 
@@ -401,11 +444,14 @@ def _auto_update_max_messages(config: Config, projects: dict[str, Project], actu
             from .config import save_config
 
             save_config(config, actual_config_file)
-            console.print(f"[yellow]Updated max messages encountered: {old_max:,} → {max_block_messages:,}[/yellow]")
+            if not suppress_output:
+                console.print(
+                    f"[yellow]Updated max messages encountered: {old_max:,} → {max_block_messages:,}[/yellow]"
+                )
 
 
 def _auto_update_unified_block_maximums(
-    config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None
+    config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block maximums if current unified block exceeds historical maximums."""
     if not snapshot.unified_block_start_time:
@@ -428,9 +474,10 @@ def _auto_update_unified_block_maximums(
 
         from .token_calculator import format_token_count
 
-        console.print(
-            f"[yellow]Updated max unified block tokens: {format_token_count(old_max)} → {format_token_count(current_unified_tokens)}[/yellow]"
-        )
+        if not suppress_output:
+            console.print(
+                f"[yellow]Updated max unified block tokens: {format_token_count(old_max)} → {format_token_count(current_unified_tokens)}[/yellow]"
+            )
 
     # Update unified block messages maximum
     if current_unified_messages > config.max_unified_block_messages_encountered:
@@ -438,9 +485,10 @@ def _auto_update_unified_block_maximums(
         config.max_unified_block_messages_encountered = current_unified_messages
         config_updated = True
 
-        console.print(
-            f"[yellow]Updated max unified block messages: {old_max:,} → {current_unified_messages:,}[/yellow]"
-        )
+        if not suppress_output:
+            console.print(
+                f"[yellow]Updated max unified block messages: {old_max:,} → {current_unified_messages:,}[/yellow]"
+            )
 
     # Save config if any updates were made
     if config_updated and actual_config_file:
@@ -450,7 +498,7 @@ def _auto_update_unified_block_maximums(
 
 
 async def _auto_update_unified_block_cost_maximum(
-    config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None
+    config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block cost maximum if current unified block exceeds historical maximum."""
     if not snapshot.unified_block_start_time:
@@ -475,9 +523,10 @@ async def _auto_update_unified_block_cost_maximum(
 
                 from .pricing import format_cost
 
-                console.print(
-                    f"[yellow]Updated max unified block cost: {format_cost(old_max)} → {format_cost(current_unified_cost)}[/yellow]"
-                )
+                if not suppress_output:
+                    console.print(
+                        f"[yellow]Updated max unified block cost: {format_cost(old_max)} → {format_cost(current_unified_cost)}[/yellow]"
+                    )
     except Exception:
         # If cost calculation fails, skip update
         pass
@@ -707,8 +756,8 @@ def monitor(
     ] = None,
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
     show_sessions: Annotated[bool, typer.Option("--show-sessions", "-s", help="Show active sessions list")] = False,
-    show_tools: Annotated[bool, typer.Option("--show-tools", help="Show tool usage information")] = False,
-    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+    show_tools: Annotated[bool, typer.Option("--show-tools/--no-tools", help="Show tool usage information")] = True,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing/--no-pricing", help="Show pricing information")] = True,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Disable file monitoring cache")] = False,
     block_start_override: Annotated[
         int | None,
@@ -727,7 +776,7 @@ def monitor(
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
     debug: Annotated[bool, typer.Option("--debug", help="Enable debug output (shows processing messages)")] = False,
 ) -> None:
-    """Monitor Claude Code token usage in real-time."""
+    """Monitor Claude Code token usage in real-time with tool usage display enabled by default."""
 
     # Configure logging level based on debug flag
     # For monitor mode, we suppress console output to avoid disrupting the display
@@ -832,22 +881,24 @@ async def _monitor_async(
     claude_paths, monitor, dedup_state, notification_manager = _initialize_monitor_components(config)
     projects: dict[str, Project] = {}
 
-    # Initial scan - don't use cache for first scan to ensure we see all data
+    # Initial scan - use cache unless explicitly disabled
     console.print(f"[cyan]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/cyan]")
-    projects = scan_all_projects(config, use_cache=False)
+    projects = scan_all_projects(config, use_cache=not config.disable_cache, monitor=monitor)
     logger.debug(f"Initial scan found {len(projects)} projects")
 
     # Auto-detect token limit if needed
     _auto_detect_token_limit(config, projects, actual_config_file)
 
     # Auto-update max cost encountered if higher costs found
-    await _auto_update_max_cost(config, projects, actual_config_file)
+    # Suppress output in continuous monitor mode to prevent console jumping
+    suppress_output = not options.snapshot
+    await _auto_update_max_cost(config, projects, actual_config_file, suppress_output)
 
     # Auto-update max tokens encountered if higher tokens found
-    _auto_update_max_tokens(config, projects, actual_config_file)
+    _auto_update_max_tokens(config, projects, actual_config_file, suppress_output)
 
     # Auto-update max messages encountered if higher messages found
-    _auto_update_max_messages(config, projects, actual_config_file)
+    _auto_update_max_messages(config, projects, actual_config_file, suppress_output)
 
     # Handle snapshot mode
     if options.snapshot:
@@ -874,8 +925,8 @@ async def _monitor_async(
         usage_snapshot.total_limit = config.token_limit or 0
 
         # Update unified block maximums for proper progress display
-        _auto_update_unified_block_maximums(config, usage_snapshot, actual_config_file)
-        await _auto_update_unified_block_cost_maximum(config, usage_snapshot, actual_config_file)
+        _auto_update_unified_block_maximums(config, usage_snapshot, actual_config_file, suppress_output=False)
+        await _auto_update_unified_block_cost_maximum(config, usage_snapshot, actual_config_file, suppress_output=False)
 
         # Auto-scale config limits based on usage snapshot
         try:
@@ -954,8 +1005,10 @@ async def _monitor_async(
                 usage_snapshot.total_limit = config.token_limit or 0
 
                 # Update unified block maximums for proper progress display
-                _auto_update_unified_block_maximums(config, usage_snapshot, actual_config_file)
-                await _auto_update_unified_block_cost_maximum(config, usage_snapshot, actual_config_file)
+                _auto_update_unified_block_maximums(config, usage_snapshot, actual_config_file, suppress_output=True)
+                await _auto_update_unified_block_cost_maximum(
+                    config, usage_snapshot, actual_config_file, suppress_output=True
+                )
 
                 await display_manager.update(usage_snapshot)
 
@@ -992,7 +1045,7 @@ def list_usage(
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Output file path")] = None,
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
-    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing/--no-pricing", help="Show pricing information")] = True,
 ) -> None:
     """List all token usage data."""
     # Load configuration (defaults to XDG config location)
@@ -1058,10 +1111,12 @@ def list_usage(
     snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
 
     # Update unified block maximums for proper progress display
-    _auto_update_unified_block_maximums(config, snapshot, config_file_used if config_file_used.exists() else None)
+    _auto_update_unified_block_maximums(
+        config, snapshot, config_file_used if config_file_used.exists() else None, suppress_output=False
+    )
     asyncio.run(
         _auto_update_unified_block_cost_maximum(
-            config, snapshot, config_file_used if config_file_used.exists() else None
+            config, snapshot, config_file_used if config_file_used.exists() else None, suppress_output=False
         )
     )
 
@@ -1356,7 +1411,7 @@ def list_sessions(
     show_inactive: Annotated[bool, typer.Option("--show-inactive", help="Show inactive sessions")] = False,
     project_filter: Annotated[str | None, typer.Option("--project", "-p", help="Filter by project name")] = None,
     session_filter: Annotated[str | None, typer.Option("--session", "-s", help="Filter by session ID")] = None,
-    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing/--no-pricing", help="Show pricing information")] = True,
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
 ) -> None:
     """List all sessions with their status and activity information."""
@@ -1673,7 +1728,7 @@ def filter_sessions(
         int | None, typer.Option("--since-hours", help="Show sessions with activity in last N hours")
     ] = None,
     output_format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.TABLE,
-    show_pricing: Annotated[bool, typer.Option("--show-pricing", help="Show pricing information")] = False,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing/--no-pricing", help="Show pricing information")] = True,
 ) -> None:
     """Filter and display sessions based on various criteria."""
 

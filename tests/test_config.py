@@ -19,12 +19,14 @@ class TestDisplayConfig:
         config = DisplayConfig()
 
         assert config.show_progress_bars is True
-        assert config.show_active_sessions is False
+        assert config.show_active_sessions is True
         assert config.update_in_place is True
-        assert config.refresh_interval == 1
+        assert config.refresh_interval == 5
         assert config.time_format == TimeFormat.TWENTY_FOUR_HOUR
         assert config.project_name_prefixes == ["-Users-", "-home-"]
         assert config.aggregate_by_project is True
+        assert config.show_tool_usage is True
+        assert config.show_pricing is True
         assert config.display_mode == DisplayMode.NORMAL
 
     def test_custom_values(self):

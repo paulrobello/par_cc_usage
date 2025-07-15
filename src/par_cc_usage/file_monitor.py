@@ -26,6 +26,16 @@ class FileState:
     last_processed: datetime = field(default_factory=datetime.now)
 
 
+@dataclass
+class CacheMetadata:
+    """Metadata about cache state."""
+
+    cache_version: str = "1.0"
+    tool_usage_enabled: bool = False
+    created_at: datetime = field(default_factory=datetime.now)
+    last_updated: datetime = field(default_factory=datetime.now)
+
+
 class JSONLReader:
     """Streaming reader for JSONL files."""
 
@@ -213,6 +223,7 @@ class FileMonitor:
         self.cache_dir = cache_dir
         self.disable_cache = disable_cache
         self.file_states: dict[Path, FileState] = {}
+        self.cache_metadata = CacheMetadata(tool_usage_enabled=True)  # Always track tool usage
         if not self.disable_cache:
             self._load_cache()
 
@@ -223,7 +234,32 @@ class FileMonitor:
             try:
                 with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
+
+                    # Load metadata if present
+                    metadata_data = data.get("_metadata", {})
+                    cached_tool_usage_enabled = metadata_data.get("tool_usage_enabled", False)
+
+                    # Check if cache was built without tool usage tracking
+                    if not cached_tool_usage_enabled:
+                        # Cache was built without tool usage, force full rebuild
+                        # to ensure all historical data includes tool information
+                        self.file_states = {}
+                        return
+
+                    # Load metadata
+                    self.cache_metadata = CacheMetadata(
+                        cache_version=metadata_data.get("cache_version", "1.0"),
+                        tool_usage_enabled=cached_tool_usage_enabled,
+                        created_at=datetime.fromisoformat(metadata_data.get("created_at", datetime.now().isoformat())),
+                        last_updated=datetime.fromisoformat(
+                            metadata_data.get("last_updated", datetime.now().isoformat())
+                        ),
+                    )
+
+                    # Load file states
                     for path_str, state_data in data.items():
+                        if path_str == "_metadata":
+                            continue
                         path = Path(path_str)
                         if path.exists():
                             self.file_states[path] = FileState(
@@ -244,6 +280,20 @@ class FileMonitor:
 
         cache_file = self.cache_dir / "file_states.json"
         data = {}
+
+        # Update metadata
+        self.cache_metadata.tool_usage_enabled = True  # Always track tool usage
+        self.cache_metadata.last_updated = datetime.now()
+
+        # Save metadata
+        data["_metadata"] = {
+            "cache_version": self.cache_metadata.cache_version,
+            "tool_usage_enabled": self.cache_metadata.tool_usage_enabled,
+            "created_at": self.cache_metadata.created_at.isoformat(),
+            "last_updated": self.cache_metadata.last_updated.isoformat(),
+        }
+
+        # Save file states
         for path, state in self.file_states.items():
             data[str(path)] = {
                 "mtime": state.mtime,

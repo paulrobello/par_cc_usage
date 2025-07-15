@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PAR CC Usage is a Python-based CLI tool for tracking and analyzing Claude Code token usage across multiple projects. It monitors JSONL files in Claude's project directories, provides real-time usage statistics, and manages 5-hour billing blocks.
+PAR CC Usage is a Python-based CLI tool for tracking and analyzing Claude Code token usage across multiple projects. It monitors JSONL files in Claude's project directories, provides real-time usage statistics with tool usage tracking and pricing display enabled by default, and manages 5-hour billing blocks.
 
 ## Development Commands
 
@@ -24,6 +24,40 @@ make run
 # or
 uv run pccu monitor
 ```
+
+### Tool Usage Display (Default Enabled)
+
+PAR CC Usage now displays Claude Code tool usage by default, providing insights into which tools (Read, Edit, Bash, etc.) are being used most frequently.
+
+**Display Format**: Tool names appear in orange color, with usage totals in cyan parentheses for easy visual distinction:
+- Example: `Read, Edit, Bash (25)` - where "Read, Edit, Bash" is orange and "(25)" is cyan
+
+```bash
+# Default behavior - tool usage displayed automatically
+uv run pccu monitor
+
+# Disable tool usage display if desired
+uv run pccu monitor --no-tools
+
+# Explicitly enable tool usage (redundant with new defaults)
+uv run pccu monitor --show-tools
+
+# Tool usage in snapshot mode for quick debugging
+uv run pccu monitor --snapshot     # Shows tools by default
+uv run pccu monitor --no-tools --snapshot  # Hides tools
+
+# Tool usage is always tracked in cache - instant toggle without rebuilds
+# Switch between modes instantly:
+uv run pccu monitor --show-tools --snapshot  # Instant display
+uv run pccu monitor --no-tools --snapshot    # Instant hide
+uv run pccu monitor --show-tools --snapshot  # Instant display again
+```
+
+**Key Benefits:**
+- **Always Tracked**: Tool usage data is cached regardless of display settings
+- **Zero Performance Impact**: Toggling display on/off processes only new messages
+- **Instant Toggle**: Switch between `--show-tools`/`--no-tools` without cache rebuilds
+- **Rich Information**: See which tools are used most frequently across projects and sessions
 
 ### Code Quality Commands
 ```bash
@@ -62,6 +96,9 @@ uv run pccu monitor --debug
 # Note: Debug output is automatically suppressed during continuous monitor mode
 # to prevent console jumping and maintain a clean, stable display interface
 
+# Tool usage display is enabled by default - disable with --no-tools
+uv run pccu monitor --no-tools --snapshot
+
 # Test pricing functionality including burn rate cost estimation
 uv run pccu monitor --show-pricing --snapshot
 uv run pccu list --show-pricing
@@ -91,6 +128,111 @@ asyncio.run(test())
 # Test burn rate cost estimation specifically
 uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
 ```
+
+### Tool Usage Testing
+
+Tool usage tracking is now always enabled in the cache with display enabled by default for immediate insights.
+
+```bash
+# Default behavior - tool usage displayed automatically (NEW DEFAULT)
+uv run pccu monitor --snapshot
+
+# Disable tool usage display when desired
+uv run pccu monitor --no-tools --snapshot
+
+# Explicitly enable (redundant with new defaults, but still supported)
+uv run pccu monitor --show-tools --snapshot
+
+# Performance testing - instant toggle without cache rebuilds
+uv run pccu monitor --show-tools --snapshot  # ~0.3s (only new messages)
+uv run pccu monitor --no-tools --snapshot    # ~0.3s (only new messages)
+uv run pccu monitor --show-tools --snapshot  # ~0.3s (only new messages)
+
+# Compare with old behavior (forcing full rebuild)
+uv run pccu monitor --no-cache --snapshot    # ~3.9s (all 40,000+ messages)
+```
+
+**Performance Improvements:**
+- **12x Faster Startup**: Tool display toggle processes 1-2 new messages vs 40,000+ previously
+- **Always Ready**: Tool data cached regardless of display preference
+- **Zero Rebuild Cost**: Cache metadata tracks tool usage state automatically
+
+### Cost Analysis (Default Enabled)
+
+PAR CC Usage displays comprehensive cost information by default, providing insights into Claude Code API spending and budget tracking.
+
+**Display Features**: Real-time cost tracking with 💰 emoji indicators throughout the interface:
+- Token usage costs in monitor display
+- Burn rate cost estimation for 5-hour blocks
+- Individual project/session cost breakdown
+- Cost totals and maximums tracking
+
+```bash
+# Default behavior - pricing displayed automatically
+uv run pccu monitor
+
+# Disable pricing display if desired  
+uv run pccu monitor --no-pricing
+
+# Pricing in list mode for detailed cost analysis
+uv run pccu list                # Shows costs by default
+uv run pccu list --no-pricing   # Hides cost information
+
+# Export cost data for analysis
+uv run pccu list --format json --output costs.json
+uv run pccu list --format csv --output costs.csv
+```
+
+## Troubleshooting
+
+### Cache System Overview
+
+PAR CC Usage uses a high-performance cache system to track file positions and avoid re-processing entire JSONL files. The cache provides dramatic performance improvements (0.3s vs 3.9s startup) and ensures data consistency.
+
+**Key Cache Features:**
+- **Single FileMonitor Instance**: The monitor uses one FileMonitor throughout the entire process to maintain cache consistency
+- **Position Tracking**: Stores last read position for each JSONL file to process only new content
+- **Smart Deduplication**: Prevents double-counting tokens when files are accessed multiple times
+- **Automatic Updates**: Cache is updated in real-time as new data is processed
+
+### Cache Performance
+
+The cache system provides significant performance benefits:
+
+```bash
+# With cache enabled (default)
+uv run pccu monitor --snapshot    # ~0.3s startup
+uv run pccu monitor              # Fast real-time updates
+
+# With cache disabled (for debugging)
+uv run pccu monitor --no-cache --snapshot  # ~3.9s startup
+```
+
+### Data Inconsistencies
+
+If counts, costs, or tool usage appear incorrect or inconsistent, the most common cause is cached data from a previous version or corrupted cache state.
+
+```bash
+# Clear all cached data and force complete re-processing
+uv run pccu clear-cache
+
+# Verify the issue is resolved
+uv run pccu monitor --snapshot
+
+# Alternative: disable cache for one-time verification
+uv run pccu monitor --no-cache --snapshot
+```
+
+**When to clear cache:**
+- Token counts don't match expected values
+- Tool usage shows incorrect tools or counts
+- Cost calculations seem wrong
+- After upgrading PAR CC Usage versions
+- When debugging data processing issues
+- If display shows stale or missing information
+- If monitor shows no data initially then wrong data after delays
+
+**Note**: Cache clearing forces re-processing of all JSONL files, which may take 3-4 seconds for large datasets but ensures data accuracy.
 
 ## Architecture Overview
 
@@ -138,7 +280,7 @@ flowchart TB
         end
 
         subgraph "Display Layer"
-            MD["MonitorDisplay\nReal-time UI\nEmoji-Enhanced\n🪙 ✉️ 💰"]
+            MD["MonitorDisplay\nReal-time UI\nEmoji-Enhanced\n🪙 💬 💰"]
             LD["ListDisplay\nReporting"]
             RT["Rich Terminal"]
         end
@@ -219,31 +361,34 @@ flowchart TB
    - `file_monitor.py`: Watches Claude project directories for JSONL file changes using file position tracking
    - `token_calculator.py`: Parses JSONL lines and calculates token usage per 5-hour blocks with deduplication
    - `models.py`: Core data structures (TokenUsage, TokenBlock, Session, Project, UsageSnapshot) with timezone support
-   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, emoji-enhanced formatting (🪙 tokens, ✉️ messages, 💰 costs), and stable console output (no jumping or interruptions)
+   - `display.py`: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, emoji-enhanced formatting (🪙 tokens, 💬 messages, 💰 costs), and stable console output (no jumping or interruptions)
    - `pricing.py`: LiteLLM integration for accurate cost calculations across all Claude models
 
 2. **Unified Block System**:
-   The unified billing block calculation uses a simple and reliable approach to identify the current billing period:
-   - **Hour-floored Block Selection**: Current billing block is determined by flooring the current UTC time to the nearest hour
+   The unified billing block calculation uses an activity-based approach to identify the current billing period:
+   - **Activity-Based Block Selection**: Current billing block is determined by finding the earliest active block with recent activity
    - **Consistent Start Times**: All blocks start at the top of the hour in UTC for predictable billing periods
    - **Manual Override**: CLI `--block-start HOUR` option for testing and corrections (hour 0-23)
-   - Logic in `token_calculator.py:create_unified_blocks()` function provides straightforward billing block identification
+   - Logic in `token_calculator.py:create_unified_blocks()` function provides accurate billing block identification
    - Debug with `pccu debug-unified` to see block selection details
    - Automatic gap detection for inactivity periods > 5 hours
 
    #### Unified Block Algorithm
-   The `create_unified_blocks()` function implements a simple hour-flooring approach:
+   The `create_unified_blocks()` function implements an activity-based approach:
 
    1. **Check Data Availability**: Verifies that projects contain usage data
-   2. **Current Time Calculation**: Gets current UTC time
-   3. **Hour-flooring**: Floors current time to the nearest hour boundary using `calculate_block_start()`
-   4. **Return Block Start**: Returns the hour-floored time as the current billing block start
+   2. **Find Active Blocks**: Scans all projects and sessions to find currently active blocks
+   3. **Activity Validation**: Checks each block using `_is_block_active()` logic:
+      - Not a gap block
+      - Current time < block end time (start + 5 hours)
+      - Time since last activity < 5 hours
+   4. **Return Earliest Active**: Returns the start time of the earliest active block
 
    **Block Activity Logic**: Individual session blocks are active if:
    - Time since last activity < 5 hours (session duration)
    - Current time < block end time (start + 5 hours)
 
-   **Key Architectural Decision**: This approach ensures consistent billing period representation by using simple hour-floored UTC time calculation, providing stable and predictable billing block identification that aligns with standard hourly billing practices.
+   **Key Architectural Decision**: This approach ensures accurate billing period representation by finding the actual active block with recent activity, providing precise billing block identification that matches real usage patterns rather than just current time.
 
 3. **Enhanced Configuration System**:
    - `config.py`: Pydantic-based configuration with structured environment variable parsing
@@ -268,7 +413,7 @@ flowchart TB
    - **Burn Rate Calculation**: Tokens per minute tracking with ETA estimation
    - **Block Progress Tracking**: Real-time 5-hour block progress with visual indicators
    - **Model Usage Analysis**: Per-model token breakdown (Opus, Sonnet, Haiku)
-   - **Tool Usage Tracking**: Track and display Claude Code tool usage (Read, Edit, Bash, etc.) with counts
+   - **Tool Usage Tracking**: Track and display Claude Code tool usage (Read, Edit, Bash, etc.) with counts (enabled by default)
    - **Activity Pattern Detection**: Historical usage analysis with configurable time windows
 
 6. **Monitor Display Stability**:
@@ -281,20 +426,30 @@ flowchart TB
 
 ### Key Architectural Decisions
 
-1. **Simple Block Logic**: Billing block selection uses direct hour-flooring of current UTC time for consistent and predictable billing period representation
+1. **Activity-Based Block Logic**: Billing block selection uses activity-based detection to find the earliest active block with recent usage, providing accurate billing period representation that matches real usage patterns
 2. **XDG Base Directory Compliance**: Configuration, cache, and data files follow XDG specification for proper system integration
 3. **Legacy Migration Support**: Automatic detection and migration of existing config files to XDG locations
 4. **Deduplication**: Uses message IDs and request IDs to prevent double-counting tokens when files are re-read
-5. **File Monitoring Cache**: Tracks file positions to avoid re-processing entire files (stored in XDG cache directory)
-6. **Timezone Handling**: All internal times are UTC, converted to configured timezone for display
-7. **Model Normalization**: Maps various Claude model names to simplified display names via `ModelType` enum
-8. **Per-Model Token Tracking**: TokenBlocks track adjusted tokens per model with multipliers applied (Opus 5x, others 1x)
-9. **Tool Usage Extraction**: Parses JSONL message content arrays to extract tool_use blocks and track tool names and call counts
-10. **Structured JSON Validation**: Uses Pydantic models for type-safe JSONL parsing and validation
-11. **Type-Safe Configuration**: Centralized enums and structured dataclasses eliminate string-based configurations
-12. **Console Stability**: Monitor mode suppresses all disruptive output (errors, debug messages, notifications) to maintain clean, stable real-time display
-13. **Emoji-Enhanced UX**: Visual icons (🪙 ✉️ 💰) improve readability and user experience in terminal interfaces
-14. **Individual Block Cost Tracking**: Cost maximums track single block peaks, not cumulative totals, for accurate billing representation
+5. **Single FileMonitor Architecture**: Uses one FileMonitor instance throughout the entire monitoring process to maintain cache consistency and prevent state conflicts
+   - **Consistent Cache State**: Initial scan and live monitoring share the same FileMonitor instance
+   - **Eliminated Race Conditions**: No more dual-instance cache conflicts that caused timing issues
+   - **Immediate Data Display**: Cache provides instant, accurate data without delays
+   - **Shared File State**: Both operations use the same file position tracking for consistency
+6. **File Monitoring Cache**: High-performance cache system tracks file positions to avoid re-processing entire files (stored in XDG cache directory)
+   - **Enabled by Default**: Monitor mode uses cache for fast startup (0.3s vs 3.9s without cache)
+   - **Smart Cache Usage**: Initial scan respects cache setting for dramatic performance improvement
+   - **Cache Override**: Use `--no-cache` flag to force full file processing when needed
+   - **Position Tracking**: Stores last read position for each JSONL file to process only new content
+   - **File State Management**: Tracks modification times, file sizes, and processing timestamps
+7. **Timezone Handling**: All internal times are UTC, converted to configured timezone for display
+8. **Model Normalization**: Maps various Claude model names to simplified display names via `ModelType` enum
+9. **Per-Model Token Tracking**: TokenBlocks track adjusted tokens per model with multipliers applied (Opus 5x, others 1x)
+10. **Tool Usage Extraction**: Always parses JSONL message content arrays to extract tool_use blocks and track tool names and call counts (displayed by default, can be toggled instantly)
+11. **Structured JSON Validation**: Uses Pydantic models for type-safe JSONL parsing and validation
+12. **Type-Safe Configuration**: Centralized enums and structured dataclasses eliminate string-based configurations
+13. **Console Stability**: Monitor mode suppresses all disruptive output (errors, debug messages, notifications) to maintain clean, stable real-time display
+14. **Emoji-Enhanced UX**: Visual icons (🪙 💬 💰) improve readability and user experience in terminal interfaces
+15. **Individual Block Cost Tracking**: Cost maximums track single block peaks, not cumulative totals, for accurate billing representation
 
 ### Data Model Relationships
 
@@ -385,8 +540,8 @@ The burn rate cost estimation provides intelligent cost projection for 5-hour bi
 5. **Sync Compatibility**: `_calculate_burn_rate_sync()` method for non-pricing contexts
 6. **Graceful Fallback**: Cost estimation failures don't break burn rate display
 
-**Display Format**: `"🪙 531K/m ✉️ 5/m  Est: 🪙 159.3M (90%) ✉️ 1,742  💰 $65.51  ETA: 2h 28m"`
-- Emoji-enhanced format: 🪙 token burn rate + ✉️ message rate + 🪙 estimated tokens + ✉️ estimated messages + 💰 estimated cost + ETA
+**Display Format**: `"🪙 531K/m 💬 5/m  Est: 🪙 159.3M (90%) 💬 1,742  💰 $65.51  ETA: 2h 28m"`
+- Emoji-enhanced format: 🪙 token burn rate + 💬 message rate + 🪙 estimated tokens + 💬 estimated messages + 💰 estimated cost + ETA
 
 #### List Command Pricing Integration:
 The `pccu list` command supports comprehensive cost analysis with the `--show-pricing` flag:
@@ -548,20 +703,24 @@ flowchart TD
 - **Per-Model Token Tracking**: Each block maintains a `model_tokens` dictionary that tracks adjusted tokens per model with multipliers applied during token processing
 
 ### File Processing
-- Only processes new lines added to JSONL files (uses file position tracking)
-- Handles multiple Claude project directories (legacy and new paths)
-- Can disable cache with `--no-cache` flag for full reprocessing
+- **High-Performance Cache**: Only processes new lines added to JSONL files using file position tracking for 12x faster startup
+- **Smart Cache Management**: Monitor mode uses cache by default (0.3s startup) with `--no-cache` override for full processing (3.9s)
+- **Multi-Directory Support**: Handles multiple Claude project directories (legacy and new paths)
 - **XDG Cache Storage**: File monitoring cache stored in `~/.cache/par_cc_usage/file_states.json`
 - **Legacy Migration**: Automatic detection and migration of config files from current directory to XDG locations
+- **Incremental Processing**: Cache tracks file modifications and processes only new content since last run
 
 ### Display Formatting
 - **Emoji-Enhanced Interface**: Uses visual icons for improved readability
-  - 🪙 for tokens, ✉️ for messages, 💰 for costs
+  - 🪙 for tokens, 💬 for messages, 💰 for costs
   - ⚡ for Sonnet model, 🔥 for burn rate, 📊 for totals
+- **Real-Time Current Time**: Displays current time in bright orange (#FF8800) in monitor header
 - **Abbreviated Counts**: Token counts use format (e.g., "1.2M" for millions)
-- **Time Formats**: Configurable (12h/24h) display options
+- **Time Formats**: Configurable (12h/24h) display options for both current time and block ranges
 - **Project Names**: Prefixes can be stripped for cleaner display
 - **Cost Tracking**: Individual block maximums (not cumulative totals)
+- **Tool Usage Display**: Enabled by default with instant toggle via `--no-tools`
+- **Cost Tracking Display**: Enabled by default with toggle via `--no-pricing`
 
 ### Console Stability in Monitor Mode
 - **Output Suppression**: All disruptive console output is automatically suppressed during continuous monitor mode
@@ -574,17 +733,22 @@ flowchart TD
 ### Enhanced Display System
 - **Emoji-Enhanced Formatting**: Visual icons for better readability
   - 🪙 **Tokens**: Represents token counts and rates
-  - ✉️ **Messages**: Represents message counts and rates
+  - 💬 **Messages**: Represents message counts and rates
   - 💰 **Costs**: Represents cost calculations and estimates
   - ⚡ **Models**: Lightning for Claude Sonnet, other emojis for different models
   - 🔥 **Burn Rate**: Fire emoji for activity rate calculations
   - 📊 **Total**: Bar chart emoji for summary statistics
 
+- **Tool Usage Color Scheme**: Enhanced visual distinction for tool display
+  - **Tool Names**: Orange color (#FF9900) for tool names (Read, Edit, Bash, etc.)
+  - **Tool Totals**: Cyan color (#00FFFF) for usage counts in parentheses
+  - **Example**: `Read, Edit, Bash (25)` where tools are orange and "(25)" is cyan
+
 **Example Monitor Display Format**:
 ```
-│ ⚡ Sonnet  🪙 10.8M - ✉️ 118 - 💰 $5.33                                       │
-│ 🔥 Burn        🪙 532K/m ✉️ 5/m  Est: 🪙 159.7M ( 38%) ✉️ 1,742  💰 $78.69     │
-│ 📊 Total         3%    🪙 10.8M / 78.3M - ✉️ 118 / 917 - 💰 $5.33 / $56.02 │
+│ ⚡ Sonnet  🪙 10.8M - 💬 118 - 💰 $5.33                                       │
+│ 🔥 Burn        🪙 532K/m 💬 5/m  Est: 🪙 159.7M ( 38%) 💬 1,742  💰 $78.69     │
+│ 📊 Total         3%    🪙 10.8M / 78.3M - 💬 118 / 917 - 💰 $5.33 / $56.02 │
 ```
 
 ### Notification System
@@ -659,7 +823,66 @@ All functions maintain cyclomatic complexity ≤ 10 through systematic refactori
 - Use of early returns to reduce nesting
 - Functional decomposition of complex operations
 
-### Recent Code Quality Improvements (2024)
+### Recent Code Quality Improvements (2025)
+
+**Tool Usage Default Enablement (2025-07-15)**: Made tool usage display the default behavior with zero performance impact:
+- **Feature**: Tool usage tracking now enabled by default in both CLI and configuration
+- **CLI Enhancement**: Updated to use `--show-tools/--no-tools` pattern with `True` default
+- **Cache Optimization**: Tool usage always tracked in cache regardless of display settings
+- **Performance**: Zero cost toggle - switching display modes processes only new messages (1-2 vs 40,000+)
+- **User Experience**: Immediate insights into Claude Code tool usage patterns without configuration
+- **Backward Compatibility**: `--no-tools` available for users who prefer minimal display
+
+**Code Complexity Reduction (2025-07-15)**: Fixed cyclomatic complexity violations in core functions:
+- **Issue**: `_auto_update_max_cost()` function exceeded complexity limit (11 > 10)
+- **Solution**: Refactored into focused helper functions with single responsibilities:
+  - `_calculate_block_cost()`: Calculate cost for individual blocks
+  - `_find_max_block_cost()`: Scan all blocks for maximum cost
+  - `_save_max_cost_update()`: Handle config updates and user notifications
+- **Result**: All functions now ≤10 complexity, improved maintainability and testability
+- **Quality**: All code quality checks pass (ruff format, ruff check, pyright)
+
+**Current Time Display Enhancement (2025-07-15)**: Added real-time current time display to monitor interface:
+- **Feature**: Added current time display to monitor header row alongside Active Projects and Sessions
+- **Design**: Time-only format (no date) with bright orange color (#FF8800) for high visibility
+- **Implementation**: Integrated into existing header panel using `format_time()` utility with timezone support
+- **Layout**: Removed redundant max value information from header for cleaner display
+- **Result**: Users can easily distinguish current time from billing block time ranges
+
+**Tool Usage Color Enhancement (2025-07-15)**: Improved visual distinction for tool usage totals in Projects with Activity section:
+- **Feature**: Tool usage totals in parentheses now display in different color from tool names
+- **Design**: Tool names remain orange (#FF9900), totals displayed in cyan (#00FFFF) for better contrast
+- **Implementation**: Added `tool_total` color to all theme definitions and updated display logic across project/session views
+- **User Experience**: Easier visual scanning to quickly identify total tool call counts
+- **Example**: `Read, Edit, Bash (25)` where "Read, Edit, Bash" is orange and "(25)" is cyan
+
+**Pricing Display Default Enablement (2025-07-15)**: Made cost tracking display the default behavior for better financial awareness:
+- **Feature**: Pricing information now shown by default in both monitor and list commands
+- **CLI Enhancement**: Updated to use `--show-pricing/--no-pricing` pattern with `True` default
+- **Configuration**: Changed `show_pricing` default from `False` to `True` in DisplayConfig
+- **User Experience**: Immediate cost insights without configuration, helping users track API spending
+- **Backward Compatibility**: `--no-pricing` available for users who prefer cost-free display
+- **Fix**: Corrected command override logic to properly handle both enable and disable flags
+
+**Cache Performance Optimization (2025-07-15)**: Fixed file monitoring cache to dramatically improve startup performance:
+- **Issue**: Monitor mode initial scan always used `use_cache=False`, processing all 40,000+ messages every startup
+- **Solution**: Changed initial scan to respect cache setting: `use_cache=not config.disable_cache`
+- **Performance Impact**:
+  - **With cache**: 0.3 seconds startup (processes only new messages)
+  - **Without cache**: 3.9 seconds startup (processes all messages)
+  - **Improvement**: 12x faster startup time when cache is enabled
+- **Validation**: Cache properly tracks file positions and processes only incremental changes
+- **Backward Compatibility**: `--no-cache` flag continues to work for full data processing
+
+**Block Time Computation Fix (2025-07-15)**: Fixed unified block time calculation to match ccusage behavior:
+- **Issue**: `create_unified_blocks()` used simple hour-flooring of current time, ignoring actual activity
+- **Solution**: Implemented activity-based block detection that finds the earliest active block with recent usage
+- **Changes**:
+  - Added `_is_block_active()` helper function matching TokenBlock.is_active logic
+  - Modified `create_unified_blocks()` to scan all projects/sessions for active blocks
+  - Now returns start time of earliest active block instead of current hour
+- **Result**: Block time display now accurately reflects actual usage patterns instead of just current time
+- **Validation**: Monitor display changed from incorrect "11:00 PM - 04:00 AM" to correct "09:00 PM - 02:00 AM"
 
 **Major Complexity Refactoring**: Successfully reduced cyclomatic complexity across all core modules:
 

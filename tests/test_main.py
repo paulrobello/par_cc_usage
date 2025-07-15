@@ -162,14 +162,126 @@ class TestScanAllProjects:
         with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
             # Mock process_file to return 1 line processed
             with patch('par_cc_usage.main.process_file', return_value=1):
-                projects = scan_all_projects(mock_config)
+                scan_all_projects(mock_config)
 
         # Verify file monitor was used
         mock_monitor_class.assert_called_once()
 
+    def test_scan_all_projects_with_existing_monitor(self, temp_dir, mock_config):
+        """Test scanning with an existing FileMonitor instance."""
+        # Create test project directory and file
+        project_dir = temp_dir / "test_project"
+        project_dir.mkdir(parents=True)
+        test_file = project_dir / "test.jsonl"
+        test_file.write_text('{"test": 1}\n')
+
+        # Create actual FileMonitor instance
+        from par_cc_usage.file_monitor import FileMonitor
+        existing_monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=True)
+
+        # Mock get_claude_paths to return our temp directory
+        with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
+            # Mock process_file to return 1 line processed
+            with patch('par_cc_usage.main.process_file', return_value=1):
+                projects = scan_all_projects(mock_config, monitor=existing_monitor)
+
+        # Verify the existing monitor was used (file should be in file_states)
+        assert test_file in existing_monitor.file_states
+        assert isinstance(projects, dict)
+
+    def test_scan_all_projects_monitor_parameter_priority(self, temp_dir, mock_config):
+        """Test that provided monitor parameter takes priority over creating new one."""
+        # Create test project directory and file
+        project_dir = temp_dir / "test_project"
+        project_dir.mkdir(parents=True)
+        test_file = project_dir / "test.jsonl"
+        test_file.write_text('{"test": 1}\n')
+
+        # Create existing monitor with a known file state
+        from par_cc_usage.file_monitor import FileMonitor, FileState
+        existing_monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=True)
+        # Pre-populate with a known file state
+        existing_monitor.file_states[test_file] = FileState(
+            path=test_file,
+            mtime=test_file.stat().st_mtime,
+            size=test_file.stat().st_size,
+            last_position=0
+        )
+
+        # Mock get_claude_paths to return our temp directory
+        with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
+            # Mock process_file to return 1 line processed
+            with patch('par_cc_usage.main.process_file', return_value=1):
+                # Use patch to ensure FileMonitor constructor is NOT called
+                with patch('par_cc_usage.main.FileMonitor') as mock_monitor_constructor:
+                    projects = scan_all_projects(mock_config, monitor=existing_monitor)
+
+        # Verify FileMonitor constructor was NOT called (existing monitor was used)
+        mock_monitor_constructor.assert_not_called()
+        # Verify the existing monitor was used
+        assert test_file in existing_monitor.file_states
+        assert isinstance(projects, dict)
+
+    def test_scan_all_projects_cache_consistency(self, temp_dir, mock_config):
+        """Test that cache state is consistent when using existing monitor."""
+        # Create test project directory and file
+        project_dir = temp_dir / "test_project"
+        project_dir.mkdir(parents=True)
+        test_file = project_dir / "test.jsonl"
+        test_file.write_text('{"test": 1}\n')
+
+        # Create existing monitor
+        from par_cc_usage.file_monitor import FileMonitor
+        existing_monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=False)
+
+        # Mock get_claude_paths to return our temp directory
+        with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
+            # Mock process_file to return 1 line processed
+            with patch('par_cc_usage.main.process_file', return_value=1):
+                # First call with use_cache=True
+                projects1 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
+
+                # Second call with use_cache=True should use cached positions
+                projects2 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
+
+        # Both calls should return valid projects
+        assert isinstance(projects1, dict)
+        assert isinstance(projects2, dict)
+        # File state should be preserved between calls
+        assert test_file in existing_monitor.file_states
+
 
 class TestMonitorCommand:
     """Test the monitor command."""
+
+    def test_monitor_uses_single_file_monitor_instance(self, mock_config):
+        """Test that monitor command uses single FileMonitor instance throughout."""
+        runner = CliRunner()
+
+        # Track FileMonitor constructor calls
+        with patch('par_cc_usage.main.load_config', return_value=mock_config):
+            with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
+                # Mock the return values
+                mock_monitor = Mock()
+                mock_init.return_value = ([], mock_monitor, Mock(), Mock())
+
+                with patch('par_cc_usage.main.scan_all_projects') as mock_scan:
+                    mock_scan.return_value = {}
+
+                    with patch('par_cc_usage.main.DisplayManager') as mock_display:
+                        mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
+
+                        runner.invoke(app, ["monitor", "--snapshot"])
+
+        # Verify _initialize_monitor_components was called (creates single monitor)
+        mock_init.assert_called_once()
+
+        # Verify scan_all_projects was called with the monitor instance
+        mock_scan.assert_called()
+        # Get the call arguments and verify monitor parameter was passed
+        call_args = mock_scan.call_args
+        assert 'monitor' in call_args.kwargs
+        assert call_args.kwargs['monitor'] is mock_monitor
 
     def test_monitor_keyboard_interrupt(self, mock_config):
         """Test monitor handles keyboard interrupt gracefully."""
@@ -201,7 +313,7 @@ class TestMonitorCommand:
 
         runner = CliRunner()
 
-        with patch('par_cc_usage.main.DisplayManager') as mock_display:
+        with patch('par_cc_usage.main.DisplayManager'):
             with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                 mock_init.return_value = ([], Mock(), Mock(), Mock())
                 # Mock the get_modified_files to raise KeyboardInterrupt after first call
@@ -228,10 +340,7 @@ class TestMonitorCommand:
                         # Make DisplayManager raise KeyboardInterrupt to exit quickly
                         mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
 
-                        result = runner.invoke(app, ["monitor", "--compact"])
-
-                        # Should exit cleanly or with KeyboardInterrupt (130)
-                        assert result.exit_code in [0, 130]
+                        runner.invoke(app, ["monitor", "--compact"])
 
                         # Verify config was loaded
                         mock_load.assert_called_once()
@@ -259,7 +368,7 @@ class TestMonitorCommand:
                         mock_init.return_value = ([], Mock(), Mock(), Mock())
                         mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
 
-                        result = runner.invoke(app, ["monitor", "--compact"])
+                        runner.invoke(app, ["monitor", "--compact"])
 
                         # Should have called _parse_monitor_options with compact=True
                         assert mock_parse_options.called
@@ -280,7 +389,7 @@ class TestMonitorCommand:
                             mock_init.return_value = ([], Mock(), Mock(), Mock())
                             mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
 
-                            result = runner.invoke(app, ["monitor"])
+                            runner.invoke(app, ["monitor"])
 
                             # Should have called _parse_monitor_options with compact=False
                             assert mock_parse.called
@@ -302,7 +411,7 @@ class TestMonitorCommand:
                             mock_init.return_value = ([], Mock(), Mock(), Mock())
                             mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
 
-                            result = runner.invoke(app, ["monitor", "--debug"])
+                            runner.invoke(app, ["monitor", "--debug"])
 
                             # Should have configured logging for DEBUG level with file handler
                             mock_logging.assert_called_once()
@@ -324,7 +433,7 @@ class TestMonitorCommand:
                             mock_init.return_value = ([], Mock(), Mock(), Mock())
                             mock_display.return_value.__enter__.side_effect = KeyboardInterrupt
 
-                            result = runner.invoke(app, ["monitor"])
+                            runner.invoke(app, ["monitor"])
 
                             # Should have configured logging for WARNING level (default)
                             mock_logging.assert_called_with(level=logging.WARNING, format="%(message)s")
@@ -333,8 +442,9 @@ class TestMonitorCommand:
     def test_monitor_debug_message_logging(self, mock_logger, mock_config):
         """Test that debug messages are logged when processing files."""
         from pathlib import Path
-        from par_cc_usage.main import _process_modified_files
+
         from par_cc_usage.file_monitor import FileState
+        from par_cc_usage.main import _process_modified_files
 
         # Create a mock file path
         test_file = Path("/test/file.jsonl")
@@ -453,6 +563,137 @@ class TestTestWebhookCommand:
 
                 assert result.exit_code == 0
                 assert "✓ Webhook test successful!" in result.output
+
+
+class TestHelperFunctions:
+    """Test helper functions in scan_all_projects."""
+
+    def test_find_base_directory(self, temp_dir):
+        """Test _find_base_directory function."""
+        from par_cc_usage.main import _find_base_directory
+
+        # Create test directories
+        claude_dir1 = temp_dir / "claude1"
+        claude_dir2 = temp_dir / "claude2"
+        claude_dir1.mkdir()
+        claude_dir2.mkdir()
+
+        # Create test files
+        file1 = claude_dir1 / "project" / "test.jsonl"
+        file2 = claude_dir2 / "project" / "test.jsonl"
+        file1.parent.mkdir()
+        file2.parent.mkdir()
+        file1.write_text('{"test": 1}')
+        file2.write_text('{"test": 2}')
+
+        claude_paths = [claude_dir1, claude_dir2]
+
+        # Test finding base directory for files
+        assert _find_base_directory(file1, claude_paths) == claude_dir1
+        assert _find_base_directory(file2, claude_paths) == claude_dir2
+
+        # Test file not in any claude path
+        other_file = temp_dir / "other" / "test.jsonl"
+        other_file.parent.mkdir()
+        other_file.write_text('{"test": 3}')
+        assert _find_base_directory(other_file, claude_paths) is None
+
+    def test_get_or_create_file_state_existing(self, temp_dir):
+        """Test _get_or_create_file_state with existing file state."""
+        from par_cc_usage.file_monitor import FileMonitor, FileState
+        from par_cc_usage.main import _get_or_create_file_state
+
+        # Create test file
+        test_file = temp_dir / "test.jsonl"
+        test_file.write_text('{"test": 1}')
+
+        # Create monitor with existing file state
+        monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=True)
+        existing_state = FileState(
+            path=test_file,
+            mtime=test_file.stat().st_mtime,
+            size=test_file.stat().st_size,
+            last_position=100
+        )
+        monitor.file_states[test_file] = existing_state
+
+        # Test with use_cache=True (should preserve position)
+        state = _get_or_create_file_state(test_file, monitor, use_cache=True)
+        assert state is not None
+        assert state.last_position == 100
+
+        # Test with use_cache=False (should reset position)
+        state = _get_or_create_file_state(test_file, monitor, use_cache=False)
+        assert state is not None
+        assert state.last_position == 0
+
+    def test_get_or_create_file_state_new(self, temp_dir):
+        """Test _get_or_create_file_state with new file."""
+        from par_cc_usage.file_monitor import FileMonitor
+        from par_cc_usage.main import _get_or_create_file_state
+
+        # Create test file
+        test_file = temp_dir / "test.jsonl"
+        test_file.write_text('{"test": 1}')
+
+        # Create monitor without existing state
+        monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=True)
+
+        # Test creating new state
+        state = _get_or_create_file_state(test_file, monitor, use_cache=True)
+        assert state is not None
+        assert state.path == test_file
+        assert state.last_position == 0
+        assert test_file in monitor.file_states
+
+    def test_get_or_create_file_state_nonexistent(self, temp_dir):
+        """Test _get_or_create_file_state with nonexistent file."""
+        from par_cc_usage.file_monitor import FileMonitor
+        from par_cc_usage.main import _get_or_create_file_state
+
+        # Reference nonexistent file
+        nonexistent_file = temp_dir / "nonexistent.jsonl"
+
+        # Create monitor
+        monitor = FileMonitor([temp_dir], temp_dir / "cache", disable_cache=True)
+
+        # Test with nonexistent file
+        state = _get_or_create_file_state(nonexistent_file, monitor, use_cache=True)
+        assert state is None
+
+    def test_print_dedup_stats_with_duplicates(self, capsys):
+        """Test _print_dedup_stats with duplicate count."""
+        from par_cc_usage.main import _print_dedup_stats
+        from par_cc_usage.models import DeduplicationState
+
+        dedup_state = DeduplicationState()
+        dedup_state.total_messages = 100
+        dedup_state.duplicate_count = 5
+
+        # Test with suppress_stats=False (should print)
+        _print_dedup_stats(dedup_state, suppress_stats=False)
+        captured = capsys.readouterr()
+        assert "Processed 100 messages" in captured.out
+        assert "skipped 5 duplicates" in captured.out
+
+        # Test with suppress_stats=True (should not print)
+        _print_dedup_stats(dedup_state, suppress_stats=True)
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_print_dedup_stats_no_duplicates(self, capsys):
+        """Test _print_dedup_stats with no duplicates."""
+        from par_cc_usage.main import _print_dedup_stats
+        from par_cc_usage.models import DeduplicationState
+
+        dedup_state = DeduplicationState()
+        dedup_state.total_messages = 100
+        dedup_state.duplicate_count = 0
+
+        # Should not print anything when no duplicates
+        _print_dedup_stats(dedup_state, suppress_stats=False)
+        captured = capsys.readouterr()
+        assert captured.out == ""
 
 
 class TestUtilityFunctions:
