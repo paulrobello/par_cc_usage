@@ -61,12 +61,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.10 - Documentation Restructure](#v0110---documentation-restructure)
   - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
   - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
   - [v0.1.7 - Monitor Display Stability](#v017---monitor-display-stability)
   - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
   - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
-  - [v0.1.4 - Theme System Implementation](#v014---theme-system-implementation)
   - [older...](#older)
 - [Development](#development)
 
@@ -1055,6 +1055,25 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.1.10 - Documentation Restructure
+
+**Improved Documentation Organization**: Streamlined and reorganized documentation structure for better maintainability and user experience:
+
+#### 📚 Documentation Improvements
+- **Streamlined CLAUDE.md**: Reduced file size by 83% (950+ lines → 156 lines) by moving detailed content to specialized documentation files
+- **Dedicated Documentation Files**: Created comprehensive guides in `docs/` directory:
+  - `docs/ARCHITECTURE.md` - System architecture, data models, and design decisions
+  - `docs/DEVELOPMENT.md` - Development workflows and advanced features
+  - `docs/TROUBLESHOOTING.md` - Cache system, debugging, and problem resolution
+- **Enhanced README**: Added documentation section with clear navigation to detailed guides
+- **Better Organization**: Information now logically separated by audience and use case for improved discoverability
+
+#### 🔧 Benefits
+- **Improved Maintainability**: Changes to specific topics can be made in focused files
+- **Better User Experience**: Quick reference (CLAUDE.md) separate from detailed technical documentation
+- **Enhanced Navigation**: Clear pathways between overview and in-depth information
+- **Reduced Cognitive Load**: Essential information easily accessible without overwhelming detail
+
 ### v0.1.9 - Emoji-Enhanced Display & Comprehensive Test Suite
 
 **Visual Interface Improvements & System Resilience**: Enhanced monitor display with emoji icons and added extensive test coverage for improved reliability:
@@ -1260,6 +1279,15 @@ pccu list --show-pricing --format csv --output costs.csv
 ### older...
 
 Earlier versions focused on foundational architecture, file monitoring, and basic token tracking capabilities.
+
+## Documentation
+
+For detailed information and advanced usage, see:
+
+- **[Architecture Documentation](docs/ARCHITECTURE.md)** - System architecture, data models, and design decisions
+- **[Development Guide](docs/DEVELOPMENT.md)** - Detailed development workflows and advanced features  
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Cache system, debugging, and problem resolution
+- **[CLAUDE.md](CLAUDE.md)** - Quick reference for Claude Code users
 
 ## Development
 

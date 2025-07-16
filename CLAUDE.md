@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PAR CC Usage is a Python-based CLI tool for tracking and analyzing Claude Code token usage across multiple projects. It monitors JSONL files in Claude's project directories, provides real-time usage statistics with tool usage tracking and pricing display enabled by default, and manages 5-hour billing blocks.
 
-## Development Commands
+## Quick Start
 
 ### Installation and Setup
 ```bash
@@ -25,40 +25,6 @@ make run
 uv run pccu monitor
 ```
 
-### Tool Usage Display (Default Enabled)
-
-PAR CC Usage now displays Claude Code tool usage by default, providing insights into which tools (Read, Edit, Bash, etc.) are being used most frequently.
-
-**Display Format**: Tool names appear in orange color, with usage totals in cyan parentheses for easy visual distinction:
-- Example: `Read, Edit, Bash (25)` - where "Read, Edit, Bash" is orange and "(25)" is cyan
-
-```bash
-# Default behavior - tool usage displayed automatically
-uv run pccu monitor
-
-# Disable tool usage display if desired
-uv run pccu monitor --no-tools
-
-# Explicitly enable tool usage (redundant with new defaults)
-uv run pccu monitor --show-tools
-
-# Tool usage in snapshot mode for quick debugging
-uv run pccu monitor --snapshot     # Shows tools by default
-uv run pccu monitor --no-tools --snapshot  # Hides tools
-
-# Tool usage is always tracked in cache - instant toggle without rebuilds
-# Switch between modes instantly:
-uv run pccu monitor --show-tools --snapshot  # Instant display
-uv run pccu monitor --no-tools --snapshot    # Instant hide
-uv run pccu monitor --show-tools --snapshot  # Instant display again
-```
-
-**Key Benefits:**
-- **Always Tracked**: Tool usage data is cached regardless of display settings
-- **Zero Performance Impact**: Toggling display on/off processes only new messages
-- **Instant Toggle**: Switch between `--show-tools`/`--no-tools` without cache rebuilds
-- **Rich Information**: See which tools are used most frequently across projects and sessions
-
 ### Code Quality Commands
 ```bash
 # Format, lint, and typecheck (run before commits)
@@ -70,13 +36,33 @@ make lint        # Check linting with ruff
 make typecheck   # Type check with pyright
 ```
 
-### Testing and Debugging
-
-# Run tests
+### Testing
 ```bash
+# Run tests
 make test
 ```
 
+## Common Commands
+
+### Monitor Mode
+```bash
+# Default behavior - tool usage and pricing displayed automatically
+uv run pccu monitor
+
+# Disable tool usage display if desired
+uv run pccu monitor --no-tools
+
+# Disable pricing display if desired  
+uv run pccu monitor --no-pricing
+
+# Take a single debug snapshot (monitor once and exit)
+uv run pccu monitor --snapshot
+
+# Enable debug output
+uv run pccu monitor --debug
+```
+
+### Debug Commands
 ```bash
 # Debug unified block calculation
 uv run pccu debug-unified
@@ -86,131 +72,36 @@ uv run pccu debug-blocks --show-inactive
 
 # Test webhooks (Discord/Slack)
 uv run pccu test-webhook
+```
 
-# Take a single debug snapshot (monitor once and exit)
-uv run pccu monitor --snapshot
-
-# Enable debug output (debug messages are suppressed in monitor mode to maintain clean display)
-uv run pccu monitor --debug
-
-# Note: Debug output is automatically suppressed during continuous monitor mode
-# to prevent console jumping and maintain a clean, stable display interface
-
-# Tool usage display is enabled by default - disable with --no-tools
-uv run pccu monitor --no-tools --snapshot
-
-# Test pricing functionality including burn rate cost estimation
-uv run pccu monitor --show-pricing --snapshot
+### List and Export
+```bash
+# List usage with costs
 uv run pccu list --show-pricing
-
-# Test pricing with different output formats
-uv run pccu list --show-pricing --format json
-uv run pccu list --show-pricing --format csv --output usage_with_costs.csv
-
-# Debug pricing fallbacks (using Python directly)
-uv run python -c "
-import asyncio
-from src.par_cc_usage.pricing import debug_model_pricing, calculate_token_cost
-
-async def test():
-    # Test unknown model handling
-    info = await debug_model_pricing('Unknown')
-    cost = await calculate_token_cost('Unknown', 1000, 500)
-    print(f'Unknown model: \${cost.total_cost}, info: {info}')
-
-    # Test fallback pricing
-    cost = await calculate_token_cost('claude-opus-custom', 1000, 500)
-    print(f'Custom opus model cost: \${cost.total_cost}')
-
-asyncio.run(test())
-"
-
-# Test burn rate cost estimation specifically
-uv run pytest tests/test_display.py -k "test_calculate_burn_rate" -v
-```
-
-### Tool Usage Testing
-
-Tool usage tracking is now always enabled in the cache with display enabled by default for immediate insights.
-
-```bash
-# Default behavior - tool usage displayed automatically (NEW DEFAULT)
-uv run pccu monitor --snapshot
-
-# Disable tool usage display when desired
-uv run pccu monitor --no-tools --snapshot
-
-# Explicitly enable (redundant with new defaults, but still supported)
-uv run pccu monitor --show-tools --snapshot
-
-# Performance testing - instant toggle without cache rebuilds
-uv run pccu monitor --show-tools --snapshot  # ~0.3s (only new messages)
-uv run pccu monitor --no-tools --snapshot    # ~0.3s (only new messages)
-uv run pccu monitor --show-tools --snapshot  # ~0.3s (only new messages)
-
-# Compare with old behavior (forcing full rebuild)
-uv run pccu monitor --no-cache --snapshot    # ~3.9s (all 40,000+ messages)
-```
-
-**Performance Improvements:**
-- **12x Faster Startup**: Tool display toggle processes 1-2 new messages vs 40,000+ previously
-- **Always Ready**: Tool data cached regardless of display preference
-- **Zero Rebuild Cost**: Cache metadata tracks tool usage state automatically
-
-### Cost Analysis (Default Enabled)
-
-PAR CC Usage displays comprehensive cost information by default, providing insights into Claude Code API spending and budget tracking.
-
-**Display Features**: Real-time cost tracking with 💰 emoji indicators throughout the interface:
-- Token usage costs in monitor display
-- Burn rate cost estimation for 5-hour blocks
-- Individual project/session cost breakdown
-- Cost totals and maximums tracking
-
-```bash
-# Default behavior - pricing displayed automatically
-uv run pccu monitor
-
-# Disable pricing display if desired  
-uv run pccu monitor --no-pricing
-
-# Pricing in list mode for detailed cost analysis
-uv run pccu list                # Shows costs by default
-uv run pccu list --no-pricing   # Hides cost information
 
 # Export cost data for analysis
 uv run pccu list --format json --output costs.json
 uv run pccu list --format csv --output costs.csv
 ```
 
+## Key Features
+
+### Tool Usage Display (Default Enabled)
+- **Always Tracked**: Tool usage data is cached regardless of display settings
+- **Zero Performance Impact**: Toggling display on/off processes only new messages
+- **Instant Toggle**: Switch between `--show-tools`/`--no-tools` without cache rebuilds
+- **Rich Information**: See which tools are used most frequently across projects and sessions
+
+### Cost Analysis (Default Enabled)
+- **Real-time Cost Tracking**: 💰 emoji indicators throughout the interface
+- **Burn Rate Estimation**: 5-hour block cost projections
+- **Individual Project/Session Breakdown**: Cost tracking per project and session
+- **Export Support**: JSON and CSV export with cost data
+
 ## Troubleshooting
 
-### Cache System Overview
-
-PAR CC Usage uses a high-performance cache system to track file positions and avoid re-processing entire JSONL files. The cache provides dramatic performance improvements (0.3s vs 3.9s startup) and ensures data consistency.
-
-**Key Cache Features:**
-- **Single FileMonitor Instance**: The monitor uses one FileMonitor throughout the entire process to maintain cache consistency
-- **Position Tracking**: Stores last read position for each JSONL file to process only new content
-- **Smart Deduplication**: Prevents double-counting tokens when files are accessed multiple times
-- **Automatic Updates**: Cache is updated in real-time as new data is processed
-
-### Cache Performance
-
-The cache system provides significant performance benefits:
-
-```bash
-# With cache enabled (default)
-uv run pccu monitor --snapshot    # ~0.3s startup
-uv run pccu monitor              # Fast real-time updates
-
-# With cache disabled (for debugging)
-uv run pccu monitor --no-cache --snapshot  # ~3.9s startup
-```
-
-### Data Inconsistencies
-
-If counts, costs, or tool usage appear incorrect or inconsistent, the most common cause is cached data from a previous version or corrupted cache state.
+### Cache Issues
+If counts, costs, or tool usage appear incorrect:
 
 ```bash
 # Clear all cached data and force complete re-processing
@@ -229,10 +120,39 @@ uv run pccu monitor --no-cache --snapshot
 - Cost calculations seem wrong
 - After upgrading PAR CC Usage versions
 - When debugging data processing issues
-- If display shows stale or missing information
-- If monitor shows no data initially then wrong data after delays
 
-**Note**: Cache clearing forces re-processing of all JSONL files, which may take 3-4 seconds for large datasets but ensures data accuracy.
+### Performance Notes
+- **With cache enabled (default)**: ~0.3s startup
+- **With cache disabled**: ~3.9s startup
+- **Cache clearing**: Forces re-processing of all JSONL files (3-4 seconds for large datasets)
+
+## Documentation
+
+For detailed information, see:
+- [Architecture Documentation](docs/ARCHITECTURE.md) - System architecture, data models, and design decisions
+- [Development Guide](docs/DEVELOPMENT.md) - Detailed development workflows and advanced features
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution
+
+## Version Management
+
+- **Important**: ONLY bump the project version if the user requests it
+- **Single Source**: Version is defined only in `src/par_cc_usage/__init__.py`
+- **Dynamic Loading**: `pyproject.toml` uses hatch's dynamic versioning to automatically load version from `__init__.py`
+- **No Sync Required**: No need to keep multiple files in sync - version is defined in one place only
+
+### Version Bumping Process
+When bumping the version of the tool:
+1. Update only `src/par_cc_usage/__init__.py` line 3: `__version__ = "x.y.z"`
+2. Update the README.md "What's New" section with the new version
+3. Make sure you update the TOC "What's New" section with the new version
+4. The TOC "What's New" section should have the newest 6 versions, the 6th entry should have a label of 'older...'
+
+## Memory Notes
+
+### Tools and Workflow
+- When trying to read JSON/JSONL files from the claude code project folder use the json_analyzer.py tool
+- The json_analyzer.py tool supports both JSON (.json) and JSONL (.jsonl) formats with automatic detection
+- Use `uv run python -m par_cc_usage.json_analyzer analyze <file>` to analyze JSON/JSONL files
 
 ## Architecture Overview
 
@@ -874,7 +794,7 @@ All functions maintain cyclomatic complexity ≤ 10 through systematic refactori
 - **Validation**: Cache properly tracks file positions and processes only incremental changes
 - **Backward Compatibility**: `--no-cache` flag continues to work for full data processing
 
-**Block Time Computation Fix (2025-07-15)**: Fixed unified block time calculation to match ccusage behavior:
+**Block Time Computation Fix (2025-07-15)**: Fixed unified block time calculation to use standard behavior:
 - **Issue**: `create_unified_blocks()` used simple hour-flooring of current time, ignoring actual activity
 - **Solution**: Implemented activity-based block detection that finds the earliest active block with recent usage
 - **Changes**:
