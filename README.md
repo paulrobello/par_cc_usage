@@ -1056,6 +1056,26 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.1.12 - Documentation Restructure & Organization
+
+**Streamlined Documentation Structure**: Major reorganization of project documentation for better maintainability and user experience:
+
+#### 📚 Documentation Improvements
+- **Reorganized README.md**: Streamlined to focus on essential high-level information (installation, quick start, what's new)
+- **Comprehensive Documentation Files**: Created detailed guides in `docs/` directory:
+  - `docs/FEATURES.md` - Complete features overview and capabilities
+  - `docs/USAGE_GUIDE.md` - Detailed usage examples and common patterns
+  - `docs/CONFIGURATION.md` - Configuration options and environment variables
+  - `docs/DISPLAY_FEATURES.md` - Themes, display modes, and customization
+- **Enhanced Navigation**: Clear documentation structure with emoji icons and descriptive links
+- **Improved Discoverability**: Information now logically separated by use case and audience
+
+#### 🔧 Benefits
+- **Better Maintainability**: Changes to specific topics can be made in focused files
+- **Reduced Cognitive Load**: Essential information easily accessible without overwhelming detail
+- **Enhanced User Experience**: Quick reference (README) separate from detailed documentation
+- **Improved Organization**: Clear pathways between overview and in-depth information
+
 ### v0.1.11 - UI Enhancement Package
 
 **Comprehensive Display Improvements**: Three focused UI enhancements for better readability and user experience:
@@ -1313,12 +1333,16 @@ Earlier versions focused on foundational architecture, file monitoring, and basi
 
 ## Documentation
 
-For detailed information and advanced usage, see:
+For detailed information and advanced usage:
 
-- **[Architecture Documentation](docs/ARCHITECTURE.md)** - System architecture, data models, and design decisions
-- **[Development Guide](docs/DEVELOPMENT.md)** - Detailed development workflows and advanced features  
-- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Cache system, debugging, and problem resolution
-- **[CLAUDE.md](CLAUDE.md)** - Quick reference for Claude Code users
+- **[📋 Complete Features List](docs/FEATURES.md)** - Comprehensive overview of all features and capabilities
+- **[🚀 Usage Guide](docs/USAGE_GUIDE.md)** - Detailed usage examples and common patterns
+- **[⚙️ Configuration Guide](docs/CONFIGURATION.md)** - Configuration options, environment variables, and file locations
+- **[🎨 Display Features](docs/DISPLAY_FEATURES.md)** - Themes, display modes, and customization options
+- **[🏗️ Architecture](docs/ARCHITECTURE.md)** - System architecture and design decisions
+- **[🔧 Development](docs/DEVELOPMENT.md)** - Development workflows and advanced features
+- **[🐛 Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and debugging
+- **[📝 CLAUDE.md](CLAUDE.md)** - Quick reference for Claude Code users
 
 ## Development
 
