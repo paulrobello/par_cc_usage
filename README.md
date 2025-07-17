@@ -61,6 +61,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.1.11 - UI Enhancement Package](#v0111---ui-enhancement-package)
   - [v0.1.10 - Documentation Restructure](#v0110---documentation-restructure)
   - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
   - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
@@ -1054,6 +1055,36 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.1.11 - UI Enhancement Package
+
+**Comprehensive Display Improvements**: Three focused UI enhancements for better readability and user experience:
+
+#### 📊 Number Formatting Enhancement
+- **Comma-Formatted Counts**: All message counts now display with thousand separators for improved readability
+  - Progress displays: `💬 1,502` instead of `💬 1502`
+  - Project/session tables: `1,205` instead of `1205`
+  - Unified formatting across all interface elements
+
+#### 🎯 Progress Bar Accuracy Fix
+- **100% Display Fix**: Progress bars now correctly show 100% when current values equal maximum values
+- **Precision Issue Resolution**: Fixed floating-point precision problems from token aggregation
+- **Accurate Representation**: `min(total_tokens, total_limit)` ensures proper percentage calculation
+- **Consistent Display**: Progress percentage matches actual usage ratios
+
+#### 🔧 MCP Tool Display Enhancement
+- **Prefix Stripping**: MCP tools display without verbose `mcp__` prefixes for cleaner interface
+  - `mcp__SeqThink__sequentialthinking` → `SeqThink__sequentialthinking`
+  - `mcp__Tavily__tavily-search` → `Tavily__tavily-search`
+- **Color Differentiation**: MCP tools use distinct colors (`tool_mcp`) from regular tools (`tool_usage`)
+- **Theme Integration**: All color themes updated with appropriate MCP tool colors
+- **Universal Application**: Enhanced display in tool usage tables, project views, and session views
+
+#### 🎨 Technical Implementation
+- **Helper Functions**: Added `_format_tool_name()`, `_get_tool_color()`, and `_format_tool_list()`
+- **Theme System Extension**: Added `tool_mcp` color field to all 5 built-in themes
+- **Comprehensive Updates**: Updated all tool display locations for consistent formatting
+- **Test Coverage**: Updated theme tests to include new color field
 
 ### v0.1.10 - Documentation Restructure
 

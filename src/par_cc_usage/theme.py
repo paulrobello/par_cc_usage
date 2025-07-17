@@ -35,6 +35,7 @@ class ColorScheme(BaseModel):
     model_name: str = Field(description="Model name display color")
     project_name: str = Field(description="Project name display color")
     tool_usage: str = Field(description="Tool usage display color")
+    tool_mcp: str = Field(description="MCP tool name display color")
     tool_total: str = Field(description="Tool total count display color")
     cost: str = Field(description="Cost/pricing display color")
 
@@ -88,6 +89,7 @@ class ThemeManager:
             model_name="green",
             project_name="#00FFFF",
             tool_usage="#FF9900",
+            tool_mcp="#FF6600",
             tool_total="#00FFFF",
             cost="#00FF80",
             progress_low="#00FF00",
@@ -115,6 +117,7 @@ class ThemeManager:
                 "model_name": default_colors.model_name,
                 "project_name": default_colors.project_name,
                 "tool_usage": default_colors.tool_usage,
+                "tool_mcp": default_colors.tool_mcp,
                 "cost": default_colors.cost,
                 "progress_low": default_colors.progress_low,
                 "progress_medium": default_colors.progress_medium,
@@ -150,6 +153,7 @@ class ThemeManager:
             model_name="bright_green",
             project_name="#00FFFF",
             tool_usage="#FF9900",
+            tool_mcp="#FF6600",
             tool_total="#88AAFF",
             cost="#00FF80",
             progress_low="#00FF00",
@@ -177,6 +181,7 @@ class ThemeManager:
                 "model_name": dark_colors.model_name,
                 "project_name": dark_colors.project_name,
                 "tool_usage": dark_colors.tool_usage,
+                "tool_mcp": dark_colors.tool_mcp,
                 "cost": dark_colors.cost,
                 "progress_low": dark_colors.progress_low,
                 "progress_medium": dark_colors.progress_medium,
@@ -212,6 +217,7 @@ class ThemeManager:
             model_name="#859900",  # Solarized green
             project_name="#2aa198",  # Solarized cyan
             tool_usage="#cb4b16",  # Solarized orange
+            tool_mcp="#dc322f",  # Solarized red
             tool_total="#6c71c4",  # Solarized violet
             cost="#859900",  # Solarized green
             progress_low="#859900",  # Green
@@ -274,6 +280,7 @@ class ThemeManager:
             model_name="#00AA00",  # High contrast green
             project_name="#006666",  # Teal
             tool_usage="#FF8800",  # High contrast orange
+            tool_mcp="#CC0000",  # High contrast red
             tool_total="#000080",  # Navy blue
             cost="#00AA00",  # High contrast green
             progress_low="#00AA00",  # Green
@@ -301,6 +308,7 @@ class ThemeManager:
                 "model_name": accessibility_colors.model_name,
                 "project_name": accessibility_colors.project_name,
                 "tool_usage": accessibility_colors.tool_usage,
+                "tool_mcp": accessibility_colors.tool_mcp,
                 "cost": accessibility_colors.cost,
                 "progress_low": accessibility_colors.progress_low,
                 "progress_medium": accessibility_colors.progress_medium,
@@ -336,6 +344,7 @@ class ThemeManager:
             model_name="#CCCCCC",  # Light gray
             project_name="#FFFFFF",  # White
             tool_usage="#AAAAAA",  # Gray
+            tool_mcp="#888888",  # Darker gray
             tool_total="#CCCCCC",  # Light gray
             cost="#CCCCCC",  # Light gray
             progress_low="#AAAAAA",  # Gray
@@ -363,6 +372,7 @@ class ThemeManager:
                 "model_name": minimal_colors.model_name,
                 "project_name": minimal_colors.project_name,
                 "tool_usage": minimal_colors.tool_usage,
+                "tool_mcp": minimal_colors.tool_mcp,
                 "cost": minimal_colors.cost,
                 "progress_low": minimal_colors.progress_low,
                 "progress_medium": minimal_colors.progress_medium,

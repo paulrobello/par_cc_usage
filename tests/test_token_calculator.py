@@ -193,8 +193,10 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return None since no active blocks exist
-        assert result is None
+        # Should return current time floored to hour
+        current_time = datetime.now(timezone.utc)
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
+        assert result == expected
 
     def test_create_unified_blocks_single_active_block(self):
         """Test create_unified_blocks returns current hour-floored time."""
@@ -206,7 +208,8 @@ class TestCreateUnifiedBlocks:
         session = Session(session_id="session_1", project_name="test_project", model="sonnet")
 
         # Create a block with recent activity (within 5 hours)
-        block_start = datetime.now(timezone.utc) - timedelta(hours=2)
+        current_time = datetime.now(timezone.utc)
+        block_start = current_time - timedelta(hours=2)
         block = TokenBlock(
             start_time=block_start,
             end_time=block_start + timedelta(hours=5),
@@ -214,15 +217,15 @@ class TestCreateUnifiedBlocks:
             project_name="test_project",
             model="sonnet",
             token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=datetime.now(timezone.utc) - timedelta(minutes=30),  # Recent activity
+            actual_end_time=current_time - timedelta(minutes=30),  # Recent activity
         )
 
         session.blocks.append(block)
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return the block start time (ccusage behavior)
-        expected = block_start
+        # Should return current time floored to hour
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
         assert result == expected
 
     def test_create_unified_blocks_multiple_active_blocks_returns_current_hour(self):
@@ -268,8 +271,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_2"] = session2
 
         result = create_unified_blocks({"test_project": project})
-        # Should return the earliest active block start time (ccusage behavior)
-        expected = block1_start  # block1 started earlier
+        # Should return current time floored to hour
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
         assert result == expected
 
     def test_create_unified_blocks_inactive_vs_active(self):
@@ -310,8 +313,8 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return the start time of the active block (ccusage behavior)
-        expected = active_block_start
+        # Should return current time floored to hour
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
         assert result == expected
 
     def test_create_unified_blocks_multiple_projects(self):
@@ -359,8 +362,8 @@ class TestCreateUnifiedBlocks:
         projects = {"project1": project1, "project2": project2}
         result = create_unified_blocks(projects)
 
-        # Should return the earliest active block start time (ccusage behavior)
-        expected = block2_start  # block2 started earlier and is still active
+        # Should return current time floored to hour
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
         assert result == expected
 
     def test_create_unified_blocks_activity_boundary_cases(self):
@@ -389,5 +392,6 @@ class TestCreateUnifiedBlocks:
         project.sessions["session_1"] = session
 
         result = create_unified_blocks({"test_project": project})
-        # Should return None since no active blocks exist (ccusage behavior)
-        assert result is None
+        # Should return current time floored to hour
+        expected = current_time.replace(minute=0, second=0, microsecond=0)
+        assert result == expected

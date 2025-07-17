@@ -462,7 +462,7 @@ def _should_create_new_block(session: Session, timestamp: datetime, session_dura
         return True
 
     # Additional check: Create new block if message timestamp >= block end time
-    # This matches ccusage logic: blocks become inactive when current time >= end time
+    # This matches standard logic: blocks become inactive when current time >= end time
     block_end_time = latest_block.start_time + timedelta(hours=session_duration_hours)
     if timestamp >= block_end_time:
         return True
@@ -712,10 +712,10 @@ def _is_block_active(block: TokenBlock, now: datetime) -> bool:
     return time_since_activity < (5 * 3600)  # 5 hours in seconds
 
 
-def _is_block_active_ccusage_style(block: TokenBlock, now: datetime) -> bool:
-    """Check if a block is active using ccusage logic.
+def _is_block_active_style(block: TokenBlock, now: datetime) -> bool:
+    """Check if a block is active using standard logic.
 
-    Matches ccusage isActive logic:
+    Matches isActive logic:
     now.getTime() - actualEndTime.getTime() < sessionDurationMs && now < endTime
 
     Args:
@@ -723,7 +723,7 @@ def _is_block_active_ccusage_style(block: TokenBlock, now: datetime) -> bool:
         now: Current datetime in UTC
 
     Returns:
-        True if block is active according to ccusage criteria
+        True if block is active according to standard criteria
     """
     session_duration_seconds = 5 * 3600  # 5 hours in seconds
     actual_end_time = block.actual_end_time or block.start_time
@@ -735,40 +735,23 @@ def _is_block_active_ccusage_style(block: TokenBlock, now: datetime) -> bool:
 
 
 def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Find the current active block start time based on actual activity.
+    """Find the current block start time using time-based logic.
 
-    Follows ccusage logic: finds the first active block chronologically
-    that meets the activity criteria (time since last activity < 5 hours
-    AND current time < block end time).
+    Uses simple time-based flooring: current time floored to the hour.
+    This provides consistent billing block representation.
 
     Args:
         projects: Dictionary of projects with per-session blocks
 
     Returns:
-        The start time of the earliest active block or None if no active blocks
+        The current time floored to the hour or None if no usage data
     """
     if not _has_usage_data(projects):
         return None
 
-    # Collect all blocks from all projects and sessions
-    all_blocks: list[TokenBlock] = []
-    for project in projects.values():
-        for session in project.sessions.values():
-            all_blocks.extend(session.blocks)
-
-    if not all_blocks:
-        return None
-
-    # Sort blocks chronologically (earliest first)
-    all_blocks.sort(key=lambda block: block.start_time)
-
-    # Find the first active block (matches ccusage logic)
+    # Use time-based approach: floor current time to the hour
     now = datetime.now(UTC)
-    for block in all_blocks:
-        if _is_block_active_ccusage_style(block, now):
-            return block.start_time
-
-    return None
+    return _floor_to_hour(now)
 
 
 def _floor_to_hour(timestamp: datetime) -> datetime:

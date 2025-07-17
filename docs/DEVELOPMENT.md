@@ -311,6 +311,15 @@ All functions maintain cyclomatic complexity ≤ 10 through systematic refactori
 
 ### Recent Code Quality Improvements (2025)
 
+#### UI Enhancement Package (2025-07-17)
+Comprehensive display improvements for better user experience:
+- **Number Formatting**: Added comma formatting to all message counts for readability (`1,502` vs `1502`)
+- **Progress Bar Fix**: Corrected 100% display issue when current equals maximum using `min(total_tokens, total_limit)`
+- **MCP Tool Enhancement**: Strip `mcp__` prefixes and add distinct colors for cleaner tool display
+- **Helper Functions**: Added `_format_tool_name()`, `_get_tool_color()`, `_format_tool_list()` for consistent formatting
+- **Theme Integration**: Extended all color schemes with `tool_mcp` field for MCP tool differentiation
+- **Universal Updates**: Applied enhancements across tool tables, project views, and session displays
+
 #### Tool Usage Default Enablement (2025-07-15)
 Made tool usage display the default behavior with zero performance impact:
 - **Feature**: Tool usage tracking now enabled by default in both CLI and configuration

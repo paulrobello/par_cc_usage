@@ -68,6 +68,53 @@ class MonitorDisplay:
                 return project_name[len(prefix) :]
         return project_name
 
+    def _format_tool_name(self, tool_name: str) -> str:
+        """Format tool name by stripping MCP prefix if present.
+
+        Args:
+            tool_name: Raw tool name
+
+        Returns:
+            Formatted tool name with MCP prefix stripped
+        """
+        if tool_name.startswith("mcp__"):
+            return tool_name[5:]  # Remove "mcp__" prefix
+        return tool_name
+
+    def _get_tool_color(self, tool_name: str) -> str:
+        """Get appropriate color for tool based on whether it's an MCP tool.
+
+        Args:
+            tool_name: Tool name
+
+        Returns:
+            Color name for the tool
+        """
+        if tool_name.startswith("mcp__"):
+            return get_color("tool_mcp")
+        return get_color("tool_usage")
+
+    def _format_tool_list(self, tools: set[str]) -> str:
+        """Format a list of tools with appropriate colors and prefix stripping.
+
+        Args:
+            tools: Set of tool names
+
+        Returns:
+            Formatted tool list string with colors
+        """
+        if not tools:
+            return "-"
+
+        # Sort tools and format each one with appropriate color
+        formatted_tools = []
+        for tool in sorted(tools, key=str.lower):
+            formatted_name = self._format_tool_name(tool)
+            tool_color = self._get_tool_color(tool)
+            formatted_tools.append(f"[{tool_color}]{formatted_name}[/]")
+
+        return ", ".join(formatted_tools)
+
     def _setup_layout(self, show_sessions: bool = False) -> None:
         """Set up the display layout."""
         if self.compact_mode:
@@ -386,7 +433,7 @@ class MonitorDisplay:
 
         # Messages part
         if total_messages > 0:
-            messages_text = f"💬 {total_messages}"
+            messages_text = f"💬 {total_messages:,}"
             if self.config and self.config.max_unified_block_messages_encountered > 0:
                 max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
                 messages_text += f" / {max_messages_text}"
@@ -432,7 +479,7 @@ class MonitorDisplay:
 
         # Messages part
         if total_messages > 0:
-            messages_text = f"💬 {total_messages}"
+            messages_text = f"💬 {total_messages:,}"
             if self.config and self.config.max_unified_block_messages_encountered > 0:
                 max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
                 messages_text += f" / {max_messages_text}"
@@ -509,7 +556,7 @@ class MonitorDisplay:
                 console=self.console,
                 expand=False,
             )
-            total_progress.add_task("Total", total=total_limit, completed=total_tokens)
+            total_progress.add_task("Total", total=total_limit, completed=min(total_tokens, total_limit))
             all_displays.append(total_progress)
         else:
             # Compact mode - simple text display
@@ -597,7 +644,10 @@ class MonitorDisplay:
             for col in range(num_cols):
                 if row < len(tool_columns[col]):
                     tool_name, tool_count = tool_columns[col][row]
-                    row_data.extend([f"🔧 {tool_name}", f"{tool_count:,}"])
+                    formatted_name = self._format_tool_name(tool_name)
+                    tool_color = self._get_tool_color(tool_name)
+                    tool_display = f"[{tool_color}]🔧 {formatted_name}[/]"
+                    row_data.extend([tool_display, f"{tool_count:,}"])
                 else:
                     row_data.extend(["", ""])  # Empty cells
 
@@ -1038,7 +1088,7 @@ class MonitorDisplay:
             self._strip_project_name(project.name),
             model_display,
             format_token_count(project_tokens),
-            str(project_messages),
+            f"{project_messages:,}",
         ]
 
         if show_pricing:
@@ -1085,7 +1135,7 @@ class MonitorDisplay:
             tool_display = ""
             if self.config.display.show_tool_usage:
                 if project_tools:
-                    tools_list = ", ".join(sorted(project_tools, key=str.lower))
+                    tools_list = self._format_tool_list(project_tools)
                     total_colored = f"[{get_color('tool_total')}]({project_tool_calls})[/]"
                     tool_display = f"{tools_list} {total_colored}"
                 else:
@@ -1153,7 +1203,7 @@ class MonitorDisplay:
             session.session_id,
             model_display,
             format_token_count(session_tokens),
-            str(session_messages),
+            f"{session_messages:,}",
         ]
 
         if show_pricing:
@@ -1201,7 +1251,7 @@ class MonitorDisplay:
             tool_display = ""
             if self.config.display.show_tool_usage:
                 if session_tools:
-                    tools_list = ", ".join(sorted(session_tools, key=str.lower))
+                    tools_list = self._format_tool_list(session_tools)
                     total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
                     tool_display = f"{tools_list} {total_colored}"
                 else:
@@ -1392,7 +1442,7 @@ class MonitorDisplay:
             if self.config.display.show_tool_usage:
                 if project_tools:
                     # Show tools and call count
-                    tools_list = ", ".join(sorted(project_tools, key=str.lower))
+                    tools_list = self._format_tool_list(project_tools)
                     total_colored = f"[{get_color('tool_total')}]({project_tool_calls})[/]"
                     tool_display = f"{tools_list} {total_colored}"
                 else:
@@ -1448,7 +1498,7 @@ class MonitorDisplay:
             if self.config.display.show_tool_usage:
                 if session_tools:
                     # Show tools and call count
-                    tools_list = ", ".join(sorted(session_tools, key=str.lower))
+                    tools_list = self._format_tool_list(session_tools)
                     total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
                     tool_display = f"{tools_list} {total_colored}"
                 else:
@@ -1669,7 +1719,7 @@ class MonitorDisplay:
                 console=self.console,
                 expand=False,
             )
-            total_progress.add_task("Total", total=total_limit, completed=total_tokens)
+            total_progress.add_task("Total", total=total_limit, completed=min(total_tokens, total_limit))
             all_displays.append(total_progress)
         else:
             # In compact mode, show total as simple text (no cost in sync version)
