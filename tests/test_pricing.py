@@ -47,10 +47,10 @@ class TestPricingCache:
     def test_unknown_model_fallback(self):
         """Test that unknown models return zero cost pricing."""
         cache = PricingCache()
-        
+
         # Test various unknown model patterns
         unknown_models = ["unknown", "Unknown", "UNKNOWN", "none", "None", "", "null"]
-        
+
         for model in unknown_models:
             pricing = cache._get_pricing_from_cache(model)
             assert pricing is not None
@@ -62,7 +62,7 @@ class TestPricingCache:
     def test_fallback_pricing_patterns(self):
         """Test fallback pricing for common model patterns."""
         cache = PricingCache()
-        
+
         # Mock some cache data
         cache._cache = {
             "claude-3-opus-20240229": ModelPricing(
@@ -78,7 +78,7 @@ class TestPricingCache:
                 output_cost_per_token=0.00125,
             ),
         }
-        
+
         # Test fallback patterns
         test_cases = [
             ("claude-sonnet-4", "sonnet"),
@@ -86,7 +86,7 @@ class TestPricingCache:
             ("haiku-test", "haiku"),
             ("custom-opus-variant", "opus"),
         ]
-        
+
         for model_name, expected_pattern in test_cases:
             pricing = cache._get_fallback_pricing(model_name)
             assert pricing is not None, f"Expected fallback pricing for {model_name}"
@@ -119,7 +119,7 @@ class TestCalculateTokenCost:
     async def test_unknown_model_calculation(self):
         """Test cost calculation for unknown models."""
         unknown_models = ["unknown", "Unknown", "none", "", "null"]
-        
+
         for model in unknown_models:
             cost = await calculate_token_cost(model, 1000, 500)
             assert cost.total_cost == 0.0
@@ -147,7 +147,7 @@ class TestFormatCost:
             (12.34, "$12.34"),
             (123.456, "$123.46"),
         ]
-        
+
         for cost, expected in test_cases:
             result = format_cost(cost)
             assert result == expected, f"Expected {expected} for cost {cost}, got {result}"

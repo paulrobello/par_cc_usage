@@ -18,7 +18,7 @@ Each line in the JSONL file is a JSON object with the following common fields:
 
 ### Common Fields
 - `sessionId`: UUID of the chat session
-- `timestamp`: ISO 8601 timestamp (e.g., "2025-07-08T01:01:14.690Z") 
+- `timestamp`: ISO 8601 timestamp (e.g., "2025-07-08T01:01:14.690Z")
 - `type`: Event type ("user" or "assistant")
 - `uuid`: Unique ID for this event
 - `parentUuid`: UUID of the parent event (null for first event)
