@@ -528,6 +528,35 @@ def get_default_message_limit() -> int:
     return 50
 
 
+def detect_message_limit_from_data(projects: dict[str, Any]) -> int | None:
+    """Detect appropriate message limit from existing project data.
+
+    Args:
+        projects: Dictionary of project data
+
+    Returns:
+        Detected message limit or None if no data available
+    """
+    max_messages = 0
+
+    # Look through all projects to find the highest message count in any block
+    for project_data in projects.values():
+        if hasattr(project_data, "sessions"):
+            for session in project_data.sessions.values():
+                if hasattr(session, "blocks"):
+                    for block in session.blocks:
+                        if hasattr(block, "message_count"):
+                            max_messages = max(max_messages, block.message_count)
+
+    # If we found some data, add 20% buffer and round up to nice number
+    if max_messages > 0:
+        buffered_limit = int(max_messages * 1.2)
+        # Round up to nearest 10
+        return ((buffered_limit + 9) // 10) * 10
+
+    return None
+
+
 def _get_block_maximums(usage_snapshot: UsageSnapshot) -> tuple[int, int, float]:
     """Get maximum values from individual blocks."""
     max_block_tokens = 0

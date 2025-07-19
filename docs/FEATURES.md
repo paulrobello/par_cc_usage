@@ -32,6 +32,8 @@ PAR CC Usage provides comprehensive Claude Code usage monitoring with advanced a
 ## 💰 Cost Tracking & Pricing
 - **Real-time cost calculations**: Live cost tracking using LiteLLM pricing data
 - **Per-model cost breakdown**: Accurate cost attribution for each Claude model
+- **Fixed cost display**: Activity tables now show actual calculated costs instead of "-" or $0.00
+- **Async cost calculation**: Real-time cost computation for activity tables using unified block data
 - **Monitor pricing integration**: Optional cost columns in project and session views with `--show-pricing`
 - **List command pricing**: Full cost analysis support in table, JSON, and CSV outputs with `--show-pricing` and intelligent cost hierarchy
 - **Burn rate cost estimation**: Real-time 5-hour block cost projection based on current spending rate

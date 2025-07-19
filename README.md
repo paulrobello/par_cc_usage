@@ -61,13 +61,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
+  - [v0.1.12 - Documentation Restructure](#v0112---documentation-restructure--organization)
   - [v0.1.11 - UI Enhancement Package](#v0111---ui-enhancement-package)
-  - [v0.1.10 - Documentation Restructure](#v0110---documentation-restructure)
   - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
   - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
-  - [v0.1.7 - Monitor Display Stability](#v017---monitor-display-stability)
-  - [v0.1.6 - Intelligent Cost Hierarchy](#v016---intelligent-cost-hierarchy)
-  - [v0.1.5 - Debug Flag Enhancement](#v015---debug-flag-enhancement)
   - [older...](#older)
 - [Development](#development)
 
@@ -1055,6 +1053,22 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.2.0 - Documentation Clean-up
+
+**Code Documentation Standardization**: Updated tests and documentation to use consistent terminology throughout the codebase:
+
+#### 📝 Documentation Updates
+- **Test Documentation**: Updated test comments and docstrings to use standard terminology
+- **Code Comments**: Standardized internal documentation and comments
+- **User Documentation**: Updated CLAUDE.md and other documentation files
+- **Consistent Terminology**: Replaced external tool references with standard behavior descriptions
+
+#### 🧹 Benefits
+- **Improved Clarity**: Documentation now uses consistent language throughout
+- **Reduced Confusion**: Clearer separation between PAR CC Usage and external references
+- **Better Maintainability**: Standardized terminology makes future updates easier
+- **Enhanced User Experience**: Consistent documentation provides clearer guidance
 
 ### v0.1.12 - Documentation Restructure & Organization
 

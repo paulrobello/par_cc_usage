@@ -48,6 +48,7 @@ pccu monitor --theme minimal --compact  # Minimal theme with compact display
 - **Real-time updates**: Live token consumption tracking
 - **Burn rate analytics**: Tokens/minute with ETA to limit (e.g., "1.2K/m ETA: 2.3h (10:45 PM)")
 - **Cost tracking**: Real-time cost calculations using LiteLLM pricing (when `--show-pricing` is enabled)
+- **Accurate cost display**: Activity tables show real calculated costs instead of "-" or placeholder values
 - **Burn rate cost estimation**: Intelligent cost projection for 5-hour blocks based on current spending rate (e.g., "531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m")
 - **Block progress**: Visual 5-hour billing block progress with time remaining
 - **Model breakdown**: Per-model token usage (Opus, Sonnet) with optional cost breakdown

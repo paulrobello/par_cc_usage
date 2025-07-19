@@ -240,20 +240,23 @@ export PAR_CC_USAGE_SHOW_PRICING=true
 - **Real-time cost tracking**: Live cost calculations displayed alongside token usage
 - **Per-model accuracy**: Precise cost calculations for each Claude model (Opus, Sonnet, Haiku)
 - **Activity table integration**: Optional cost columns in both project and session aggregation views
+- **Async cost calculation**: Real-time cost computation for activity tables using unified block data
 - **Total cost display**: Overall cost shown in the main token usage summary
 - **Burn rate cost estimation**: Intelligent 5-hour block cost projection based on current spending rate
 - **LiteLLM integration**: Uses LiteLLM's comprehensive pricing database for accuracy
 - **Efficient caching**: Built-in pricing cache for optimal performance
+- **Fixed cost display**: Cost columns now show accurate calculated costs instead of placeholder values
 
 ### Cost Display Locations
 
 When `show_pricing` is enabled, cost information appears in:
 
-1. **Main Usage Summary**: Total cost displayed next to token counts (e.g., "84.1M $34.85")
-2. **Burn Rate Line**: Estimated total cost for 5-hour block based on current spending rate (e.g., "531K/m Est: 159.3M (90%) Est: $65.51 ETA: 2h 28m")
+1. **Main Usage Summary**: Total cost displayed next to token counts (e.g., "🪙 71.4M - 💬 139 - 💰 $28.25")
+2. **Burn Rate Line**: Estimated total cost for 5-hour block based on current spending rate (e.g., "🔥 Burn 🪙 630K/m 💬 3/m Est: 🪙 189.1M (133%) 💬 1,175 ETA: 49m (09:46 PM)")
 3. **Activity Tables**:
-   - Project aggregation mode: Cost column showing project-level costs
-   - Session aggregation mode: Cost column showing session-level costs
+   - Project aggregation mode: Cost column showing real-time calculated project-level costs
+   - Session aggregation mode: Cost column showing real-time calculated session-level costs
+   - **Fixed**: Cost columns now display actual calculated costs (e.g., "$15.42") instead of "-" or $0.00
 4. **List Command Output**: Cost information in table, JSON, and CSV formats with cost source tracking
 
 ### Pricing Data

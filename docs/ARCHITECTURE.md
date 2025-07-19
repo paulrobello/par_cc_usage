@@ -286,6 +286,15 @@ The pricing system (`pricing.py`) provides accurate cost calculations with robus
 - **ModelPricing**: Pydantic model for structured pricing data validation
 - **TokenCost**: Result structure for cost calculations with detailed breakdown
 
+### Async Cost Calculation System
+
+The system now includes **async cost calculation methods** for real-time cost display:
+
+- **`UsageSnapshot.get_unified_block_project_cost()`**: Calculates project-specific costs from unified block entries
+- **`UsageSnapshot.get_unified_block_cost_by_model()`**: Provides cost breakdown by model for unified blocks
+- **`UsageSnapshot.get_unified_block_total_cost()`**: Returns total cost for the current unified block
+- **Display Integration**: `display.py` uses async cost methods for accurate cost display in activity panels
+
 ### Fallback Logic Hierarchy
 
 1. **Direct Match**: Exact model name lookup in LiteLLM pricing cache
@@ -301,6 +310,7 @@ The pricing system (`pricing.py`) provides accurate cost calculations with robus
 ### Integration Points
 
 - **Monitor Display Integration**: Cost columns automatically added to activity tables when `show_pricing` enabled
+- **Real-time Cost Calculation**: Activity tables now display actual calculated costs instead of stored cost values (Fixed: Cost columns no longer show "-" or $0.00)
 - **List Command Integration**: Cost information included in table, JSON, and CSV outputs with `--show-pricing` flag
 - **Burn Rate Cost Estimation**: Real-time 5-hour block cost projection in burn rate line based on current spending rate
 - **Async Architecture**: All pricing operations are async to prevent UI blocking

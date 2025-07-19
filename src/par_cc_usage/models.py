@@ -411,6 +411,7 @@ class UsageSnapshot:
     total_limit: int | None = None
     message_limit: int | None = None
     block_start_override: datetime | None = None
+    unified_blocks: list[UnifiedBlock] = field(default_factory=list)
 
     @property
     def total_tokens(self) -> int:
@@ -449,9 +450,104 @@ class UsageSnapshot:
         return [project for project in self.projects.values() if project.active_sessions]
 
     @property
+    def unified_block_projects(self) -> list[Project]:
+        """Get projects with activity in the current unified block."""
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(self.unified_blocks)
+        if not current_block:
+            return []
+
+        # Return projects that have data in the current unified block
+        active_projects = []
+        for project_name in current_block.projects:
+            if project_name in self.projects:
+                active_projects.append(self.projects[project_name])
+        return active_projects
+
+    def get_unified_block_project_data(self, project_name: str) -> dict[str, Any]:
+        """Get project data from the current unified block."""
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(self.unified_blocks)
+        if not current_block or project_name not in current_block.projects:
+            return {
+                "tokens": 0,
+                "messages": 0,
+                "models": set(),
+                "tools": set(),
+                "tool_calls": 0,
+                "cost": 0.0,
+            }
+
+        # Calculate project-specific data from unified block entries
+        project_tokens = 0
+        project_messages = 0
+        project_models = set()
+        project_tools = set()
+        project_tool_calls = 0
+
+        for entry in current_block.entries:
+            if entry.project_name == project_name:
+                project_tokens += entry.token_usage.total
+                project_messages += 1
+                project_models.add(entry.model)
+                project_tools.update(entry.tools_used)
+                project_tool_calls += entry.tool_use_count
+                # Note: entry.cost_usd is always 0, so we store entries for async cost calculation
+                # Cost calculation will be done separately by the display layer
+
+        return {
+            "tokens": project_tokens,
+            "messages": project_messages,
+            "models": project_models,
+            "tools": project_tools,
+            "tool_calls": project_tool_calls,
+            "cost": 0.0,  # Cost calculation moved to async display layer
+        }
+
+    async def get_unified_block_project_cost(self, project_name: str) -> float:
+        """Get project cost from the current unified block (async calculation)."""
+        from .pricing import calculate_token_cost
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(self.unified_blocks)
+        if not current_block or project_name not in current_block.projects:
+            return 0.0
+
+        project_cost = 0.0
+        for entry in current_block.entries:
+            if entry.project_name == project_name:
+                usage = entry.token_usage
+                try:
+                    cost = await calculate_token_cost(
+                        entry.full_model_name,
+                        usage.actual_input_tokens,
+                        usage.actual_output_tokens,
+                        usage.actual_cache_creation_input_tokens,
+                        usage.actual_cache_read_input_tokens,
+                    )
+                    project_cost += cost.total_cost
+                except Exception:
+                    # If cost calculation fails, skip this entry
+                    continue
+
+        return project_cost
+
+    @property
     def active_session_count(self) -> int:
         """Get total count of active sessions."""
         return sum(len(project.active_sessions) for project in self.projects.values())
+
+    @property
+    def unified_block_session_count(self) -> int:
+        """Get count of sessions in the current unified block."""
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return len(current_block.sessions)
+        return 0
 
     def tokens_by_model(self) -> dict[str, int]:
         """Get token usage grouped by model from all active blocks."""
@@ -502,143 +598,96 @@ class UsageSnapshot:
         return model_messages
 
     def unified_block_tokens(self) -> int:
-        """Get tokens only from blocks that overlap with the unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return 0
+        """Get tokens from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        total = 0
-        for project in self.projects.values():
-            total += project.get_unified_block_tokens(unified_start)
-        return total
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.total_tokens
+        return 0
 
     def unified_block_tokens_by_model(self) -> dict[str, int]:
-        """Get token usage by model only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return {}
+        """Get token usage by model from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        model_tokens: dict[str, int] = {}
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        if block.model_tokens:
-                            # Use per-model token tracking if available
-                            for model, tokens in block.model_tokens.items():
-                                if model not in model_tokens:
-                                    model_tokens[model] = 0
-                                model_tokens[model] += tokens
-                        else:
-                            # Fallback to old method
-                            model = block.model
-                            if model not in model_tokens:
-                                model_tokens[model] = 0
-                            model_tokens[model] += block.adjusted_tokens
-        return model_tokens
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.model_tokens.copy()
+        return {}
 
     def unified_block_messages(self) -> int:
-        """Get messages only from blocks that overlap with the unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return 0
+        """Get messages from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        total = 0
-        for project in self.projects.values():
-            total += project.get_unified_block_messages(unified_start)
-        return total
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.messages_processed
+        return 0
 
     def unified_block_messages_by_model(self) -> dict[str, int]:
-        """Get message usage by model only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return {}
+        """Get message usage by model from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        model_messages: dict[str, int] = {}
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        if block.model_message_counts:
-                            # Use per-model message tracking if available
-                            for model, messages in block.model_message_counts.items():
-                                if model not in model_messages:
-                                    model_messages[model] = 0
-                                model_messages[model] += messages
-                        else:
-                            # Fallback to block message count
-                            model = block.model
-                            if model not in model_messages:
-                                model_messages[model] = 0
-                            model_messages[model] += block.message_count
-        return model_messages
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.model_message_counts.copy()
+        return {}
 
     def unified_block_tool_usage(self) -> dict[str, int]:
-        """Get tool usage counts only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return {}
+        """Get tool usage counts from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        tool_counts: dict[str, int] = {}
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        for tool, count in block.tool_call_counts.items():
-                            if tool not in tool_counts:
-                                tool_counts[tool] = 0
-                            tool_counts[tool] += count
-        return tool_counts
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.tool_call_counts.copy()
+        return {}
 
     def unified_block_total_tool_calls(self) -> int:
-        """Get total tool calls only from blocks overlapping with unified block time window."""
-        unified_start = self.unified_block_start_time
-        if not unified_start:
-            return 0
+        """Get total tool calls from the current unified block."""
+        from .token_calculator import get_current_unified_block
 
-        total = 0
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        total += block.total_tool_calls
-        return total
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.total_tool_calls
+        return 0
 
     async def get_unified_block_cost_by_model(self) -> dict[str, float]:
-        """Get cost breakdown by model only from blocks overlapping with unified block time window."""
+        """Get cost breakdown by model from the current unified block."""
         from .pricing import calculate_token_cost
+        from .token_calculator import get_current_unified_block
 
-        unified_start = self.unified_block_start_time
-        if not unified_start:
+        current_block = get_current_unified_block(self.unified_blocks)
+        if not current_block:
             return {}
 
+        # Calculate costs for each model in the unified block
         model_costs: dict[str, float] = {}
-        for project in self.projects.values():
-            for session in project.sessions.values():
-                for block in session.blocks:
-                    if block.is_active and project._block_overlaps_unified_window(block, unified_start):
-                        # Calculate cost for each full model name in the block
-                        for full_model in block.full_model_names:
-                            if full_model not in model_costs:
-                                model_costs[full_model] = 0.0
+        for full_model in current_block.full_model_names:
+            model_costs[full_model] = 0.0
 
-                            # Calculate cost based on actual token usage (for accurate pricing)
-                            usage = block.token_usage
-                            cost = await calculate_token_cost(
-                                full_model,
-                                usage.actual_input_tokens,
-                                usage.actual_output_tokens,
-                                usage.actual_cache_creation_input_tokens,
-                                usage.actual_cache_read_input_tokens,
-                            )
-                            model_costs[full_model] += cost.total_cost
+            # Sum up costs from all entries with this model
+            for entry in current_block.entries:
+                if entry.full_model_name == full_model:
+                    usage = entry.token_usage
+                    cost = await calculate_token_cost(
+                        full_model,
+                        usage.actual_input_tokens,
+                        usage.actual_output_tokens,
+                        usage.actual_cache_creation_input_tokens,
+                        usage.actual_cache_read_input_tokens,
+                    )
+                    model_costs[full_model] += cost.total_cost
 
         return model_costs
 
     async def get_unified_block_total_cost(self) -> float:
-        """Get total cost only from blocks overlapping with unified block time window."""
-        model_costs = await self.get_unified_block_cost_by_model()
-        return sum(model_costs.values())
+        """Get total cost from the current unified block."""
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(self.unified_blocks)
+        if current_block:
+            return current_block.cost_usd
+        return 0.0
 
     async def get_total_cost_by_model(self) -> dict[str, float]:
         """Get cost breakdown by model from all active blocks."""
@@ -680,25 +729,21 @@ class UsageSnapshot:
     def unified_block_start_time(self) -> datetime | None:
         """Get the unified billing block start time.
 
-        Uses entry-level aggregation to determine the correct unified block,
+        Returns the start time of the currently active unified block,
         or returns the override if provided.
 
-        This implements a straightforward approach:
-        aggregate all activity across sessions first, then determine the unified block
-        based on the most recent activity.
-
         Returns:
-            Unified block start time or None if no active entries
+            Unified block start time or None if no active blocks
         """
         # Use override if provided
         if self.block_start_override:
             return self.block_start_override
 
-        # Use the unified block calculation from token_calculator
-        # This implements entry-level aggregation for token usage
-        from .token_calculator import create_unified_blocks
+        # Get the current active unified block
+        from .token_calculator import get_current_unified_block
 
-        return create_unified_blocks(self.projects)
+        current_block = get_current_unified_block(self.unified_blocks)
+        return current_block.start_time if current_block else None
 
     @property
     def unified_block_end_time(self) -> datetime | None:
@@ -714,6 +759,130 @@ class UsageSnapshot:
             return None
 
         return start_time + timedelta(hours=5)
+
+
+@dataclass
+class UnifiedEntry:
+    """Entry data for unified block calculation across all projects/sessions."""
+
+    timestamp: datetime
+    project_name: str
+    session_id: str
+    model: str
+    full_model_name: str
+    token_usage: TokenUsage
+    tools_used: list[str] = field(default_factory=list[str])
+    tool_use_count: int = 0
+    cost_usd: float = 0.0
+    version: str | None = None
+
+
+@dataclass
+class UnifiedBlock:
+    """Represents a unified billing block across all projects and sessions."""
+
+    id: str  # ISO string of block start time
+    start_time: datetime
+    end_time: datetime  # start_time + 5 hours
+    actual_end_time: datetime | None = None  # Last activity in block
+    entries: list[UnifiedEntry] = field(default_factory=list[UnifiedEntry])
+
+    # Aggregated data
+    total_tokens: int = 0
+    actual_tokens: int = 0
+    token_usage: TokenUsage = field(default_factory=TokenUsage)
+    messages_processed: int = 0
+    cost_usd: float = 0.0
+
+    # Model tracking
+    models_used: set[str] = field(default_factory=set[str])
+    full_model_names: set[str] = field(default_factory=set[str])
+    model_tokens: dict[str, int] = field(default_factory=dict[str, int])
+    model_message_counts: dict[str, int] = field(default_factory=dict[str, int])
+
+    # Tool tracking
+    tools_used: set[str] = field(default_factory=set[str])
+    tool_call_counts: dict[str, int] = field(default_factory=dict[str, int])
+    total_tool_calls: int = 0
+
+    # Project/session tracking
+    projects: set[str] = field(default_factory=set[str])
+    sessions: set[str] = field(default_factory=set[str])
+
+    # Gap block flag
+    is_gap: bool = False
+
+    @property
+    def is_active(self) -> bool:
+        """Check if this block is currently active for billing purposes."""
+        if self.is_gap:
+            return False
+
+        now = datetime.now(self.start_time.tzinfo)
+
+        # Check if current time is after block end time
+        if now >= self.end_time:
+            return False
+
+        # Check time since last activity
+        last_activity = self.actual_end_time or self.start_time
+        time_since_activity = (now - last_activity).total_seconds()
+        session_duration_seconds = 5 * 3600  # 5 hours in seconds
+
+        return time_since_activity < session_duration_seconds
+
+    def add_entry(self, entry: UnifiedEntry) -> None:
+        """Add an entry to this block and update aggregated data."""
+        self.entries.append(entry)
+
+        # Update timestamps
+        if self.actual_end_time is None or entry.timestamp > self.actual_end_time:
+            self.actual_end_time = entry.timestamp
+
+        # Update tokens
+        usage = entry.token_usage
+        self.token_usage.input_tokens += usage.input_tokens
+        self.token_usage.output_tokens += usage.output_tokens
+        self.token_usage.cache_creation_input_tokens += usage.cache_creation_input_tokens
+        self.token_usage.cache_read_input_tokens += usage.cache_read_input_tokens
+        self.token_usage.actual_input_tokens += usage.actual_input_tokens
+        self.token_usage.actual_output_tokens += usage.actual_output_tokens
+        self.token_usage.actual_cache_creation_input_tokens += usage.actual_cache_creation_input_tokens
+        self.token_usage.actual_cache_read_input_tokens += usage.actual_cache_read_input_tokens
+
+        self.total_tokens = self.token_usage.total
+        self.actual_tokens = self.token_usage.actual_total
+
+        # Update messages
+        self.messages_processed += 1
+
+        # Update cost
+        self.cost_usd += entry.cost_usd
+
+        # Update model tracking
+        self.models_used.add(entry.model)
+        self.full_model_names.add(entry.full_model_name)
+
+        if entry.model not in self.model_tokens:
+            self.model_tokens[entry.model] = 0
+        self.model_tokens[entry.model] += usage.total
+
+        if entry.model not in self.model_message_counts:
+            self.model_message_counts[entry.model] = 0
+        self.model_message_counts[entry.model] += 1
+
+        # Update tool tracking
+        self.tools_used.update(entry.tools_used)
+        self.total_tool_calls += entry.tool_use_count
+
+        for tool in entry.tools_used:
+            if tool not in self.tool_call_counts:
+                self.tool_call_counts[tool] = 0
+            self.tool_call_counts[tool] += 1
+
+        # Update project/session tracking
+        self.projects.add(entry.project_name)
+        self.sessions.add(entry.session_id)
 
 
 @dataclass

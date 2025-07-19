@@ -118,6 +118,8 @@ uv run pccu monitor --no-cache --snapshot
 - Token counts don't match expected values
 - Tool usage shows incorrect tools or counts
 - Cost calculations seem wrong
+- Message counts showing as 0 (now fixed)
+- Active projects/sessions showing as 0 (now fixed)
 - After upgrading PAR CC Usage versions
 - When debugging data processing issues
 
@@ -152,6 +154,13 @@ When bumping the version:
 - Use Google style docstrings for functions, classes, and modules
 - Run `make checkall` before commits (format, lint, typecheck)
 
+### Unified Block System Guidelines
+- **Single Implementation**: Only unified blocks are supported (legacy session-based blocks removed)
+- **Standard Compatibility**: Block calculation must follow standard behavior
+- **Message Tracking**: Ensure message counts are properly tracked in TokenUsage and UnifiedBlock
+- **Display Updates**: All display components must use unified block data, not session-based data
+- **Active Counts**: Use `unified_block_projects` and `unified_block_session_count` for header counts
+
 ### Tools and Workflow
 - Use `json_analyzer.py` tool to read JSON/JSONL files from Claude project directories
 - Supports both JSON (.json) and JSONL (.jsonl) formats with automatic detection
@@ -159,29 +168,40 @@ When bumping the version:
 
 ## Architecture Overview
 
-PAR CC Usage is built around a unified block system that tracks token usage in 5-hour billing periods. It monitors Claude Code JSONL files, processes token data through a caching system, and provides real-time monitoring with cost tracking.
+PAR CC Usage is built around a **unified block system** that tracks token usage in 5-hour billing periods using standard behavior. It monitors Claude Code JSONL files, processes token data through a caching system, and provides real-time monitoring with cost tracking.
 
 ### Core Components
 
 - **File Monitor**: Watches Claude project directories for JSONL changes using position tracking
-- **Token Calculator**: Processes JSONL data and organizes usage into 5-hour blocks
+- **Unified Block Calculator**: Processes JSONL data and organizes usage into cross-project 5-hour blocks
 - **Display System**: Rich terminal UI with emoji-enhanced formatting (🪙💬💰) and real-time updates
 - **Pricing Integration**: LiteLLM API integration for cost calculations with fallback logic
 - **Configuration**: XDG-compliant configuration with automatic legacy migration
 
 ### Key Features
 
-- **Unified Block System**: Activity-based billing block detection for accurate usage tracking
+- **Unified Block System**: Cross-project/session billing block detection using standard behavior
+- **Message Count Tracking**: Accurate message counts displayed per model and total (💬)
+- **Active Project/Session Counts**: Real-time counts of active projects and sessions in current block
 - **High-Performance Cache**: File position tracking for 12x faster startup (0.3s vs 3.9s)
 - **Tool Usage Tracking**: Monitors Claude Code tool usage (Read, Edit, Bash, etc.)
 - **Cost Analysis**: Real-time cost tracking with burn rate estimation
 - **Export Capabilities**: JSON/CSV export with comprehensive pricing data
 
+### Unified Block System
+
+The system now uses a **single unified block approach** that:
+- Aggregates ALL entries across projects and sessions into a unified timeline
+- Creates 5-hour billing blocks based on temporal proximity using standard logic
+- Tracks projects, sessions, models, tools, and costs within each block
+- Provides accurate active project/session counts and message counts
+- Eliminates the legacy session-based block calculation (removed as of latest version)
+
 ### Data Flow
 
 1. **File Monitoring**: Watches `~/.claude/projects/` for JSONL file changes
-2. **Token Processing**: Parses messages and calculates usage per 5-hour blocks
-3. **Aggregation**: Creates unified snapshots across all projects and sessions
-4. **Display/Export**: Shows real-time data or exports to various formats
+2. **Entry Processing**: Parses messages and creates UnifiedEntry objects
+3. **Block Aggregation**: Groups entries into 5-hour unified blocks across all projects
+4. **Display/Export**: Shows real-time unified block data or exports to various formats
 
 See [Architecture Documentation](docs/ARCHITECTURE.md) for detailed system design.

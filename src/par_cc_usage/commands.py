@@ -52,18 +52,25 @@ def debug_blocks(
 
     # Scan all projects
     console.print(f"[yellow]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/yellow]")
-    projects = scan_all_projects(config, use_cache=False)
+    projects, unified_entries = scan_all_projects(config, use_cache=False)
 
     if not projects:
         console.print("[yellow]No projects found[/yellow]")
         return
+
+    # Create unified blocks
+    from par_cc_usage.token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
 
     # Show current time
     current_time = datetime.now(UTC)
     console.print(f"[bold]Current Time (UTC):[/bold] {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     # Create snapshot to use the unified block logic
-    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+    snapshot = aggregate_usage(
+        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+    )
 
     console.print(f"[bold]Configured Timezone:[/bold] {config.timezone}")
     console.print(f"[bold]Snapshot Timestamp:[/bold] {snapshot.timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
@@ -152,12 +159,13 @@ def _print_active_block_info(project_name: str, session_id: str, block: TokenBlo
     console.print(f"    - Tokens: {block.adjusted_tokens:,}")
 
 
-def _print_strategy_explanation(strategy: str) -> None:
-    """Print explanation for the smart unified block strategy."""
-    console.print(f"\n  [dim]Strategy '{strategy}' explanation:[/dim]")
-    console.print("    - Filters for blocks with recent activity (within 5 hours)")
-    console.print("    - Among recent blocks, selects the one with most tokens (main work session)")
-    console.print("    - Falls back to earliest active block if no recent activity")
+def _print_strategy_explanation() -> None:
+    """Print explanation for the unified block strategy."""
+    console.print("\n  [dim]Strategy explanation:[/dim]")
+    console.print("    - Aggregates ALL entries from ALL projects/sessions into unified timeline")
+    console.print("    - Creates blocks based on temporal proximity")
+    console.print("    - Selects currently active block from unified timeline")
+    console.print("    - Provides accurate billing block representation")
 
 
 def _validate_expected_time(
@@ -229,16 +237,26 @@ def debug_unified_block(
 
     # Scan all projects
     console.print("[yellow]Scanning projects...[/yellow]")
-    projects = scan_all_projects(config, use_cache=False)
+
+    # Scan projects and collect unified entries
+    projects, unified_entries = scan_all_projects(config, use_cache=False)
+
+    # Create unified blocks
+    from par_cc_usage.token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
+    console.print(f"[dim]Created {len(unified_blocks)} unified blocks from {len(unified_entries)} entries[/dim]")
 
     # Create snapshot
-    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+    snapshot = aggregate_usage(
+        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+    )
 
     # Show step-by-step calculation
     console.print("[bold]Step 1: Current time configuration[/bold]")
     console.print(f"  • Configured timezone: {config.timezone}")
     console.print(f"  • Snapshot timestamp: {snapshot.timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    console.print("  • Unified block strategy: smart")
+    console.print("  • Unified block strategy: unified timeline")
 
     console.print("\n[bold]Step 2: Find all active blocks[/bold]")
     active_blocks = _collect_active_blocks(projects)
@@ -265,6 +283,23 @@ def debug_unified_block(
     earliest_local = earliest_block.start_time.astimezone(configured_tz)
     console.print(f"    - Start time (local): {earliest_local.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
+    # Show unified blocks info
+    if unified_blocks:
+        console.print("\n[bold]Step 3.5: Unified blocks (new approach)[/bold]")
+        active_unified_blocks = [b for b in unified_blocks if b.is_active]
+        console.print(f"  • Total unified blocks: {len(unified_blocks)}")
+        console.print(f"  • Active unified blocks: {len(active_unified_blocks)}")
+
+        if active_unified_blocks:
+            current_block = active_unified_blocks[0]
+            console.print("  • Current unified block:")
+            console.print(f"    - Start time: {current_block.start_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            console.print(f"    - End time: {current_block.end_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            console.print(f"    - Projects: {len(current_block.projects)}")
+            console.print(f"    - Sessions: {len(current_block.sessions)}")
+            console.print(f"    - Total tokens: {current_block.total_tokens:,}")
+            console.print(f"    - Messages: {current_block.messages_processed}")
+
     console.print("\n[bold]Step 4: Unified block result[/bold]")
     unified_start = snapshot.unified_block_start_time
     if unified_start:
@@ -273,7 +308,7 @@ def debug_unified_block(
         console.print(f"  • Unified block start (local): {unified_local.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         console.print(f"  • Total active tokens: {snapshot.active_tokens:,}")
 
-        _print_strategy_explanation("smart")
+        _print_strategy_explanation()
 
         # Validate against expected time (if provided)
         _validate_expected_time(unified_local, expected_hour, "Unified block starts")
@@ -312,7 +347,7 @@ def debug_recent_activity(
 
     # Scan all projects
     console.print("[yellow]Scanning projects...[/yellow]")
-    projects = scan_all_projects(config, use_cache=False)
+    projects, unified_entries = scan_all_projects(config, use_cache=False)
 
     # Get current time and the cutoff time
     import pytz
@@ -370,8 +405,15 @@ def debug_recent_activity(
 
     console.print(table)
 
+    # Create unified blocks
+    from par_cc_usage.token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
+
     # Analysis
-    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+    snapshot = aggregate_usage(
+        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+    )
     _print_recent_activity_analysis(most_recent_active, snapshot, config, tz, expected_hour)
 
 
@@ -568,8 +610,16 @@ def debug_session_table(
 
     # Get usage data
     try:
-        projects = scan_all_projects(config)
-        snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+        projects, unified_entries = scan_all_projects(config)
+
+        # Create unified blocks
+        from par_cc_usage.token_calculator import create_unified_blocks
+
+        unified_blocks = create_unified_blocks(unified_entries)
+
+        snapshot = aggregate_usage(
+            projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+        )
     except Exception as e:
         console.print(f"[red]Error scanning projects: {e}[/red]")
         return

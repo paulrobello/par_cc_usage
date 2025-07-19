@@ -48,8 +48,8 @@ uv run pccu monitor --no-cache --snapshot
 
 - Token counts don't match expected values
 - Tool usage shows incorrect tools or counts
-- Cost calculations seem wrong
-- After upgrading PAR CC Usage versions
+- Cost calculations seem wrong or show "-" instead of actual costs
+- After upgrading PAR CC Usage versions (especially when cost display was fixed)
 - When debugging data processing issues
 - If display shows stale or missing information
 - If monitor shows no data initially then wrong data after delays
@@ -154,11 +154,18 @@ uv run pccu monitor --debug --snapshot
 ### 3. Cost Calculation Problems
 
 **Symptoms:**
-- Missing cost information
+- Missing cost information or cost columns showing "-"
+- Cost display showing $0.00 instead of actual costs
 - Incorrect cost calculations
 - Cost source showing wrong method
 
-**Solutions:**
+**Common Issues & Solutions:**
+
+**Issue: Cost columns show "-" instead of actual costs**
+- **Cause**: Fixed in recent version - activity tables now use async cost calculation
+- **Solution**: Update to latest version or clear cache to ensure proper cost display
+
+**Other Troubleshooting:**
 ```bash
 # Clear cache and test pricing
 uv run pccu clear-cache

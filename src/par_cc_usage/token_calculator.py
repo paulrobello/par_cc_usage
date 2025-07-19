@@ -10,7 +10,171 @@ from typing import Any
 import pytz
 
 from .json_models import TokenUsageData, ValidationResult
-from .models import DeduplicationState, Project, Session, TokenBlock, TokenUsage, UsageSnapshot
+from .models import (
+    DeduplicationState,
+    Project,
+    Session,
+    TokenBlock,
+    TokenUsage,
+    UnifiedBlock,
+    UnifiedEntry,
+    UsageSnapshot,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class UnifiedBlockCalculator:
+    """Calculates unified blocks across all projects and sessions."""
+
+    def __init__(self, session_duration_hours: int = 5):
+        """Initialize the calculator.
+
+        Args:
+            session_duration_hours: Duration of each block in hours (default: 5)
+        """
+        self.session_duration_hours = session_duration_hours
+        self.session_duration_ms = session_duration_hours * 60 * 60 * 1000
+
+    def create_unified_blocks(self, entries: list[UnifiedEntry]) -> list[UnifiedBlock]:
+        """Create unified blocks from entries.
+
+        This implements standard identifySessionBlocks logic:
+        1. Sort entries by timestamp
+        2. Group into blocks based on time proximity
+        3. Create gap blocks for significant gaps
+
+        Args:
+            entries: List of unified entries from all projects/sessions
+
+        Returns:
+            List of unified blocks
+        """
+        if not entries:
+            return []
+
+        # Sort entries by timestamp
+        sorted_entries = sorted(entries, key=lambda e: e.timestamp)
+
+        blocks: list[UnifiedBlock] = []
+        current_block_start: datetime | None = None
+        current_block: UnifiedBlock | None = None
+
+        for entry in sorted_entries:
+            if current_block_start is None:
+                # First entry - start a new block
+                current_block_start, current_block = self._start_new_block(entry)
+            else:
+                # Check if we need to start a new block
+                if self._should_start_new_block(entry, current_block_start, current_block):
+                    # Close current block and handle gap if needed
+                    blocks = self._close_and_handle_gap(blocks, current_block, entry)
+                    # Start new block
+                    current_block_start, current_block = self._start_new_block(entry)
+                else:
+                    # Add to current block
+                    if current_block:
+                        current_block.add_entry(entry)
+
+        # Close the last block
+        if current_block:
+            blocks.append(current_block)
+
+        return blocks
+
+    def _should_start_new_block(
+        self, entry: UnifiedEntry, current_block_start: datetime, current_block: UnifiedBlock | None
+    ) -> bool:
+        """Check if we should start a new block for this entry."""
+        entry_time = entry.timestamp
+        time_since_block_start = (entry_time - current_block_start).total_seconds() * 1000
+
+        if current_block and current_block.actual_end_time:
+            time_since_last_entry = (entry_time - current_block.actual_end_time).total_seconds() * 1000
+        else:
+            time_since_last_entry = 0
+
+        return time_since_block_start > self.session_duration_ms or time_since_last_entry > self.session_duration_ms
+
+    def _start_new_block(self, entry: UnifiedEntry) -> tuple[datetime, UnifiedBlock]:
+        """Start a new block for the given entry."""
+        block_start = _floor_to_hour(entry.timestamp)
+        block = self._create_block(block_start)
+        block.add_entry(entry)
+        return block_start, block
+
+    def _close_and_handle_gap(
+        self, blocks: list[UnifiedBlock], current_block: UnifiedBlock | None, next_entry: UnifiedEntry
+    ) -> list[UnifiedBlock]:
+        """Close current block and add gap block if needed."""
+        if current_block:
+            blocks.append(current_block)
+
+            # Add gap block if there's a significant gap
+            if current_block.actual_end_time:
+                time_since_last = (next_entry.timestamp - current_block.actual_end_time).total_seconds() * 1000
+                if time_since_last > self.session_duration_ms:
+                    gap_block = self._create_gap_block(current_block.actual_end_time, next_entry.timestamp)
+                    if gap_block:
+                        blocks.append(gap_block)
+
+        return blocks
+
+    def _create_block(self, start_time: datetime) -> UnifiedBlock:
+        """Create a new unified block.
+
+        Args:
+            start_time: Block start time (already floored to hour)
+
+        Returns:
+            New UnifiedBlock instance
+        """
+        end_time = start_time + timedelta(hours=self.session_duration_hours)
+
+        return UnifiedBlock(
+            id=start_time.isoformat(),
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    def _create_gap_block(self, last_activity_time: datetime, next_activity_time: datetime) -> UnifiedBlock | None:
+        """Create a gap block representing periods with no activity.
+
+        Args:
+            last_activity_time: Time of last activity before gap
+            next_activity_time: Time of next activity after gap
+
+        Returns:
+            Gap block or None if gap is too short
+        """
+        # Only create gap blocks for gaps longer than the session duration
+        gap_duration = (next_activity_time - last_activity_time).total_seconds() * 1000
+        if gap_duration <= self.session_duration_ms:
+            return None
+
+        gap_start = last_activity_time + timedelta(hours=self.session_duration_hours)
+        gap_end = next_activity_time
+
+        return UnifiedBlock(
+            id=f"gap-{gap_start.isoformat()}",
+            start_time=gap_start,
+            end_time=gap_end,
+            is_gap=True,
+        )
+
+    def find_current_unified_block(self, blocks: list[UnifiedBlock]) -> UnifiedBlock | None:
+        """Find the currently active unified block.
+
+        Args:
+            blocks: List of unified blocks
+
+        Returns:
+            The currently active block or None
+        """
+        for block in blocks:
+            if block.is_active:
+                return block
+        return None
 
 
 def _get_model_multiplier(model: str) -> float:
@@ -292,6 +456,7 @@ def extract_token_usage(data: dict[str, Any], message_data: dict[str, Any]) -> T
         model=model,
         tools_used=tools_used,
         tool_use_count=tool_use_count,
+        message_count=1,  # Each TokenUsage represents one message
         actual_input_tokens=actual_input_tokens,
         actual_cache_creation_input_tokens=actual_cache_creation_input_tokens,
         actual_cache_read_input_tokens=actual_cache_read_input_tokens,
@@ -550,12 +715,14 @@ def _process_message_data(
     # Validate using Pydantic models
     validation_result = _validate_jsonl_data(data)
     if not validation_result.is_valid or validation_result.data is None:
+        logger.debug(f"Validation failed: {validation_result.errors}")
         return None
 
     validated_data = validation_result.data
 
     # Check if message data exists
     if validated_data.message is None:
+        logger.debug("No message data found in validated data")
         return None
 
     message_data = validated_data.message
@@ -630,6 +797,58 @@ def _process_token_block(
             _update_existing_block(block, token_usage, model, original_model, timestamp)
 
 
+def create_unified_entry(
+    data: dict[str, Any],
+    project_path: str,
+    session_id: str,
+    dedup_state: DeduplicationState | None = None,
+) -> UnifiedEntry | None:
+    """Create a UnifiedEntry from JSONL data.
+
+    Args:
+        data: Parsed JSON data from line
+        project_path: Path of the project
+        session_id: Session ID
+        dedup_state: Deduplication state (optional)
+
+    Returns:
+        UnifiedEntry or None if processing fails
+    """
+    try:
+        # Validate and parse timestamp
+        timestamp = _validate_and_parse_timestamp(data)
+        if timestamp is None:
+            return None
+
+        # Process message data
+        message_result = _process_message_data(data, dedup_state)
+        if message_result is None:
+            return None
+
+        model, original_model, token_usage = message_result
+
+        # Extract tool usage from message data
+        message = data.get("message", {})
+        tools_used, tool_use_count = extract_tool_usage(message)
+
+        # Create unified entry
+        return UnifiedEntry(
+            timestamp=timestamp,
+            project_name=project_path,
+            session_id=session_id,
+            model=model,
+            full_model_name=original_model,
+            token_usage=token_usage,
+            tools_used=tools_used,
+            tool_use_count=tool_use_count,
+            cost_usd=token_usage.cost_usd or 0.0,
+            version=token_usage.version,
+        )
+
+    except Exception:
+        return None
+
+
 def process_jsonl_line(
     data: dict[str, Any],
     project_path: str,
@@ -637,6 +856,7 @@ def process_jsonl_line(
     projects: dict[str, Project],
     dedup_state: DeduplicationState | None = None,
     timezone_str: str = "America/Los_Angeles",
+    unified_entries: list[UnifiedEntry] | None = None,
 ) -> None:
     """Process a single JSONL line and update projects data with robust error handling.
 
@@ -647,11 +867,19 @@ def process_jsonl_line(
         projects: Dictionary of projects to update
         dedup_state: Deduplication state (optional)
         timezone_str: Timezone for display
+        unified_entries: Optional list to collect unified entries for unified block calculation
     """
+    # If unified_entries is provided, create and collect the entry
+    if unified_entries is not None:
+        entry = create_unified_entry(data, project_path, session_id, dedup_state)
+        if entry is not None:
+            unified_entries.append(entry)
+
     try:
         # Validate and parse timestamp
         timestamp = _validate_and_parse_timestamp(data)
         if timestamp is None:
+            logger.debug(f"No timestamp found in data for session {session_id}")
             return
 
         # Get or create session
@@ -660,15 +888,18 @@ def process_jsonl_line(
         # Process message data
         message_result = _process_message_data(data, dedup_state)
         if message_result is None:
+            logger.debug(f"No message data found for session {session_id}")
             return
 
         model, original_model, token_usage = message_result
+        logger.debug(f"Processing message for session {session_id}: model={model}, tokens={token_usage.total}")
 
         # Update session model if different
         _update_session_model(session, model)
 
         # Process token usage into appropriate block
         _process_token_block(session, timestamp, session_id, project_path, model, original_model, token_usage)
+        logger.debug(f"Session {session_id} now has {len(session.blocks)} blocks")
 
     except Exception:
         # Skip any entries that fail processing completely
@@ -734,24 +965,35 @@ def _is_block_active_style(block: TokenBlock, now: datetime) -> bool:
     return time_since_activity < session_duration_seconds and now < end_time
 
 
-def create_unified_blocks(projects: dict[str, Project]) -> datetime | None:
-    """Find the current block start time using time-based logic.
+def create_unified_blocks(unified_entries: list[UnifiedEntry]) -> list[UnifiedBlock]:
+    """Create unified blocks from entries using standard approach.
 
-    Uses simple time-based flooring: current time floored to the hour.
-    This provides consistent billing block representation.
+    This function implements standard logic:
+    1. Aggregates all entries across projects/sessions
+    2. Creates blocks based on the unified timeline
+    3. Returns blocks that represent actual billing periods
 
     Args:
-        projects: Dictionary of projects with per-session blocks
+        unified_entries: List of all entries from all projects/sessions
 
     Returns:
-        The current time floored to the hour or None if no usage data
+        List of unified blocks
     """
-    if not _has_usage_data(projects):
-        return None
+    calculator = UnifiedBlockCalculator()
+    return calculator.create_unified_blocks(unified_entries)
 
-    # Use time-based approach: floor current time to the hour
-    now = datetime.now(UTC)
-    return _floor_to_hour(now)
+
+def get_current_unified_block(unified_blocks: list[UnifiedBlock]) -> UnifiedBlock | None:
+    """Get the currently active unified block.
+
+    Args:
+        unified_blocks: List of unified blocks
+
+    Returns:
+        The currently active block or None
+    """
+    calculator = UnifiedBlockCalculator()
+    return calculator.find_current_unified_block(unified_blocks)
 
 
 def _floor_to_hour(timestamp: datetime) -> datetime:
@@ -779,6 +1021,7 @@ def aggregate_usage(
     message_limit: int | None = None,
     timezone_str: str = "America/Los_Angeles",
     block_start_override: datetime | None = None,
+    unified_blocks: list[UnifiedBlock] | None = None,
 ) -> UsageSnapshot:
     """Aggregate usage data into a snapshot.
 
@@ -787,6 +1030,8 @@ def aggregate_usage(
         token_limit: Token limit for display
         message_limit: Message limit for display
         timezone_str: Timezone for display
+        block_start_override: Override for block start time
+        unified_blocks: Optional list of unified blocks (new approach)
 
     Returns:
         Usage snapshot
@@ -794,8 +1039,12 @@ def aggregate_usage(
     tz = pytz.timezone(timezone_str)
     current_time = datetime.now(tz)
 
-    # Create unified blocks first
-    unified_start = create_unified_blocks(projects)
+    # Determine unified block start time from unified blocks
+    if unified_blocks:
+        current_block = get_current_unified_block(unified_blocks)
+        unified_start = current_block.start_time if current_block else None
+    else:
+        unified_start = None
 
     snapshot = UsageSnapshot(
         timestamp=current_time,
@@ -803,6 +1052,7 @@ def aggregate_usage(
         total_limit=token_limit,
         message_limit=message_limit,
         block_start_override=block_start_override or unified_start,
+        unified_blocks=unified_blocks or [],
     )
 
     return snapshot

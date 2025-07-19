@@ -137,9 +137,10 @@ class TestScanAllProjects:
 
         # Mock get_claude_paths to return empty temp directory
         with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
-            projects = scan_all_projects(mock_config)
+            projects, unified_entries = scan_all_projects(mock_config)
 
         assert projects == {}
+        assert unified_entries == []
 
     @patch('par_cc_usage.main.FileMonitor')
     def test_scan_all_projects_with_files(self, mock_monitor_class, temp_dir, mock_config):
@@ -183,11 +184,12 @@ class TestScanAllProjects:
         with patch.object(type(mock_config), 'get_claude_paths', return_value=[temp_dir]):
             # Mock process_file to return 1 line processed
             with patch('par_cc_usage.main.process_file', return_value=1):
-                projects = scan_all_projects(mock_config, monitor=existing_monitor)
+                projects, unified_entries = scan_all_projects(mock_config, monitor=existing_monitor)
 
         # Verify the existing monitor was used (file should be in file_states)
         assert test_file in existing_monitor.file_states
         assert isinstance(projects, dict)
+        assert isinstance(unified_entries, list)
 
     def test_scan_all_projects_monitor_parameter_priority(self, temp_dir, mock_config):
         """Test that provided monitor parameter takes priority over creating new one."""
@@ -214,13 +216,14 @@ class TestScanAllProjects:
             with patch('par_cc_usage.main.process_file', return_value=1):
                 # Use patch to ensure FileMonitor constructor is NOT called
                 with patch('par_cc_usage.main.FileMonitor') as mock_monitor_constructor:
-                    projects = scan_all_projects(mock_config, monitor=existing_monitor)
+                    projects, unified_entries = scan_all_projects(mock_config, monitor=existing_monitor)
 
         # Verify FileMonitor constructor was NOT called (existing monitor was used)
         mock_monitor_constructor.assert_not_called()
         # Verify the existing monitor was used
         assert test_file in existing_monitor.file_states
         assert isinstance(projects, dict)
+        assert isinstance(unified_entries, list)
 
     def test_scan_all_projects_cache_consistency(self, temp_dir, mock_config):
         """Test that cache state is consistent when using existing monitor."""
@@ -239,14 +242,16 @@ class TestScanAllProjects:
             # Mock process_file to return 1 line processed
             with patch('par_cc_usage.main.process_file', return_value=1):
                 # First call with use_cache=True
-                projects1 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
+                projects1, unified_entries1 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
 
                 # Second call with use_cache=True should use cached positions
-                projects2 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
+                projects2, unified_entries2 = scan_all_projects(mock_config, use_cache=True, monitor=existing_monitor)
 
-        # Both calls should return valid projects
+        # Both calls should return valid projects and unified entries
         assert isinstance(projects1, dict)
         assert isinstance(projects2, dict)
+        assert isinstance(unified_entries1, list)
+        assert isinstance(unified_entries2, list)
         # File state should be preserved between calls
         assert test_file in existing_monitor.file_states
 
@@ -288,7 +293,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         mock_init.return_value = ([], Mock(), Mock(), Mock())
@@ -308,8 +313,8 @@ class TestMonitorCommand:
         mock_load_config.return_value = mock_config
         mock_config.polling_interval = 1
 
-        # Mock scan_all_projects to return empty projects
-        mock_scan.return_value = {}
+        # Mock scan_all_projects to return empty projects and unified entries
+        mock_scan.return_value = ({}, [])
 
         runner = CliRunner()
 
@@ -333,7 +338,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config) as mock_load:
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         mock_init.return_value = ([], Mock(), Mock(), Mock())
@@ -362,7 +367,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         mock_init.return_value = ([], Mock(), Mock(), Mock())
@@ -382,7 +387,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         with patch('par_cc_usage.main._parse_monitor_options') as mock_parse:
@@ -404,7 +409,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         with patch('par_cc_usage.main.logging.basicConfig') as mock_logging:
@@ -426,7 +431,7 @@ class TestMonitorCommand:
         runner = CliRunner()
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
-            with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+            with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                 with patch('par_cc_usage.main.DisplayManager') as mock_display:
                     with patch('par_cc_usage.main._initialize_monitor_components') as mock_init:
                         with patch('par_cc_usage.main.logging.basicConfig') as mock_logging:
@@ -473,7 +478,7 @@ class TestListCommand:
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
             with patch.object(type(mock_config), 'get_claude_paths', return_value=[Path("/fake/path")]):
-                with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                     with patch('par_cc_usage.main.display_usage_list') as mock_display:
                         result = runner.invoke(app, ["list"])
 
@@ -486,7 +491,7 @@ class TestListCommand:
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
             with patch.object(type(mock_config), 'get_claude_paths', return_value=[Path("/fake/path")]):
-                with patch('par_cc_usage.main.scan_all_projects', return_value={}):
+                with patch('par_cc_usage.main.scan_all_projects', return_value=({}, [])):
                     with patch('par_cc_usage.main.display_usage_list') as mock_display:
                         result = runner.invoke(app, ["list", "--format", "json"])
 

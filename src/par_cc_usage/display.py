@@ -163,8 +163,8 @@ class MonitorDisplay:
         Returns:
             Header panel
         """
-        active_projects = len(snapshot.active_projects)
-        active_sessions = snapshot.active_session_count
+        active_projects = len(snapshot.unified_block_projects)
+        active_sessions = snapshot.unified_block_session_count
         # Use the configured timezone from snapshot for time-only display
         current_time = format_time(snapshot.timestamp, self.time_format)
 
@@ -1033,22 +1033,25 @@ class MonitorDisplay:
         """Collect and sort project data."""
         active_projects = []
 
-        for project in snapshot.active_projects:
-            project_tokens = project.get_unified_block_tokens(unified_start)
+        # Use unified block projects instead of session-based active projects
+        for project in snapshot.unified_block_projects:
+            # Get project data from unified block
+            project_data = snapshot.get_unified_block_project_data(project.name)
+
+            project_tokens = project_data["tokens"]
             if project_tokens <= 0:
                 continue
 
-            project_messages = project.get_unified_block_messages(unified_start)
-            project_models = project.get_unified_block_models(unified_start)
+            project_messages = project_data["messages"]
+            project_models = project_data["models"]
             project_latest_activity = project.get_unified_block_latest_activity(unified_start)
-            project_tools = (
-                project.get_unified_block_tools(unified_start) if self.config.display.show_tool_usage else set()
-            )
-            project_tool_calls = (
-                project.get_unified_block_tool_calls(unified_start) if self.config.display.show_tool_usage else 0
-            )
+            project_tools = project_data["tools"] if self.config.display.show_tool_usage else set()
+            project_tool_calls = project_data["tool_calls"] if self.config.display.show_tool_usage else 0
 
-            project_cost = await self._calculate_project_cost(project, unified_start) if show_pricing else 0.0
+            # Calculate cost using async method if pricing is enabled
+            project_cost = 0.0
+            if show_pricing:
+                project_cost = await snapshot.get_unified_block_project_cost(project.name)
 
             active_projects.append(
                 (
@@ -1170,19 +1173,78 @@ class MonitorDisplay:
         """Collect and sort session data."""
         active_sessions = []
 
-        for project in snapshot.active_projects:
-            for session in project.active_sessions:
-                session_data = await self._calculate_session_data_with_cost(session, unified_start, show_pricing)
-                if session_data[0] > 0:  # session_tokens > 0
-                    active_sessions.append((project, session, *session_data))
+        # Get sessions from the current unified block instead of using project.active_sessions
+        from .token_calculator import get_current_unified_block
 
-        # Sort sessions by latest activity time (newest first)
+        current_block = get_current_unified_block(snapshot.unified_blocks)
+
+        if current_block and current_block.sessions:
+            sessions_found = await self._collect_unified_block_sessions(snapshot, current_block, active_sessions)
+
+            # If we couldn't find any sessions from the unified block, fall back to active sessions
+            if sessions_found == 0:
+                await self._collect_fallback_sessions(snapshot, unified_start, show_pricing, active_sessions)
+        else:
+            # Fallback: if no current unified block, use all projects with active sessions
+            await self._collect_fallback_sessions(snapshot, unified_start, show_pricing, active_sessions)
+
+        return self._sort_sessions_by_activity(active_sessions)
+
+    async def _collect_unified_block_sessions(
+        self, snapshot: UsageSnapshot, current_block, active_sessions: list
+    ) -> int:
+        """Collect sessions from unified block."""
+        sessions_found = 0
+        for session_id in current_block.sessions:
+            project, session = self._find_project_and_session(snapshot, session_id)
+
+            if project and session:
+                session_data_basic = self._calculate_session_data_from_unified_block(
+                    session_id, project.name, current_block
+                )
+                if session_data_basic[0] > 0:  # session_tokens > 0
+                    session_data = self._format_unified_session_data(
+                        session_data_basic, session_id, project.name, current_block
+                    )
+                    active_sessions.append((project, session, *session_data))
+                    sessions_found += 1
+        return sessions_found
+
+    def _format_unified_session_data(self, session_data_basic, session_id: str, project_name: str, current_block):
+        """Format session data from unified block into expected format."""
+        session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls = session_data_basic
+        session_messages = len(
+            [e for e in current_block.entries if e.session_id == session_id and e.project_name == project_name]
+        )
+        session_cost = 0.0  # Cost calculation can be added later if needed
+        return (
+            session_tokens,
+            session_messages,
+            session_models,
+            session_latest_activity,
+            session_tools,
+            session_tool_calls,
+            session_cost,
+        )
+
+    async def _collect_fallback_sessions(
+        self, snapshot: UsageSnapshot, unified_start, show_pricing: bool, active_sessions: list
+    ):
+        """Collect sessions using fallback method from active sessions."""
+        for project in snapshot.projects.values():
+            if project.active_sessions:
+                for session in project.active_sessions:
+                    session_data = await self._calculate_session_data_with_cost(session, unified_start, show_pricing)
+                    if session_data[0] > 0:  # session_tokens > 0
+                        active_sessions.append((project, session, *session_data))
+
+    def _sort_sessions_by_activity(self, active_sessions: list):
+        """Sort sessions by latest activity time (newest first)."""
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
         utc = ZoneInfo("UTC")
         active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
-
         return active_sessions
 
     def _add_session_table_row(
@@ -1295,6 +1357,30 @@ class MonitorDisplay:
 
         return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls
 
+    def _calculate_session_data_from_unified_block(
+        self, session_id: str, project_name: str, current_block: Any
+    ) -> tuple[int, set[str], datetime | None, set[str], int]:
+        """Calculate session data directly from unified block entries."""
+        session_tokens = 0
+        session_models: set[str] = set()
+        session_latest_activity = None
+        session_tools: set[str] = set()
+        session_tool_calls = 0
+
+        # Get data from unified block entries for this session
+        for entry in current_block.entries:
+            if entry.session_id == session_id and entry.project_name == project_name:
+                session_tokens += entry.token_usage.total
+                session_models.add(entry.model)
+                session_tools.update(entry.tools_used)
+                session_tool_calls += entry.tool_use_count
+
+                # Track the latest activity time
+                if session_latest_activity is None or entry.timestamp > session_latest_activity:
+                    session_latest_activity = entry.timestamp
+
+        return session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls
+
     async def _calculate_session_data_with_cost(
         self, session: Session, unified_start: datetime | None, show_pricing: bool
     ) -> tuple[int, int, set[str], datetime | None, set[str], int, float]:
@@ -1371,10 +1457,13 @@ class MonitorDisplay:
 
         # Get unified block start time
         unified_start = snapshot.unified_block_start_time
+        logger.debug(f"Creating sessions table, aggregate_by_project={self.config.display.aggregate_by_project}")
 
         if self.config.display.aggregate_by_project:
+            logger.debug("Using project table")
             self._populate_project_table_sync(table, snapshot, unified_start)
         else:
+            logger.debug("Using session table")
             self._populate_session_table_sync(table, snapshot, unified_start)
 
         # Add empty row if no data
@@ -1401,16 +1490,16 @@ class MonitorDisplay:
 
         # Collect project data (without cost)
         active_projects: list[tuple[Project, int, set[str], datetime | None, set[str], int]] = []
-        for project in snapshot.active_projects:
-            project_tokens = project.get_unified_block_tokens(unified_start)
-            project_models = project.get_unified_block_models(unified_start)
+        # Use unified block projects instead of session-based active projects
+        for project in snapshot.unified_block_projects:
+            # Get project data from unified block
+            project_data = snapshot.get_unified_block_project_data(project.name)
+
+            project_tokens = project_data["tokens"]
+            project_models = project_data["models"]
             project_latest_activity = project.get_unified_block_latest_activity(unified_start)
-            project_tools = (
-                project.get_unified_block_tools(unified_start) if self.config.display.show_tool_usage else set()
-            )
-            project_tool_calls = (
-                project.get_unified_block_tool_calls(unified_start) if self.config.display.show_tool_usage else 0
-            )
+            project_tools = project_data["tools"] if self.config.display.show_tool_usage else set()
+            project_tool_calls = project_data["tool_calls"] if self.config.display.show_tool_usage else 0
 
             if project_tokens > 0:
                 active_projects.append(
@@ -1461,10 +1550,25 @@ class MonitorDisplay:
                     format_token_count(project_tokens),
                 )
 
+    def _find_project_and_session(
+        self, snapshot: UsageSnapshot, session_id: str
+    ) -> tuple[Project | None, Session | None]:
+        """Find the project and session objects for a given session_id."""
+        for proj in snapshot.projects.values():
+            if session_id in proj.sessions:
+                return proj, proj.sessions[session_id]
+        return None, None
+
     def _populate_session_table_sync(
         self, table: Table, snapshot: UsageSnapshot, unified_start: datetime | None
     ) -> None:
         """Populate table with session data (sync version without pricing)."""
+        self._add_session_table_columns_sync(table)
+        active_sessions = self._collect_session_data_sync(snapshot, unified_start)
+        self._add_session_table_rows_sync(table, active_sessions)
+
+    def _add_session_table_columns_sync(self, table: Table) -> None:
+        """Add columns to session table for sync version."""
         table.add_column("Project", style=get_color("project_name"))
         table.add_column("Session ID", style="dim")
         table.add_column("Model", style=get_color("model_name"))
@@ -1472,52 +1576,84 @@ class MonitorDisplay:
         if self.config.display.show_tool_usage:
             table.add_column("Tools", style=get_color("tool_usage"), justify="center")
 
-        # Collect all active sessions with their data (without cost)
-        active_sessions: list[tuple[Project, Session, int, set[str], datetime | None, set[str], int]] = []
-        for project in snapshot.active_projects:
-            for session in project.active_sessions:
-                session_data = self._calculate_session_data(session, unified_start)
+    def _collect_session_data_sync(self, snapshot: UsageSnapshot, unified_start: datetime | None):
+        """Collect session data for sync version."""
+        active_sessions = []
+        from .token_calculator import get_current_unified_block
+
+        current_block = get_current_unified_block(snapshot.unified_blocks)
+
+        if current_block and current_block.sessions:
+            sessions_found = self._collect_unified_block_sessions_sync(snapshot, current_block, active_sessions)
+            if sessions_found == 0:
+                self._collect_fallback_sessions_sync(snapshot, unified_start, active_sessions)
+        else:
+            self._collect_fallback_sessions_sync(snapshot, unified_start, active_sessions)
+
+        return self._sort_sessions_by_activity(active_sessions)
+
+    def _collect_unified_block_sessions_sync(
+        self, snapshot: UsageSnapshot, current_block, active_sessions: list
+    ) -> int:
+        """Collect sessions from unified block for sync version."""
+        sessions_found = 0
+        logger.debug(f"Processing {len(current_block.sessions)} sessions from unified block")
+
+        for session_id in current_block.sessions:
+            project, session = self._find_project_and_session(snapshot, session_id)
+            logger.debug(
+                f"Session {session_id[:8]}: project={project.name if project else None}, session_found={session is not None}"
+            )
+
+            if project and session:
+                session_data = self._calculate_session_data_from_unified_block(session_id, project.name, current_block)
+                logger.debug(f"Session {session_id[:8]}: tokens={session_data[0]}, models={len(session_data[1])}")
                 if session_data[0] > 0:  # session_tokens > 0
                     active_sessions.append((project, session, *session_data))
+                    sessions_found += 1
+                    logger.debug(f"Added session {session_id[:8]} to active sessions")
 
-        # Sort sessions by latest activity time (newest first)
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+        logger.debug(f"Found {sessions_found} sessions with data")
+        return sessions_found
 
-        utc = ZoneInfo("UTC")
-        active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+    def _collect_fallback_sessions_sync(
+        self, snapshot: UsageSnapshot, unified_start: datetime | None, active_sessions: list
+    ):
+        """Collect sessions using fallback method for sync version."""
+        for project in snapshot.projects.values():
+            if project.active_sessions:
+                for session in project.active_sessions:
+                    session_data = self._calculate_session_data(session, unified_start)
+                    if session_data[0] > 0:  # session_tokens > 0
+                        active_sessions.append((project, session, *session_data))
 
-        # Add rows for sorted sessions
+    def _add_session_table_rows_sync(self, table: Table, active_sessions: list):
+        """Add rows to session table for sync version."""
         for project, session, session_tokens, session_models, _, session_tools, session_tool_calls in active_sessions:
-            # Display models used
             from .token_calculator import get_model_display_name
 
             model_display = ", ".join(sorted({get_model_display_name(m) for m in session_models}))
 
-            # Prepare tool display if needed
-            if self.config.display.show_tool_usage:
-                if session_tools:
-                    # Show tools and call count
-                    tools_list = self._format_tool_list(session_tools)
-                    total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
-                    tool_display = f"{tools_list} {total_colored}"
-                else:
-                    tool_display = "-"
+            row_data = [
+                self._strip_project_name(project.name),
+                session.session_id,
+                model_display,
+                format_token_count(session_tokens),
+            ]
 
-                table.add_row(
-                    self._strip_project_name(project.name),
-                    session.session_id,
-                    model_display,
-                    format_token_count(session_tokens),
-                    tool_display,
-                )
-            else:
-                table.add_row(
-                    self._strip_project_name(project.name),
-                    session.session_id,
-                    model_display,
-                    format_token_count(session_tokens),
-                )
+            if self.config.display.show_tool_usage:
+                tool_display = self._format_session_tools_display(session_tools, session_tool_calls)
+                row_data.append(tool_display)
+
+            table.add_row(*row_data)
+
+    def _format_session_tools_display(self, session_tools: set, session_tool_calls: int) -> str:
+        """Format tool display for session table."""
+        if session_tools:
+            tools_list = self._format_tool_list(session_tools)
+            total_colored = f"[{get_color('tool_total')}]({session_tool_calls})[/]"
+            return f"{tools_list} {total_colored}"
+        return "-"
 
     def _should_include_block(self, block: Any, unified_start: datetime | None) -> bool:
         """Determine if a block should be included based on unified block time window."""

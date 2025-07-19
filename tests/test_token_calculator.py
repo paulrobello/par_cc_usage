@@ -161,237 +161,37 @@ class TestProcessJsonlLine:
 
 
 class TestCreateUnifiedBlocks:
-    """Test unified block calculation functionality (simple approach)."""
+    """Test unified block calculation functionality."""
 
-    def test_create_unified_blocks_no_projects(self):
-        """Test create_unified_blocks with no projects."""
-        result = create_unified_blocks({})
-        assert result is None
-
-    def test_create_unified_blocks_no_active_blocks(self):
-        """Test create_unified_blocks with inactive blocks still returns current hour-floored time."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
-
-        # Create a project with an inactive block (too old)
-        project = Project(name="test_project")
-        session = Session(session_id="session_1", project_name="test_project", model="sonnet")
-
-        # Create a block that's not active (6+ hours since last activity)
-        old_time = datetime.now(timezone.utc) - timedelta(hours=6)
-        block = TokenBlock(
-            start_time=old_time,
-            end_time=old_time + timedelta(hours=5),
-            session_id="session_1",
-            project_name="test_project",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=old_time + timedelta(minutes=30),  # 6+ hours ago
-        )
-
-        session.blocks.append(block)
-        project.sessions["session_1"] = session
-
-        result = create_unified_blocks({"test_project": project})
-        # Should return current time floored to hour
-        current_time = datetime.now(timezone.utc)
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
+    def test_create_unified_blocks_no_entries(self):
+        """Test create_unified_blocks with no entries."""
+        result = create_unified_blocks([])
+        assert result == []
 
     def test_create_unified_blocks_single_active_block(self):
-        """Test create_unified_blocks returns current hour-floored time."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
+        """Test create_unified_blocks with single entry."""
+        from par_cc_usage.models import UnifiedEntry, TokenUsage
+        from datetime import datetime, timezone
 
-        # Create a project with an active block
-        project = Project(name="test_project")
-        session = Session(session_id="session_1", project_name="test_project", model="sonnet")
-
-        # Create a block with recent activity (within 5 hours)
-        current_time = datetime.now(timezone.utc)
-        block_start = current_time - timedelta(hours=2)
-        block = TokenBlock(
-            start_time=block_start,
-            end_time=block_start + timedelta(hours=5),
-            session_id="session_1",
+        # Create a single unified entry
+        now = datetime.now(timezone.utc)
+        entry = UnifiedEntry(
+            timestamp=now,
             project_name="test_project",
+            session_id="session_1",
             model="sonnet",
+            full_model_name="claude-3-5-sonnet-latest",
             token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=current_time - timedelta(minutes=30),  # Recent activity
+            tools_used=set(),
+            tool_use_count=0,
+            cost_usd=0.0,
+            version="1.0"
         )
 
-        session.blocks.append(block)
-        project.sessions["session_1"] = session
+        result = create_unified_blocks([entry])
+        assert len(result) == 1
+        assert result[0].start_time.minute == 0  # Should be floored to hour
+        assert result[0].start_time.second == 0
+        assert result[0].start_time.microsecond == 0
 
-        result = create_unified_blocks({"test_project": project})
-        # Should return current time floored to hour
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
-
-    def test_create_unified_blocks_multiple_active_blocks_returns_current_hour(self):
-        """Test create_unified_blocks returns current hour-floored time with multiple blocks."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
-
-        project = Project(name="test_project")
-
-        # Create two sessions with active blocks
-        session1 = Session(session_id="session_1", project_name="test_project", model="sonnet")
-        session2 = Session(session_id="session_2", project_name="test_project", model="opus")
-
-        current_time = datetime.now(timezone.utc)
-
-        # First block started 3 hours ago (earlier)
-        block1_start = current_time - timedelta(hours=3)
-        block1 = TokenBlock(
-            start_time=block1_start,
-            end_time=block1_start + timedelta(hours=5),
-            session_id="session_1",
-            project_name="test_project",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=current_time - timedelta(hours=1),  # Active: 1 hour ago
-        )
-
-        # Second block started 1 hour ago (later)
-        block2_start = current_time - timedelta(hours=1)
-        block2 = TokenBlock(
-            start_time=block2_start,
-            end_time=block2_start + timedelta(hours=5),
-            session_id="session_2",
-            project_name="test_project",
-            model="opus",
-            token_usage=TokenUsage(input_tokens=200, output_tokens=100),
-            actual_end_time=current_time - timedelta(minutes=15),  # Active: 15 min ago
-        )
-
-        session1.blocks.append(block1)
-        session2.blocks.append(block2)
-        project.sessions["session_1"] = session1
-        project.sessions["session_2"] = session2
-
-        result = create_unified_blocks({"test_project": project})
-        # Should return current time floored to hour
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
-
-    def test_create_unified_blocks_inactive_vs_active(self):
-        """Test create_unified_blocks returns current hour-floored time regardless of block activity."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
-
-        project = Project(name="test_project")
-        session = Session(session_id="session_1", project_name="test_project", model="sonnet")
-
-        current_time = datetime.now(timezone.utc)
-
-        # First block: started earlier but inactive (no recent activity)
-        inactive_block_start = current_time - timedelta(hours=4)
-        inactive_block = TokenBlock(
-            start_time=inactive_block_start,
-            end_time=inactive_block_start + timedelta(hours=5),
-            session_id="session_1",
-            project_name="test_project",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=current_time - timedelta(hours=6),  # Inactive: 6+ hours ago
-        )
-
-        # Second block: started later but active
-        active_block_start = current_time - timedelta(hours=2)
-        active_block = TokenBlock(
-            start_time=active_block_start,
-            end_time=active_block_start + timedelta(hours=5),
-            session_id="session_1",
-            project_name="test_project",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=200, output_tokens=100),
-            actual_end_time=current_time - timedelta(minutes=30),  # Active: 30 min ago
-        )
-
-        session.blocks.extend([inactive_block, active_block])
-        project.sessions["session_1"] = session
-
-        result = create_unified_blocks({"test_project": project})
-        # Should return current time floored to hour
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
-
-    def test_create_unified_blocks_multiple_projects(self):
-        """Test create_unified_blocks across multiple projects returns current hour-floored time."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
-
-        current_time = datetime.now(timezone.utc)
-
-        # First project with later active block
-        project1 = Project(name="project1")
-        session1 = Session(session_id="session_1", project_name="project1", model="sonnet")
-
-        block1_start = current_time - timedelta(hours=1)  # Started 1 hour ago
-        block1 = TokenBlock(
-            start_time=block1_start,
-            end_time=block1_start + timedelta(hours=5),
-            session_id="session_1",
-            project_name="project1",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=current_time - timedelta(minutes=30),
-        )
-
-        # Second project with earlier active block
-        project2 = Project(name="project2")
-        session2 = Session(session_id="session_2", project_name="project2", model="opus")
-
-        block2_start = current_time - timedelta(hours=3)  # Started 3 hours ago (earlier)
-        block2 = TokenBlock(
-            start_time=block2_start,
-            end_time=block2_start + timedelta(hours=5),
-            session_id="session_2",
-            project_name="project2",
-            model="opus",
-            token_usage=TokenUsage(input_tokens=200, output_tokens=100),
-            actual_end_time=current_time - timedelta(hours=1),  # Still active
-        )
-
-        session1.blocks.append(block1)
-        session2.blocks.append(block2)
-        project1.sessions["session_1"] = session1
-        project2.sessions["session_2"] = session2
-
-        projects = {"project1": project1, "project2": project2}
-        result = create_unified_blocks(projects)
-
-        # Should return current time floored to hour
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
-
-    def test_create_unified_blocks_activity_boundary_cases(self):
-        """Test create_unified_blocks returns current hour-floored time even with inactive blocks."""
-        from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage
-        from datetime import datetime, timedelta, timezone
-
-        project = Project(name="test_project")
-        session = Session(session_id="session_1", project_name="test_project", model="sonnet")
-
-        current_time = datetime.now(timezone.utc)
-
-        # Block with activity exactly at 5-hour boundary (should be inactive)
-        block_start = current_time - timedelta(hours=2)
-        block = TokenBlock(
-            start_time=block_start,
-            end_time=block_start + timedelta(hours=5),
-            session_id="session_1",
-            project_name="test_project",
-            model="sonnet",
-            token_usage=TokenUsage(input_tokens=100, output_tokens=50),
-            actual_end_time=current_time - timedelta(hours=5, seconds=1),  # Just over 5 hours
-        )
-
-        session.blocks.append(block)
-        project.sessions["session_1"] = session
-
-        result = create_unified_blocks({"test_project": project})
-        # Should return current time floored to hour
-        expected = current_time.replace(minute=0, second=0, microsecond=0)
-        assert result == expected
+    # TODO: Add more comprehensive unified block tests with multiple entries

@@ -17,10 +17,13 @@ from rich.console import Console
 
 from .config import (
     Config,
+    detect_message_limit_from_data,
+    get_default_message_limit,
     get_default_token_limit,
     load_config,
     save_config,
     save_default_config,
+    update_config_message_limit,
     update_config_token_limit,
 )
 from .display import DisplayManager, create_error_display, create_info_display
@@ -54,6 +57,7 @@ def process_file(
     dedup_state: DeduplicationState | None = None,
     *,
     suppress_errors: bool = False,
+    unified_entries: list | None = None,
 ) -> int:
     """Process a single JSONL file.
 
@@ -65,6 +69,7 @@ def process_file(
         base_dir: Base directory for session parsing
         dedup_state: Deduplication state (optional)
         suppress_errors: Whether to suppress error output (for monitor mode)
+        unified_entries: Optional list to collect unified entries
 
     Returns:
         Number of messages processed
@@ -76,7 +81,9 @@ def process_file(
     try:
         with JSONLReader(file_path) as reader:
             for data, position in reader.read_lines(from_position=file_state.last_position):
-                process_jsonl_line(data, project_path, session_id, projects, dedup_state, config.timezone)
+                process_jsonl_line(
+                    data, project_path, session_id, projects, dedup_state, config.timezone, unified_entries
+                )
                 messages_processed += 1
                 file_state.last_position = position
     except Exception as e:
@@ -130,8 +137,12 @@ def _print_dedup_stats(dedup_state: DeduplicationState, suppress_stats: bool) ->
 
 
 def scan_all_projects(
-    config: Config, use_cache: bool = True, *, suppress_stats: bool = False, monitor: FileMonitor | None = None
-) -> dict[str, Project]:
+    config: Config,
+    use_cache: bool = True,
+    *,
+    suppress_stats: bool = False,
+    monitor: FileMonitor | None = None,
+) -> tuple[dict[str, Project], list]:
     """Scan all projects and build usage data.
 
     Args:
@@ -141,15 +152,16 @@ def scan_all_projects(
         monitor: Existing FileMonitor instance to use (optional)
 
     Returns:
-        Dictionary of projects
+        Tuple of (projects, unified_entries) for unified block calculation
     """
     logger.debug(f"scan_all_projects called with use_cache={use_cache}, suppress_stats={suppress_stats}")
     projects: dict[str, Project] = {}
+    unified_entries: list = []
     claude_paths = config.get_claude_paths()
 
     if not claude_paths:
         console.print("[yellow]No Claude directories found![/yellow]")
-        return projects
+        return projects, unified_entries
 
     # Use existing monitor or create new one
     if monitor is None:
@@ -166,10 +178,11 @@ def scan_all_projects(
         if not file_state:
             continue
 
-        process_file(file_path, file_state, projects, config, base_dir, dedup_state)
+        process_file(file_path, file_state, projects, config, base_dir, dedup_state, unified_entries=unified_entries)
 
     _print_dedup_stats(dedup_state, suppress_stats)
-    return projects
+
+    return projects, unified_entries
 
 
 def _initialize_config(config_file: Path | None) -> tuple[Config, Path | None]:
@@ -314,6 +327,22 @@ def _auto_detect_token_limit(config: Config, projects: dict[str, Project], actua
                 console.print("[green]Updated config file with token limit[/green]")
         else:
             config.token_limit = get_default_token_limit()
+
+
+def _auto_detect_message_limit(config: Config, projects: dict[str, Project], actual_config_file: Path | None) -> None:
+    """Auto-detect and set message limit if not configured."""
+    if config.message_limit is None:
+        detected_limit = detect_message_limit_from_data(projects)
+        if detected_limit:
+            config.message_limit = detected_limit
+            console.print(f"[yellow]Auto-detected message limit: {config.message_limit:,}[/yellow]")
+
+            # Update config file if it exists
+            if actual_config_file:
+                update_config_message_limit(actual_config_file, config.message_limit)
+                console.print("[green]Updated config file with message limit[/green]")
+        else:
+            config.message_limit = get_default_message_limit()
 
 
 async def _calculate_block_cost(block: TokenBlock) -> float:
@@ -632,45 +661,16 @@ def _get_current_usage_snapshot(
         Usage snapshot or None if no data
     """
     try:
-        # Initialize components
-        projects: dict[str, Project] = {}
-        dedup_state = DeduplicationState()
+        # Scan all projects and collect unified entries
+        projects, unified_entries = scan_all_projects(config, use_cache=False)
 
-        # Find all JSONL files
-        projects_dir = Path(config.projects_dir).expanduser()
-        jsonl_files = list(projects_dir.glob("*/*.jsonl"))
-        logger.info(f"Found {len(jsonl_files)} JSONL files in {projects_dir}")
+        if not projects:
+            return None
 
-        # Process files to get current state
-        for file_path in jsonl_files:
-            try:
-                # Parse session info
-                session_id, project_name = parse_session_from_path(file_path, projects_dir)
+        # Create unified blocks
+        from .token_calculator import create_unified_blocks
 
-                # Read file lines using JSONLReader
-                with JSONLReader(file_path) as jsonl_reader:
-                    lines = list(jsonl_reader.read_lines())
-
-                # Process lines
-                for line_data, _ in lines:
-                    process_jsonl_line(
-                        line_data,
-                        project_name,
-                        session_id,
-                        projects,
-                        dedup_state,
-                        str(file_path),
-                    )
-            except Exception:
-                # Skip files with errors
-                continue
-
-        # Log project data before creating snapshot
-        logger.info(f"Creating snapshot with {len(projects)} projects")
-        for proj_name, project in projects.items():
-            logger.debug(f"Project {proj_name}: {len(project.sessions)} sessions")
-            for sess_id, session in project.sessions.items():
-                logger.debug(f"  Session {sess_id}: {len(session.blocks)} blocks, {session.total_tokens} total tokens")
+        unified_blocks = create_unified_blocks(unified_entries)
 
         # Create snapshot
         return aggregate_usage(
@@ -679,6 +679,7 @@ def _get_current_usage_snapshot(
             config.message_limit,
             config.timezone,
             block_start_override_utc,
+            unified_blocks,
         )
     except Exception as e:
         logger.debug(f"Could not get usage snapshot: {e}")
@@ -726,6 +727,7 @@ def _process_modified_files(
     projects: dict[str, Project],
     config: Config,
     dedup_state: DeduplicationState,
+    unified_entries: list | None = None,
 ) -> None:
     """Process all modified files."""
     logger.debug(f"Processing {len(modified_files)} modified files")
@@ -742,7 +744,14 @@ def _process_modified_files(
 
         if base_dir:
             messages = process_file(
-                file_path, file_state, projects, config, base_dir, dedup_state, suppress_errors=True
+                file_path,
+                file_state,
+                projects,
+                config,
+                base_dir,
+                dedup_state,
+                suppress_errors=True,
+                unified_entries=unified_entries,
             )
             if messages > 0:
                 logger.debug(f"Processed {messages} messages from {file_path.name}")
@@ -881,13 +890,26 @@ async def _monitor_async(
     claude_paths, monitor, dedup_state, notification_manager = _initialize_monitor_components(config)
     projects: dict[str, Project] = {}
 
-    # Initial scan - use cache unless explicitly disabled
+    # Initial scan - force full historical data scan for unified blocks, regardless of cache setting
     console.print(f"[cyan]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/cyan]")
-    projects = scan_all_projects(config, use_cache=not config.disable_cache, monitor=monitor)
+
+    # Scan projects and collect unified entries
+    # Note: Always use_cache=False for initial scan to ensure unified blocks get all historical data
+    # Cache will still be used for subsequent file monitoring updates
+    projects, unified_entries = scan_all_projects(config, use_cache=False, monitor=monitor)
+
+    # Create unified blocks
+    from .token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
+
     logger.debug(f"Initial scan found {len(projects)} projects")
 
     # Auto-detect token limit if needed
     _auto_detect_token_limit(config, projects, actual_config_file)
+
+    # Auto-detect message limit if needed
+    _auto_detect_message_limit(config, projects, actual_config_file)
 
     # Auto-update max cost encountered if higher costs found
     # Suppress output in continuous monitor mode to prevent console jumping
@@ -912,6 +934,7 @@ async def _monitor_async(
             config.message_limit,
             config.timezone,
             options.block_start_override_utc,
+            unified_blocks,
         )
 
         # Debug snapshot data
@@ -979,7 +1002,14 @@ async def _monitor_async(
                 # Skip processing modified files on first iteration when no-cache is used
                 # to avoid double-processing files that were already processed in initial scan
                 if not (first_iteration and config.disable_cache):
-                    _process_modified_files(modified_files, claude_paths, projects, config, dedup_state)
+                    _process_modified_files(
+                        modified_files, claude_paths, projects, config, dedup_state, unified_entries
+                    )
+
+                    # Recalculate unified blocks after processing new data
+                    from .token_calculator import create_unified_blocks
+
+                    unified_blocks = create_unified_blocks(unified_entries)
 
                 # Update file positions
                 monitor.save_state()
@@ -991,6 +1021,7 @@ async def _monitor_async(
                     config.message_limit,
                     config.timezone,
                     options.block_start_override_utc,
+                    unified_blocks,
                 )
 
                 # Debug continuous mode data (only log on first iteration to avoid spam)
@@ -1074,7 +1105,12 @@ def list_usage(
         themed_console.print(
             f"[{get_color('info')}]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/{get_color('info')}]"
         )
-    projects = scan_all_projects(config, use_cache=False)
+    projects, unified_entries = scan_all_projects(config, use_cache=False)
+
+    # Create unified blocks
+    from .token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
 
     # Detect token limit if not set
     config_file_used = config_file_to_load
@@ -1108,7 +1144,9 @@ def list_usage(
     _auto_update_max_messages(config, projects, config_file_used if config_file_used.exists() else None)
 
     # Create snapshot
-    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+    snapshot = aggregate_usage(
+        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+    )
 
     # Update unified block maximums for proper progress display
     _auto_update_unified_block_maximums(
