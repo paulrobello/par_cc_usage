@@ -400,8 +400,8 @@ class MonitorDisplay:
 
         # Use max tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
         base_limit = snapshot.total_limit or 500_000
-        if self.config and self.config.max_tokens_encountered > 0:
-            total_limit = self.config.max_tokens_encountered
+        if self.config and self.config.max_unified_block_tokens_encountered > 0:
+            total_limit = self.config.max_unified_block_tokens_encountered
         else:
             total_limit = base_limit
 
@@ -1806,8 +1806,8 @@ class MonitorDisplay:
 
         # Use max tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
         base_limit = snapshot.total_limit or 500_000
-        if self.config and self.config.max_tokens_encountered > 0:
-            total_limit = self.config.max_tokens_encountered
+        if self.config and self.config.max_unified_block_tokens_encountered > 0:
+            total_limit = self.config.max_unified_block_tokens_encountered
         else:
             total_limit = base_limit
 

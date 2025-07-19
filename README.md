@@ -61,11 +61,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
   - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
   - [v0.1.12 - Documentation Restructure](#v0112---documentation-restructure--organization)
   - [v0.1.11 - UI Enhancement Package](#v0111---ui-enhancement-package)
   - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
-  - [v0.1.8 - Simplified Block Computation](#v018---simplified-block-computation)
   - [older...](#older)
 - [Development](#development)
 
@@ -1053,6 +1053,20 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.2.1 - Progress Bar & Max Value Tracking Fixes
+
+**Enhanced Progress Bar Accuracy & Comprehensive Max Value Tracking**: Fixed critical issues with progress bar calculation and startup scanning:
+
+#### 🔧 Bug Fixes
+- **Progress Bar Percentage**: Fixed progress bar using wrong field (`max_tokens_encountered` vs `max_unified_block_tokens_encountered`) causing incorrect percentages (e.g., 83% when should be 100%)
+- **Comprehensive Max Value Scanning**: Enhanced startup to scan ALL unified blocks for highest tokens, messages, and costs instead of only checking current block
+- **Accurate Config Updates**: Max values in config now properly reflect true historical maximums across all data
+
+#### 🎯 Improvements
+- **Precise Progress Display**: Progress bars now show accurate percentages based on unified block maximums
+- **Better Auto-scaling**: Config limits automatically adjust based on comprehensive historical data analysis
+- **Enhanced Startup Performance**: Proper max value tracking ensures accurate display scaling from first run
 
 ### v0.2.0 - Documentation Clean-up
 

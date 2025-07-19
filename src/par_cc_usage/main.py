@@ -526,6 +526,58 @@ def _auto_update_unified_block_maximums(
         save_config(config, actual_config_file)
 
 
+def _auto_update_unified_block_maximums_from_all_blocks(
+    config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
+    """Auto-update unified block maximums by scanning ALL unified blocks for highest values."""
+    from rich.console import Console
+
+    console = Console()
+    config_updated = False
+
+    # Find maximum tokens across all unified blocks
+    max_unified_tokens = 0
+    for block in unified_blocks:
+        if block.total_tokens > max_unified_tokens:
+            max_unified_tokens = block.total_tokens
+
+    # Update unified block tokens maximum if we found a higher value
+    if max_unified_tokens > config.max_unified_block_tokens_encountered:
+        old_max = config.max_unified_block_tokens_encountered
+        config.max_unified_block_tokens_encountered = max_unified_tokens
+        config_updated = True
+
+        from .token_calculator import format_token_count
+
+        if not suppress_output:
+            console.print(
+                f"[yellow]Updated max unified block tokens (from all blocks scan): {format_token_count(old_max)} → {format_token_count(max_unified_tokens)}[/yellow]"
+            )
+
+    # Find maximum messages across all unified blocks
+    max_unified_messages = 0
+    for block in unified_blocks:
+        if block.messages_processed > max_unified_messages:
+            max_unified_messages = block.messages_processed
+
+    # Update unified block messages maximum if we found a higher value
+    if max_unified_messages > config.max_unified_block_messages_encountered:
+        old_max = config.max_unified_block_messages_encountered
+        config.max_unified_block_messages_encountered = max_unified_messages
+        config_updated = True
+
+        if not suppress_output:
+            console.print(
+                f"[yellow]Updated max unified block messages (from all blocks scan): {old_max:,} → {max_unified_messages:,}[/yellow]"
+            )
+
+    # Save config if any updates were made
+    if config_updated and actual_config_file:
+        from .config import save_config
+
+        save_config(config, actual_config_file)
+
+
 async def _auto_update_unified_block_cost_maximum(
     config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
@@ -555,6 +607,44 @@ async def _auto_update_unified_block_cost_maximum(
                 if not suppress_output:
                     console.print(
                         f"[yellow]Updated max unified block cost: {format_cost(old_max)} → {format_cost(current_unified_cost)}[/yellow]"
+                    )
+    except Exception:
+        # If cost calculation fails, skip update
+        pass
+
+
+async def _auto_update_unified_block_cost_maximum_from_all_blocks(
+    config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
+    """Auto-update unified block cost maximum by scanning ALL unified blocks for highest cost."""
+    from rich.console import Console
+
+    console = Console()
+
+    try:
+        # Find maximum cost across all unified blocks
+        max_unified_cost = 0.0
+        for block in unified_blocks:
+            block_cost = await block.get_total_cost()
+            if block_cost > max_unified_cost:
+                max_unified_cost = block_cost
+
+        # Update unified block cost maximum if we found a higher value
+        if max_unified_cost > config.max_unified_block_cost_encountered:
+            old_max = config.max_unified_block_cost_encountered
+            config.max_unified_block_cost_encountered = max_unified_cost
+
+            # Save config if we have a config file
+            if actual_config_file:
+                from .config import save_config
+
+                save_config(config, actual_config_file)
+
+                from .pricing import format_cost
+
+                if not suppress_output:
+                    console.print(
+                        f"[yellow]Updated max unified block cost (from all blocks scan): {format_cost(old_max)} → {format_cost(max_unified_cost)}[/yellow]"
                     )
     except Exception:
         # If cost calculation fails, skip update
@@ -922,6 +1012,12 @@ async def _monitor_async(
     # Auto-update max messages encountered if higher messages found
     _auto_update_max_messages(config, projects, actual_config_file, suppress_output)
 
+    # Auto-update unified block maximums by scanning ALL unified blocks for highest values
+    _auto_update_unified_block_maximums_from_all_blocks(config, unified_blocks, actual_config_file, suppress_output)
+    await _auto_update_unified_block_cost_maximum_from_all_blocks(
+        config, unified_blocks, actual_config_file, suppress_output
+    )
+
     # Handle snapshot mode
     if options.snapshot:
         # Single snapshot mode - get current data and display once
@@ -1142,6 +1238,16 @@ def list_usage(
 
     # Auto-update max messages encountered if higher messages found
     _auto_update_max_messages(config, projects, config_file_used if config_file_used.exists() else None)
+
+    # Auto-update unified block maximums by scanning ALL unified blocks for highest values
+    _auto_update_unified_block_maximums_from_all_blocks(
+        config, unified_blocks, config_file_used if config_file_used.exists() else None, suppress_output=False
+    )
+    asyncio.run(
+        _auto_update_unified_block_cost_maximum_from_all_blocks(
+            config, unified_blocks, config_file_used if config_file_used.exists() else None, suppress_output=False
+        )
+    )
 
     # Create snapshot
     snapshot = aggregate_usage(
