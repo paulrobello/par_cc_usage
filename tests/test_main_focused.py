@@ -38,7 +38,17 @@ class TestMainAppCommands:
         runner = typer.testing.CliRunner()
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            f.write("timezone: UTC\ntoken_limit: 1000000\n")
+            f.write("""timezone: UTC
+token_limit: 1000000
+p90_unified_block_tokens_encountered: 0
+p90_unified_block_messages_encountered: 0
+p90_unified_block_cost_encountered: 0.0
+max_unified_block_tokens_encountered: 0
+max_unified_block_messages_encountered: 0
+max_unified_block_cost_encountered: 0.0
+display:
+  use_p90_limit: true
+""")
             config_path = f.name
 
         try:
@@ -57,7 +67,17 @@ class TestMainAppCommands:
         runner = typer.testing.CliRunner()
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            f.write("timezone: UTC\ntoken_limit: 1000000\n")
+            f.write("""timezone: UTC
+token_limit: 1000000
+p90_unified_block_tokens_encountered: 0
+p90_unified_block_messages_encountered: 0
+p90_unified_block_cost_encountered: 0.0
+max_unified_block_tokens_encountered: 0
+max_unified_block_messages_encountered: 0
+max_unified_block_cost_encountered: 0.0
+display:
+  use_p90_limit: true
+""")
             config_path = f.name
 
         try:

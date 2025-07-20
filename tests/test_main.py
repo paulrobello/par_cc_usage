@@ -523,11 +523,15 @@ class TestSetLimitCommand:
                 clean_output = re.sub(r'\x1b\[[0-9;]*m', '', result.output)
                 assert "token limit" in result.output.lower() and "500,000" in clean_output
 
-    def test_set_limit_invalid(self):
+    def test_set_limit_invalid(self, temp_dir):
         """Test setting an invalid limit type."""
         runner = CliRunner()
 
-        result = runner.invoke(app, ["set-limit", "invalid", "1000"])
+        # Create a minimal config file to avoid "Configuration file not found" error
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: UTC")
+
+        result = runner.invoke(app, ["set-limit", "--config", str(config_file), "invalid", "1000"])
 
         assert result.exit_code != 0
         assert "Invalid limit type" in result.output
@@ -563,25 +567,33 @@ class TestSetLimitCommand:
                 assert "cost limit" in result.output.lower()
                 assert "$25.99" in result.output
 
-    def test_set_limit_negative_value(self):
+    def test_set_limit_negative_value(self, temp_dir):
         """Test setting negative limits are rejected."""
         runner = CliRunner()
 
+        # Create a minimal config file to avoid "Configuration file not found" error
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: UTC")
+
         # Test negative token limit
-        result = runner.invoke(app, ["set-limit", "token", "--", "-100"])
+        result = runner.invoke(app, ["set-limit", "--config", str(config_file), "token", "--", "-100"])
         assert result.exit_code != 0
         assert "must be a non-negative integer" in result.output
 
         # Test negative cost limit
-        result = runner.invoke(app, ["set-limit", "cost", "--", "-5.0"])
+        result = runner.invoke(app, ["set-limit", "--config", str(config_file), "cost", "--", "-5.0"])
         assert result.exit_code != 0
         assert "must be non-negative" in result.output
 
-    def test_set_limit_fractional_token(self):
+    def test_set_limit_fractional_token(self, temp_dir):
         """Test fractional token limits are rejected."""
         runner = CliRunner()
 
-        result = runner.invoke(app, ["set-limit", "token", "100.5"])
+        # Create a minimal config file to avoid "Configuration file not found" error
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: UTC")
+
+        result = runner.invoke(app, ["set-limit", "--config", str(config_file), "token", "100.5"])
         assert result.exit_code != 0
         assert "must be a non-negative integer" in result.output
 
