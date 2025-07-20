@@ -1211,9 +1211,13 @@ def _update_max_cost_if_needed(block_cost: float, config_file_path: Path | None 
 
         config = load_config()
 
-        # Check if block cost exceeds max
-        if block_cost > config.max_cost_encountered:
-            config.max_cost_encountered = block_cost
+        # Skip update if config is read-only
+        if config.config_ro:
+            return
+
+        # Check if block cost exceeds max (using unified block field)
+        if block_cost > config.max_unified_block_cost_encountered:
+            config.max_unified_block_cost_encountered = block_cost
             save_config(config, config_file_path)
 
     except Exception as e:

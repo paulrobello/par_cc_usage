@@ -139,6 +139,7 @@ For detailed information, see:
 
 ### Version Management
 - **Important**: ONLY bump the project version if the user requests it
+- **Config Read-Only Mode**: The `config_ro` option prevents automatic updates to config file while allowing CLI overrides
 - **Single Source**: Version is defined only in `src/par_cc_usage/__init__.py`
 - **No Sync Required**: `pyproject.toml` uses dynamic versioning - version is defined in one place only
 

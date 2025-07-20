@@ -61,11 +61,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
   - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
   - [v0.1.12 - Documentation Restructure](#v0112---documentation-restructure--organization)
   - [v0.1.11 - UI Enhancement Package](#v0111---ui-enhancement-package)
-  - [v0.1.9 - Emoji-Enhanced Display & Cost Tracking Fix](#v019---emoji-enhanced-display--cost-tracking-fix)
   - [older...](#older)
 - [Development](#development)
 
@@ -118,6 +118,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **JSONL analysis**: Deep analysis of Claude Code data structures
 - **XDG Base Directory compliance**: Uses standard Unix/Linux directory conventions
 - **Legacy migration**: Automatically migrates existing config files to XDG locations
+- **Read-only mode**: Optional config protection to prevent automatic limit updates
 
 ### 🌐 Configuration & Customization
 - **XDG directory compliance**: Config, cache, and data files stored in standard locations
@@ -302,8 +303,10 @@ pccu list --theme minimal --sort-by tokens  # Minimal theme with token sorting
 # Initialize configuration file
 pccu init
 
-# Set token limit
-pccu set-limit 500000
+# Set different types of limits
+pccu set-limit token 500000      # Set token limit
+pccu set-limit message 100       # Set message limit  
+pccu set-limit cost 25.50        # Set cost limit in USD
 
 # Use custom config file
 pccu init --config my-config.yaml
@@ -447,6 +450,7 @@ token_limit: 500000
 cache_dir: ~/.cache/par_cc_usage  # XDG cache directory (automatically set)
 disable_cache: false  # Set to true to disable file monitoring cache
 recent_activity_window_hours: 5  # Hours to consider as 'recent' activity for smart strategy (matches billing cycle)
+config_ro: false  # Read-only mode: prevents automatic updates to config file (max values, limits)
 display:
   show_progress_bars: true
   show_active_sessions: true  # Default: show session details
@@ -476,6 +480,7 @@ notifications:
 - `PAR_CC_USAGE_CACHE_DIR`: Override cache directory (defaults to XDG cache directory)
 - `PAR_CC_USAGE_DISABLE_CACHE`: Disable file monitoring cache ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS`: Hours to consider as 'recent' activity for smart strategy (default: 5)
+- `PAR_CC_USAGE_CONFIG_RO`: Read-only mode - prevents automatic updates to config file ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_SHOW_PROGRESS_BARS`: Show progress bars
 - `PAR_CC_USAGE_SHOW_ACTIVE_SESSIONS`: Show active sessions (default: true)
 - `PAR_CC_USAGE_UPDATE_IN_PLACE`: Update display in place
@@ -604,6 +609,12 @@ export PAR_CC_USAGE_AGGREGATE_BY_PROJECT=false
 - **Auto-adjustment**: When current usage exceeds the configured limit, the limit is automatically increased and saved to the config file
 - **Visual indicators**: Progress bars turn red when exceeding the original limit
 - **Real-time updates**: Limits update immediately during monitoring
+
+#### Read-Only Configuration Mode
+- **Config Protection**: Set `config_ro: true` to prevent automatic updates to config file
+- **Preserved CLI Overrides**: CLI-specified values (like `--token-limit`) still work normally
+- **Manual Control**: Use `pccu set-limit <type> <value>` command to explicitly update limits when needed (supports token, message, cost)
+- **Environment Variable**: Set `PAR_CC_USAGE_CONFIG_RO=true` to enable read-only mode
 
 ### Token Usage Calculation
 
@@ -1054,6 +1065,13 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.3.0 - Test Suite Improvements & Infrastructure
+
+**Enhanced Test Coverage & Code Quality**: Significant improvements to test infrastructure and code reliability:
+
+#### 🧪 Test Coverage Improvements
+- **72% Overall Coverage**: Improved from 66% to 72% total test coverage (+6% improvement)
+
 ### v0.2.1 - Progress Bar & Max Value Tracking Fixes
 
 **Enhanced Progress Bar Accuracy & Comprehensive Max Value Tracking**: Fixed critical issues with progress bar calculation and startup scanning:
@@ -1133,227 +1151,6 @@ We're actively working on exciting new features to enhance your Claude Code moni
 - **Theme System Extension**: Added `tool_mcp` color field to all 5 built-in themes
 - **Comprehensive Updates**: Updated all tool display locations for consistent formatting
 - **Test Coverage**: Updated theme tests to include new color field
-
-### v0.1.10 - Documentation Restructure
-
-**Improved Documentation Organization**: Streamlined and reorganized documentation structure for better maintainability and user experience:
-
-#### 📚 Documentation Improvements
-- **Streamlined CLAUDE.md**: Reduced file size by 83% (950+ lines → 156 lines) by moving detailed content to specialized documentation files
-- **Dedicated Documentation Files**: Created comprehensive guides in `docs/` directory:
-  - `docs/ARCHITECTURE.md` - System architecture, data models, and design decisions
-  - `docs/DEVELOPMENT.md` - Development workflows and advanced features
-  - `docs/TROUBLESHOOTING.md` - Cache system, debugging, and problem resolution
-- **Enhanced README**: Added documentation section with clear navigation to detailed guides
-- **Better Organization**: Information now logically separated by audience and use case for improved discoverability
-
-#### 🔧 Benefits
-- **Improved Maintainability**: Changes to specific topics can be made in focused files
-- **Better User Experience**: Quick reference (CLAUDE.md) separate from detailed technical documentation
-- **Enhanced Navigation**: Clear pathways between overview and in-depth information
-- **Reduced Cognitive Load**: Essential information easily accessible without overwhelming detail
-
-### v0.1.9 - Emoji-Enhanced Display & Comprehensive Test Suite
-
-**Visual Interface Improvements & System Resilience**: Enhanced monitor display with emoji icons and added extensive test coverage for improved reliability:
-
-#### 🎨 Emoji-Enhanced Display
-- **Visual Icons**: Added emoji indicators for improved readability
-  - 🪙 **Tokens**: Coin emoji for token counts and rates
-  - 💬 **Messages**: Message emoji for message counts and rates (replaced ✉️ for consistent width)
-  - 💰 **Costs**: Money bag emoji for cost calculations
-  - ⚡ **Models**: Lightning emoji for Claude Sonnet model display
-  - 🔥 **Burn Rate**: Fire emoji for activity rate calculations
-  - 📊 **Total**: Bar chart emoji for summary statistics
-- **Consistent Format**: All model lines, burn rate, and total lines use unified emoji system
-- **Clean Layout**: Improved spacing and visual hierarchy in terminal interface
-- **Emoji Width Configuration**: Added emoji width handling for Rich console compatibility
-
-#### 🐛 Critical Cost Tracking Fix
-- **Individual Block Maximums**: Fixed `max_cost_encountered` to track single block peaks instead of cumulative totals
-- **Accurate Total Line**: Cost display now shows realistic historical maximums (e.g., `$14.43 / $56.02` vs. incorrect `$14.43 / $4847.61`)
-- **Consistent Tracking**: Cost maximums now follow same pattern as token and message tracking
-- **Config Reset**: Automatic correction of inflated historical cost values
-
-#### 🧪 Comprehensive Test Suite
-- **22 New Test Files**: Added extensive test coverage with 7,047+ lines of test code
-- **Integration Tests**: End-to-end workflow testing from file processing to display output
-- **Performance Tests**: Large dataset handling and memory efficiency validation
-- **Edge Case Coverage**: Comprehensive testing for CLI, configuration, and display components
-- **Error Resilience**: File corruption, network failures, and monitor stability tests
-- **Test Infrastructure**: Mock helpers, fixtures, and utility functions for robust testing
-- **System Reliability**: Webhook reliability, pricing error handling, and token calculation edge cases
-
-#### 🔧 Code Quality Improvements
-- **Documentation Updates**: Enhanced architecture documentation with emoji system details
-- **Reference Cleanup**: Removed external tool references from codebase comments
-- **Display Consistency**: Unified emoji usage across all monitor display components
-- **Test Coverage**: Comprehensive test suite ensuring system reliability and edge case handling
-
-### v0.1.8 - Simplified Block Computation
-
-**Reliable Block Time Logic**: Replaced complex block selection algorithm with simple, predictable hour-flooring approach for consistent billing period representation:
-
-#### 🕐 Block Time Improvements
-- **Simple Hour-Flooring**: Current billing block determined by flooring current UTC time to nearest hour
-- **Predictable Behavior**: Consistent block start times that align with standard hourly billing practices
-- **Eliminated Complex Logic**: Removed multi-step block selection algorithm that could cause inconsistencies
-- **Reliable Billing Periods**: Hour-floored blocks provide stable and expected billing period boundaries
-
-#### 🔧 Technical Changes
-- Updated `create_unified_blocks()` function to use direct `calculate_block_start(datetime.now(UTC))`
-- Simplified unified block algorithm from 5-step process to direct hour-flooring calculation
-- Enhanced documentation to reflect straightforward block computation approach
-- Updated test suite to match new simplified behavior expectations
-
-#### 📚 Documentation Updates
-- Revised Unified Block System documentation with accurate algorithm description
-- Updated architectural diagrams to show simplified block computation flow
-- Removed references to complex "smart strategy" selection logic
-- Enhanced Key Architectural Decisions with simplified approach explanation
-
-### v0.1.7 - Monitor Display Stability
-
-**Clean Console Interface**: Major improvements to monitor mode stability and user experience with zero console jumping or interruptions:
-
-#### 🖥️ Console Stability Features
-- **Automatic Output Suppression**: All disruptive console output automatically suppressed during continuous monitor mode
-- **Debug Mode Integration**: Debug logging (`--debug`) uses `NullHandler` to prevent console jumping while maintaining functionality
-- **Silent Error Handling**: File processing errors logged silently without breaking the clean display interface
-- **Smart Token Limit Messages**: Token limit exceeded notifications suppressed in monitor mode but preserved in snapshot mode
-- **Exception Resilience**: Monitor loop exceptions use logging instead of console output to maintain display stability
-- **Clean Real-Time Experience**: Ensures zero console jumping, text interruptions, or display artifacts during monitoring
-
-#### 🔧 Technical Improvements
-- Enhanced error handling with `suppress_errors` parameter for file processing
-- Improved logging configuration for monitor mode with `NullHandler`
-- Smart output suppression for token limit updates during continuous monitoring
-- Robust exception handling that preserves display integrity
-
-### v0.1.6 - Intelligent Cost Hierarchy
-
-**Advanced Cost Calculation System**: Implemented a sophisticated three-tier cost calculation hierarchy for the `pccu list` command, providing maximum accuracy and future-proofing for native Claude cost data:
-
-#### 💰 Intelligent Cost Features
-- **Three-Tier Cost Hierarchy**: Priority-based cost calculation system:
-  1. **Native Block Cost** (Priority 1): Uses `cost_usd` from TokenBlock when available
-  2. **Native Usage Cost** (Priority 2): Uses `cost_usd` from TokenUsage when block cost unavailable
-  3. **LiteLLM Calculation** (Priority 3): Falls back to real-time pricing calculations
-- **Cost Source Transparency**: All exports include `cost_source` field showing calculation method:
-  - `"block_native"`: Cost from TokenBlock native data (future-ready)
-  - `"usage_native"`: Cost from TokenUsage native data (future-ready)
-  - `"litellm_calculated"`: Cost calculated using LiteLLM pricing (current default)
-- **Cost Validation**: Native cost data validated for reasonableness ($0.01-$1000.00)
-- **Future-Proof Design**: Automatically uses native Claude cost data when available
-
-#### 📊 Enhanced List Command
-- **Full Output Format Support**: Pricing works with table, JSON, and CSV formats
-- **Async Cost Calculations**: Non-blocking cost calculations maintain performance
-- **Cost Source Tracking**: Complete transparency in cost calculation methods
-- **Export Integration**: JSON and CSV exports include cost and cost_source fields
-
-#### 📈 Usage Examples
-```bash
-# Display usage with costs in table format
-pccu list --show-pricing
-
-# Export with cost source transparency
-pccu list --show-pricing --format json
-
-# CSV export with cost data
-pccu list --show-pricing --format csv --output costs.csv
-```
-
-#### 🔧 Technical Improvements
-- **566 Tests Passing**: Comprehensive test coverage including 12 new cost hierarchy tests
-- **Cost Hierarchy Validation**: Full validation of native cost data before use
-- **Performance Optimization**: Efficient async cost calculations with LiteLLM caching
-- **Documentation Enhancement**: Added comprehensive architecture diagrams and cost flow charts
-
-### v0.1.5 - Debug Flag Enhancement
-
-**Improved Monitor Experience**: Successfully implemented a debug flag system that eliminates display jumping in monitor mode while providing optional diagnostic output:
-
-#### 🐛 Debug Features
-- **Clean Monitor Display**: Processing messages are now suppressed by default, preventing display jumping during active monitoring
-- **Optional Debug Output**: Use `--debug` flag to enable detailed processing messages when troubleshooting
-- **Smart Logging Configuration**: Automatic logging level adjustment based on debug flag state
-- **Comprehensive Test Coverage**: 554+ tests including specific debug functionality validation
-
-#### 📝 Usage Examples  
-- **Clean monitoring**: `pccu monitor` (no processing messages, stable display)
-- **Debug monitoring**: `pccu monitor --debug` (shows processing messages for troubleshooting)
-- **Debug with other options**: `pccu monitor --debug --show-sessions --show-pricing`
-
-#### 🔧 Technical Improvements
-- **Logger Integration**: Converted console output to proper logging infrastructure
-- **MonitorOptions Enhancement**: Added debug field to options dataclass with full type safety
-- **Documentation Updates**: Updated both CLAUDE.md and README.md with debug flag usage examples
-
-### v0.1.4 - Theme System Implementation
-
-**Complete Theme System**: Successfully implemented a comprehensive theme system with full Rich library integration and accessibility support:
-
-#### 🎨 Theme Features
-- **5 Built-in Themes**: Default, Dark, Light, Accessibility, and Minimal themes
-- **Solarized Light Integration**: Professional light theme based on Solarized Light color palette
-- **WCAG AAA Compliance**: High contrast accessibility theme meeting accessibility standards
-- **Semantic Color System**: Color abstraction with meaningful names (success, warning, error, info)
-- **Rich Library Integration**: Full integration with Rich console for optimal terminal rendering
-
-#### 🔧 Configuration Options
-- **Multiple Configuration Methods**: CLI flags, config file, environment variables
-- **Session-based Overrides**: `--theme` flag for temporary theme changes without saving
-- **Persistent Configuration**: Theme settings saved to XDG-compliant config files
-- **Theme Management Commands**: Built-in CLI commands for theme listing, setting, and current status
-
-#### 🌈 Theme Varieties
-- **Default Theme**: Original bright colors for general dark terminal usage
-- **Dark Theme**: Refined colors optimized for dark terminals with reduced eye strain
-- **Light Theme**: Solarized Light inspired palette perfect for light terminals
-- **Accessibility Theme**: High contrast black/white theme for visual accessibility needs
-- **Minimal Theme**: Grayscale palette for distraction-free, professional environments
-
-#### 🎯 Usage Examples
-- **Monitor with themes**: `pccu monitor --theme light --show-sessions`
-- **List with themes**: `pccu list --theme accessibility --show-pricing`
-- **Theme management**: `pccu theme set dark`, `pccu theme list`, `pccu theme current`
-- **Configuration**: `display.theme: light` in config file or `PAR_CC_USAGE_THEME=minimal`
-
-### v0.1.3 - Code Quality Improvements
-
-**Major Code Quality Overhaul**: Successfully completed a comprehensive code quality improvement initiative focused on reducing cyclomatic complexity and improving maintainability across all core modules:
-
-#### 🔧 Complexity Reduction
-- **9 functions refactored**: Reduced cyclomatic complexity from 11-36 down to ≤10 for all functions
-- **40+ helper functions extracted**: Decomposed complex operations into focused, reusable components
-- **Improved maintainability**: Each function now has a single, clear responsibility
-
-#### 📊 Key Improvements
-- **Display System**: Split complex table population and burn rate calculation functions
-- **Session Management**: Decomposed session listing, filtering, and analysis operations
-- **Debug Commands**: Extracted analysis and display logic into modular components
-- **Cost Tracking**: Separated cost calculation from display formatting
-
-#### 🎯 Benefits
-- **Better Code Readability**: Functions are easier to understand and debug
-- **Increased Testability**: Helper functions can be tested independently
-- **Enhanced Reusability**: Common logic extracted into reusable components
-- **Reduced Maintenance Burden**: Changes to specific functionality are now isolated
-
-#### 📈 Quality Metrics
-- **512+ test cases**: Comprehensive test coverage maintained
-- **All functions ≤10 complexity**: Enforced by automated linting
-- **Full type safety**: Complete type annotations with validation
-- **Zero linting errors**: Clean, consistent code style
-
-### v0.1.2 - Pricing & Cost Tracking
-
-**Cost Tracking Integration**: Added comprehensive cost tracking and pricing functionality with LiteLLM integration for accurate cost calculations across all Claude models.
-
-### v0.1.1 - Enhanced Analytics
-
-**Advanced Analytics**: Enhanced burn rate calculations, block management improvements, and refined display system with better user experience.
 
 ### older...
 

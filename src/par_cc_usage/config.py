@@ -108,17 +108,9 @@ class Config(BaseModel):
         default=None,
         description="Message limit (auto-detect if not set)",
     )
-    max_cost_encountered: float = Field(
-        default=0.0,
-        description="Maximum cost from any single block encountered in history (updated automatically)",
-    )
-    max_tokens_encountered: int = Field(
-        default=0,
-        description="Maximum tokens from any single block encountered in history (updated automatically)",
-    )
-    max_messages_encountered: int = Field(
-        default=0,
-        description="Maximum messages from any single block encountered in history (updated automatically)",
+    cost_limit: float | None = Field(
+        default=None,
+        description="Cost limit in USD (no auto-detection)",
     )
     max_unified_block_tokens_encountered: int = Field(
         default=0,
@@ -151,6 +143,10 @@ class Config(BaseModel):
     recent_activity_window_hours: int = Field(
         default=5,
         description="Hours to consider as 'recent' activity for smart block selection (matches billing block duration)",
+    )
+    config_ro: bool = Field(
+        default=False,
+        description="Read-only mode: prevents automatic updates to config file (max values, limits)",
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -302,6 +298,7 @@ def _parse_env_value(value: str, config_key: str) -> Any:
         "aggregate_by_project",
         "show_tool_usage",
         "show_pricing",
+        "config_ro",
     ]:
         return _parse_bool_value(value)
 
@@ -353,6 +350,7 @@ def _get_top_level_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_CACHE_DIR": "cache_dir",
         "PAR_CC_USAGE_DISABLE_CACHE": "disable_cache",
         "PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS": "recent_activity_window_hours",
+        "PAR_CC_USAGE_CONFIG_RO": "config_ro",
     }
 
 
@@ -388,6 +386,39 @@ def _apply_claude_config_dir_override(config_dict: dict[str, Any]) -> None:
         config_dict["projects_dirs"] = [Path(p.strip()) for p in claude_dirs.split(",") if p.strip()]
 
 
+def _migrate_legacy_config_fields(config_dict: dict[str, Any]) -> bool:
+    """Migrate legacy config fields to new names or remove them if new fields exist.
+
+    Migration rules:
+    - max_tokens_encountered -> max_unified_block_tokens_encountered
+    - max_messages_encountered -> max_unified_block_messages_encountered
+    - max_cost_encountered -> max_unified_block_cost_encountered
+
+    If the new field exists, remove the legacy field.
+    If the new field doesn't exist, rename the legacy field to the new name.
+
+    Returns:
+        True if any migration was performed, False otherwise
+    """
+    legacy_mappings = {
+        "max_tokens_encountered": "max_unified_block_tokens_encountered",
+        "max_messages_encountered": "max_unified_block_messages_encountered",
+        "max_cost_encountered": "max_unified_block_cost_encountered",
+    }
+
+    migrated = False
+    for legacy_field, new_field in legacy_mappings.items():
+        if legacy_field in config_dict:
+            if new_field not in config_dict:
+                # New field doesn't exist, migrate legacy value
+                config_dict[new_field] = config_dict[legacy_field]
+            # Always remove the legacy field
+            del config_dict[legacy_field]
+            migrated = True
+
+    return migrated
+
+
 def load_config(config_file: Path | None = None) -> Config:
     """Load configuration from file and environment variables.
 
@@ -402,6 +433,9 @@ def load_config(config_file: Path | None = None) -> Config:
     Returns:
         Loaded configuration
     """
+    if config_file is None:
+        config_file = get_config_file_path()
+
     # Load from config file
     try:
         config_dict = _load_config_file(config_file)
@@ -412,12 +446,26 @@ def load_config(config_file: Path | None = None) -> Config:
     # Apply Claude config directory override
     _apply_claude_config_dir_override(config_dict)
 
+    # Migrate legacy config fields and save if migration occurred
+    migration_performed = _migrate_legacy_config_fields(config_dict)
+
     # Apply environment overrides
     _apply_env_overrides(config_dict, _get_top_level_env_mapping())
     _apply_nested_env_overrides(config_dict, "display", _get_display_env_mapping())
     _apply_nested_env_overrides(config_dict, "notifications", _get_notification_env_mapping())
 
-    return Config(**config_dict)
+    config = Config(**config_dict)
+
+    # Save the migrated config back to file if migration was performed
+    # and the config file exists (don't create new files just for migration)
+    if migration_performed and config_file.exists():
+        try:
+            save_config(config, config_file)
+        except (PermissionError, OSError):
+            # If we can't save, just continue - migration still worked in memory
+            pass
+
+    return config
 
 
 def save_default_config(config_file: Path) -> None:
@@ -443,9 +491,7 @@ def save_config(config: Config, config_file: Path) -> None:
         "timezone": config.timezone,
         "token_limit": config.token_limit,
         "message_limit": config.message_limit,
-        "max_cost_encountered": config.max_cost_encountered,
-        "max_tokens_encountered": config.max_tokens_encountered,
-        "max_messages_encountered": config.max_messages_encountered,
+        "cost_limit": config.cost_limit,
         "max_unified_block_tokens_encountered": config.max_unified_block_tokens_encountered,
         "max_unified_block_messages_encountered": config.max_unified_block_messages_encountered,
         "max_unified_block_cost_encountered": config.max_unified_block_cost_encountered,
@@ -466,6 +512,7 @@ def save_config(config: Config, config_file: Path) -> None:
             "notify_on_block_completion": config.notifications.notify_on_block_completion,
             "cooldown_minutes": config.notifications.cooldown_minutes,
         },
+        "config_ro": config.config_ro,
     }
 
     # Add projects_dirs if configured
@@ -491,6 +538,8 @@ def update_config_token_limit(config_file: Path, token_limit: int) -> None:
     """
     if config_file.exists():
         config = load_config(config_file)
+        if config.config_ro:
+            return  # Skip update if config is read-only
         config.token_limit = token_limit
         save_config(config, config_file)
 
@@ -504,6 +553,8 @@ def update_config_message_limit(config_file: Path, message_limit: int) -> None:
     """
     if config_file.exists():
         config = load_config(config_file)
+        if config.config_ro:
+            return  # Skip update if config is read-only
         config.message_limit = message_limit
         save_config(config, config_file)
 
@@ -557,41 +608,7 @@ def detect_message_limit_from_data(projects: dict[str, Any]) -> int | None:
     return None
 
 
-def _get_block_maximums(usage_snapshot: UsageSnapshot) -> tuple[int, int, float]:
-    """Get maximum values from individual blocks."""
-    max_block_tokens = 0
-    max_block_messages = 0
-    max_block_cost = 0.0
-
-    for project in usage_snapshot.projects.values():
-        for session in project.sessions.values():
-            for block in session.blocks:
-                max_block_tokens = max(max_block_tokens, block.adjusted_tokens)
-                max_block_messages = max(max_block_messages, block.message_count)
-                max_block_cost = max(max_block_cost, block.cost_usd)
-
-    return max_block_tokens, max_block_messages, max_block_cost
-
-
-def _update_individual_block_maximums(
-    config: Config, max_block_tokens: int, max_block_messages: int, max_block_cost: float
-) -> bool:
-    """Update individual block maximum encountered values."""
-    updated = False
-
-    if max_block_tokens > config.max_tokens_encountered:
-        config.max_tokens_encountered = max_block_tokens
-        updated = True
-
-    if max_block_messages > config.max_messages_encountered:
-        config.max_messages_encountered = max_block_messages
-        updated = True
-
-    if max_block_cost > config.max_cost_encountered:
-        config.max_cost_encountered = max_block_cost
-        updated = True
-
-    return updated
+# Legacy individual block maximum tracking functions removed - unified blocks handle all maximums
 
 
 def _update_unified_block_maximums(config: Config, unified_tokens: int, unified_messages: int) -> bool:
@@ -646,18 +663,15 @@ def update_max_encountered_values(
     if config_file is None:
         config_file = get_config_file_path()
 
+    # Skip all updates if config is read-only
+    if config.config_ro:
+        return False
+
     updated = False
 
-    # Get individual block maximums
-    max_block_tokens, max_block_messages, max_block_cost = _get_block_maximums(usage_snapshot)
-
-    # Track unified block maximums
+    # Track unified block maximums (individual block tracking is now legacy)
     unified_tokens = usage_snapshot.unified_block_tokens()
     unified_messages = usage_snapshot.unified_block_messages()
-
-    # Update individual block max encountered values
-    if _update_individual_block_maximums(config, max_block_tokens, max_block_messages, max_block_cost):
-        updated = True
 
     # Update unified block max encountered values
     if _update_unified_block_maximums(config, unified_tokens, unified_messages):
@@ -689,6 +703,10 @@ async def update_max_encountered_values_async(
     """
     if config_file is None:
         config_file = get_config_file_path()
+
+    # Skip all updates if config is read-only
+    if config.config_ro:
+        return False
 
     # First do the sync updates
     updated = update_max_encountered_values(config, usage_snapshot, config_file)

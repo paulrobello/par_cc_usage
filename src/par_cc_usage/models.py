@@ -682,22 +682,44 @@ class UsageSnapshot:
 
     async def get_unified_block_total_cost(self) -> float:
         """Get total cost from the current unified block."""
+        from .pricing import calculate_token_cost
         from .token_calculator import get_current_unified_block
 
         current_block = get_current_unified_block(self.unified_blocks)
-        if current_block:
-            return current_block.cost_usd
-        return 0.0
+        if not current_block:
+            return 0.0
 
-    async def get_total_cost_by_model(self) -> dict[str, float]:
-        """Get cost breakdown by model from all active blocks."""
+        total_cost = 0.0
+        for entry in current_block.entries:
+            usage = entry.token_usage
+            try:
+                cost = await calculate_token_cost(
+                    entry.full_model_name,
+                    usage.actual_input_tokens,
+                    usage.actual_output_tokens,
+                    usage.actual_cache_creation_input_tokens,
+                    usage.actual_cache_read_input_tokens,
+                )
+                total_cost += cost.total_cost
+            except Exception:
+                # If cost calculation fails for any entry, skip it
+                continue
+
+        return total_cost
+
+    async def get_total_cost_by_model(self, active_only: bool = True) -> dict[str, float]:
+        """Get cost breakdown by model from blocks.
+
+        Args:
+            active_only: If True, only include active blocks. If False, include all blocks.
+        """
         from .pricing import calculate_token_cost
 
         model_costs: dict[str, float] = {}
         for project in self.projects.values():
             for session in project.sessions.values():
                 for block in session.blocks:
-                    if block.is_active:
+                    if not active_only or block.is_active:
                         # Calculate cost for each full model name in the block
                         for full_model in block.full_model_names:
                             if full_model not in model_costs:
@@ -716,9 +738,13 @@ class UsageSnapshot:
 
         return model_costs
 
-    async def get_total_cost(self) -> float:
-        """Get total cost from all active blocks."""
-        model_costs = await self.get_total_cost_by_model()
+    async def get_total_cost(self, active_only: bool = True) -> float:
+        """Get total cost from blocks.
+
+        Args:
+            active_only: If True, only include active blocks. If False, include all blocks.
+        """
+        model_costs = await self.get_total_cost_by_model(active_only=active_only)
         return sum(model_costs.values())
 
     def add_project(self, project: Project) -> None:
@@ -883,6 +909,28 @@ class UnifiedBlock:
         # Update project/session tracking
         self.projects.add(entry.project_name)
         self.sessions.add(entry.session_id)
+
+    async def get_total_cost(self) -> float:
+        """Calculate total cost for this unified block from its entries."""
+        from .pricing import calculate_token_cost
+
+        total_cost = 0.0
+        for entry in self.entries:
+            usage = entry.token_usage
+            try:
+                cost = await calculate_token_cost(
+                    entry.full_model_name,
+                    usage.actual_input_tokens,
+                    usage.actual_output_tokens,
+                    usage.actual_cache_creation_input_tokens,
+                    usage.actual_cache_read_input_tokens,
+                )
+                total_cost += cost.total_cost
+            except Exception:
+                # If cost calculation fails for any entry, skip it
+                continue
+
+        return total_cost
 
 
 @dataclass

@@ -513,7 +513,7 @@ class TestSetLimitCommand:
 
         with patch('par_cc_usage.main.load_config', return_value=mock_config):
             with patch('par_cc_usage.main.save_config') as mock_save:
-                result = runner.invoke(app, ["set-limit", "500000", "--config", str(config_file)])
+                result = runner.invoke(app, ["set-limit", "token", "500000", "--config", str(config_file)])
 
                 assert result.exit_code == 0
                 mock_save.assert_called_once()
@@ -524,12 +524,66 @@ class TestSetLimitCommand:
                 assert "token limit" in result.output.lower() and "500,000" in clean_output
 
     def test_set_limit_invalid(self):
-        """Test setting an invalid token limit."""
+        """Test setting an invalid limit type."""
         runner = CliRunner()
 
-        result = runner.invoke(app, ["set-limit", "-1000"])
+        result = runner.invoke(app, ["set-limit", "invalid", "1000"])
 
         assert result.exit_code != 0
+        assert "Invalid limit type" in result.output
+
+    def test_set_limit_message_valid(self, temp_dir, mock_config):
+        """Test setting a valid message limit."""
+        runner = CliRunner()
+
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("message_limit: 100")
+
+        with patch('par_cc_usage.main.load_config', return_value=mock_config):
+            with patch('par_cc_usage.main.save_config') as mock_save:
+                result = runner.invoke(app, ["set-limit", "message", "250", "--config", str(config_file)])
+
+                assert result.exit_code == 0
+                mock_save.assert_called_once()
+                assert "message limit" in result.output.lower()
+
+    def test_set_limit_cost_valid(self, temp_dir, mock_config):
+        """Test setting a valid cost limit."""
+        runner = CliRunner()
+
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("cost_limit: 10.0")
+
+        with patch('par_cc_usage.main.load_config', return_value=mock_config):
+            with patch('par_cc_usage.main.save_config') as mock_save:
+                result = runner.invoke(app, ["set-limit", "cost", "25.99", "--config", str(config_file)])
+
+                assert result.exit_code == 0
+                mock_save.assert_called_once()
+                assert "cost limit" in result.output.lower()
+                assert "$25.99" in result.output
+
+    def test_set_limit_negative_value(self):
+        """Test setting negative limits are rejected."""
+        runner = CliRunner()
+
+        # Test negative token limit
+        result = runner.invoke(app, ["set-limit", "token", "--", "-100"])
+        assert result.exit_code != 0
+        assert "must be a non-negative integer" in result.output
+
+        # Test negative cost limit
+        result = runner.invoke(app, ["set-limit", "cost", "--", "-5.0"])
+        assert result.exit_code != 0
+        assert "must be non-negative" in result.output
+
+    def test_set_limit_fractional_token(self):
+        """Test fractional token limits are rejected."""
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["set-limit", "token", "100.5"])
+        assert result.exit_code != 0
+        assert "must be a non-negative integer" in result.output
 
 
 class TestInitCommand:

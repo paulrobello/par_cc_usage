@@ -27,6 +27,8 @@ projects_dir: ~/.claude/projects
 polling_interval: 5
 timezone: America/Los_Angeles
 token_limit: 500000
+message_limit: 1000  # Optional message limit
+cost_limit: 50.00    # Optional cost limit in USD
 cache_dir: ~/.cache/par_cc_usage  # XDG cache directory (automatically set)
 disable_cache: false  # Set to true to disable file monitoring cache
 recent_activity_window_hours: 5  # Hours to consider as 'recent' activity for smart strategy (matches billing cycle)
@@ -48,6 +50,7 @@ notifications:
   slack_webhook_url: https://hooks.slack.com/services/your-webhook-url
   notify_on_block_completion: true  # Send notification when 5-hour block completes
   cooldown_minutes: 5  # Minimum minutes between notifications
+config_ro: false  # Read-only mode: prevents automatic config updates (default: false)
 ```
 
 ## Environment Variables
@@ -71,6 +74,7 @@ notifications:
 - `PAR_CC_USAGE_SLACK_WEBHOOK_URL`: Slack webhook URL for notifications
 - `PAR_CC_USAGE_NOTIFY_ON_BLOCK_COMPLETION`: Send block completion notifications ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_COOLDOWN_MINUTES`: Minimum minutes between notifications
+- `PAR_CC_USAGE_CONFIG_RO`: Enable read-only mode ('true', '1', 'yes', 'on' for true)
 
 ## File Locations
 
@@ -116,17 +120,101 @@ export XDG_CACHE_HOME="/custom/cache/path"
 export XDG_DATA_HOME="/custom/data/path"
 ```
 
+## Read-Only Configuration Mode
+
+Read-only mode (`config_ro: true`) prevents automatic updates to the configuration file while preserving manual control via CLI commands.
+
+### Features
+
+- **🛡️ Automatic Update Protection**: Blocks all automatic config updates including:
+  - Maximum token/message/cost tracking (`max_unified_block_*_encountered`)
+  - Automatic limit scaling based on usage patterns
+  - Auto-detection and adjustment of limits
+
+- **🔧 CLI Override Support**: Manual commands still work normally:
+  - `pccu set-limit` commands bypass read-only protection
+  - Temporary CLI options (like `--token-limit`) continue to function
+  - Manual configuration via `pccu init` and direct file editing
+
+- **⚙️ Flexible Control**: Multiple ways to enable:
+  - **Config file**: `config_ro: true`
+  - **Environment variable**: `PAR_CC_USAGE_CONFIG_RO=true`
+  - **Per-session**: Environment variable override for specific runs
+
+### Usage Examples
+
+```bash
+# Enable read-only mode permanently
+echo "config_ro: true" >> ~/.config/par_cc_usage/config.yaml
+
+# Enable for single session
+PAR_CC_USAGE_CONFIG_RO=true pccu monitor
+
+# Manual limit updates still work with read-only enabled
+pccu set-limit cost 100.00  # Works even with config_ro: true
+
+# CLI overrides still work
+pccu monitor --token-limit 2000000  # Works even with config_ro: true
+```
+
+### Use Cases
+
+- **Production environments**: Prevent accidental config changes
+- **Shared systems**: Lock configuration while allowing operation
+- **Testing scenarios**: Maintain consistent config across test runs
+- **CI/CD pipelines**: Ensure configuration stability in automated environments
+
 ## Configuration Management Commands
+
+### Initialize Configuration
 
 ```bash
 # Initialize configuration file
 pccu init
 
-# Set token limit
-pccu set-limit 500000
-
 # Use custom config file
 pccu init --config my-config.yaml
+```
+
+### Set Limits
+
+The `set-limit` command allows you to set three types of limits:
+
+```bash
+# Set token limit (integer)
+pccu set-limit token 500000
+
+# Set message limit (integer)  
+pccu set-limit message 100
+
+# Set cost limit in USD (float)
+pccu set-limit cost 25.50
+```
+
+**Limit Types:**
+- **`token`**: Maximum tokens per 5-hour billing block (integer)
+- **`message`**: Maximum messages per 5-hour billing block (integer)
+- **`cost`**: Maximum cost per 5-hour billing block in USD (float)
+
+**Features:**
+- ✅ **Read-only protection**: Works even when `config_ro: true` is set
+- ✅ **Input validation**: Prevents negative values and validates data types
+- ✅ **Formatted output**: Shows clear before/after values with proper formatting
+- ✅ **Custom config**: Use `--config` option to specify alternative config files
+
+**Examples:**
+```bash
+# Set a high token limit for large projects
+pccu set-limit token 1000000
+
+# Set conservative message limit
+pccu set-limit message 50
+
+# Set cost budget for billing period
+pccu set-limit cost 100.00
+
+# Use with custom config file
+pccu set-limit cost 25.50 --config /path/to/config.yaml
 ```
 
 ## Cache Management

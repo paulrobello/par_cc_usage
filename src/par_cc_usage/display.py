@@ -444,8 +444,8 @@ class MonitorDisplay:
             from .pricing import format_cost
 
             cost_text = f"💰 {format_cost(total_cost)}"
-            if self.config and self.config.max_cost_encountered > 0:
-                max_cost_text = format_cost(self.config.max_cost_encountered)
+            if self.config and self.config.max_unified_block_cost_encountered > 0:
+                max_cost_text = format_cost(self.config.max_unified_block_cost_encountered)
                 cost_text += f" / {max_cost_text}"
             parts.append(cost_text)
 
@@ -490,8 +490,8 @@ class MonitorDisplay:
             from .pricing import format_cost
 
             cost_text = f"💰 {format_cost(total_cost)}"
-            if self.config and self.config.max_cost_encountered > 0:
-                max_cost_text = format_cost(self.config.max_cost_encountered)
+            if self.config and self.config.max_unified_block_cost_encountered > 0:
+                max_cost_text = format_cost(self.config.max_unified_block_cost_encountered)
                 cost_text += f" / {max_cost_text}"
             parts.append(cost_text)
 
@@ -526,8 +526,8 @@ class MonitorDisplay:
         # Calculate message metrics
         total_messages = sum(model_messages.values()) if model_messages else 0
         base_message_limit = snapshot.message_limit or 50
-        if self.config and self.config.max_messages_encountered > 0:
-            total_message_limit = self.config.max_messages_encountered
+        if self.config and self.config.max_unified_block_messages_encountered > 0:
+            total_message_limit = self.config.max_unified_block_messages_encountered
         else:
             total_message_limit = max(base_message_limit, total_messages)
 
@@ -1826,8 +1826,8 @@ class MonitorDisplay:
 
         # Calculate message limit
         base_message_limit = snapshot.message_limit or 50
-        if self.config and self.config.max_messages_encountered > 0:
-            total_message_limit = self.config.max_messages_encountered
+        if self.config and self.config.max_unified_block_messages_encountered > 0:
+            total_message_limit = self.config.max_unified_block_messages_encountered
         else:
             total_message_limit = max(base_message_limit, total_messages)
 

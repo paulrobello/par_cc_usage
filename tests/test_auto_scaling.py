@@ -62,12 +62,11 @@ class TestAutoScaling:
                     # Verify it returned True (config was updated)
                     assert result is True
 
-                    # Verify the max values were updated
-                    assert config.max_tokens_encountered == 750_000  # adjusted tokens
-                    assert config.max_messages_encountered == 10
-                    assert config.max_cost_encountered == 25.50
-                    assert config.max_unified_block_tokens_encountered == 750_000
+                    # Verify the max values were updated (sync function only updates tokens and messages)
+                    assert config.max_unified_block_tokens_encountered == 750_000  # adjusted tokens
                     assert config.max_unified_block_messages_encountered == 10
+                    # Cost updates require async function - sync function doesn't update cost
+                    assert config.max_unified_block_cost_encountered == 0.0  # unchanged by sync function
 
                     # Clean up
                     config_file.unlink()
@@ -76,11 +75,10 @@ class TestAutoScaling:
         """Test that no config update occurs when values are not higher."""
         config = Config()
         # Set high initial values
-        config.max_tokens_encountered = 1_000_000
-        config.max_messages_encountered = 100
-        config.max_cost_encountered = 100.0
+        # Set high initial values for unified block fields
         config.max_unified_block_tokens_encountered = 1_000_000
         config.max_unified_block_messages_encountered = 100
+        config.max_unified_block_cost_encountered = 100.0
 
         # Create a usage snapshot with lower values
         project = Project(name="test-project")
@@ -126,9 +124,9 @@ class TestAutoScaling:
                     assert result is False
 
                     # Verify the max values were not changed
-                    assert config.max_tokens_encountered == 1_000_000
-                    assert config.max_messages_encountered == 100
-                    assert config.max_cost_encountered == 100.0
+                    assert config.max_unified_block_tokens_encountered == 1_000_000
+                    assert config.max_unified_block_messages_encountered == 100
+                    assert config.max_unified_block_cost_encountered == 100.0
                     assert config.max_unified_block_tokens_encountered == 1_000_000
                     assert config.max_unified_block_messages_encountered == 100
 

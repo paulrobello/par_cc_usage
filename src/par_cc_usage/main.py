@@ -372,119 +372,15 @@ async def _calculate_block_cost(block: TokenBlock) -> float:
     return block_cost
 
 
-async def _find_max_block_cost(projects: dict[str, Project]) -> float:
-    """Find the maximum cost across all blocks."""
-    max_block_cost = 0.0
-
-    for project in projects.values():
-        for session in project.sessions.values():
-            for block in session.blocks:
-                block_cost = await _calculate_block_cost(block)
-                if block_cost > max_block_cost:
-                    max_block_cost = block_cost
-
-    return max_block_cost
-
-
-def _save_max_cost_update(
-    config: Config, max_cost: float, actual_config_file: Path | None, suppress_output: bool
-) -> None:
-    """Save max cost update to config and optionally print message."""
-    old_max = config.max_cost_encountered
-    config.max_cost_encountered = max_cost
-
-    if actual_config_file:
-        from .config import save_config
-
-        save_config(config, actual_config_file)
-
-        if not suppress_output:
-            from .pricing import format_cost
-
-            console.print(
-                f"[yellow]Updated max cost encountered: {format_cost(old_max)} → {format_cost(max_cost)}[/yellow]"
-            )
-
-
-async def _auto_update_max_cost(
-    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
-) -> None:
-    """Auto-update max cost encountered if we find higher individual block costs in the data."""
-    max_block_cost = await _find_max_block_cost(projects)
-
-    # Update config if we found a higher individual block cost
-    if max_block_cost > config.max_cost_encountered:
-        _save_max_cost_update(config, max_block_cost, actual_config_file, suppress_output)
-
-
-def _auto_update_max_tokens(
-    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
-) -> None:
-    """Auto-update max tokens encountered if we find higher individual block tokens in the data."""
-    max_block_tokens = 0
-
-    # Scan all blocks to find the highest individual block token count
-    for project in projects.values():
-        for session in project.sessions.values():
-            for block in session.blocks:
-                # Check if this block has more tokens than our current maximum
-                if block.adjusted_tokens > max_block_tokens:
-                    max_block_tokens = block.adjusted_tokens
-
-    # Update config if we found a higher individual block token count
-    if max_block_tokens > config.max_tokens_encountered:
-        old_max = config.max_tokens_encountered
-        config.max_tokens_encountered = max_block_tokens
-
-        # Save updated config if we have a config file
-        if actual_config_file:
-            from .config import save_config
-
-            save_config(config, actual_config_file)
-            from .token_calculator import format_token_count
-
-            if not suppress_output:
-                console.print(
-                    f"[yellow]Updated max tokens encountered: {format_token_count(old_max)} → {format_token_count(max_block_tokens)}[/yellow]"
-                )
-
-
-def _auto_update_max_messages(
-    config: Config, projects: dict[str, Project], actual_config_file: Path | None, suppress_output: bool = False
-) -> None:
-    """Auto-update max messages encountered if we find higher individual block messages in the data."""
-    max_block_messages = 0
-
-    # Scan all blocks to find the highest individual block message count
-    for project in projects.values():
-        for session in project.sessions.values():
-            for block in session.blocks:
-                # Check if this block has more messages than our current maximum
-                if block.messages_processed > max_block_messages:
-                    max_block_messages = block.messages_processed
-
-    # Update config if we found a higher individual block message count
-    if max_block_messages > config.max_messages_encountered:
-        old_max = config.max_messages_encountered
-        config.max_messages_encountered = max_block_messages
-
-        # Save updated config if we have a config file
-        if actual_config_file:
-            from .config import save_config
-
-            save_config(config, actual_config_file)
-            if not suppress_output:
-                console.print(
-                    f"[yellow]Updated max messages encountered: {old_max:,} → {max_block_messages:,}[/yellow]"
-                )
+# Legacy individual block max tracking functions removed - unified blocks handle all maximums
 
 
 def _auto_update_unified_block_maximums(
     config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block maximums if current unified block exceeds historical maximums."""
-    if not snapshot.unified_block_start_time:
-        return
+    if not snapshot.unified_block_start_time or config.config_ro:
+        return  # Skip update if config is read-only
 
     from rich.console import Console
 
@@ -526,50 +422,78 @@ def _auto_update_unified_block_maximums(
         save_config(config, actual_config_file)
 
 
+def _find_max_tokens_in_blocks(unified_blocks: list) -> int:
+    """Find maximum tokens across all unified blocks."""
+    max_tokens = 0
+    for block in unified_blocks:
+        if block.total_tokens > max_tokens:
+            max_tokens = block.total_tokens
+    return max_tokens
+
+
+def _find_max_messages_in_blocks(unified_blocks: list) -> int:
+    """Find maximum messages across all unified blocks."""
+    max_messages = 0
+    for block in unified_blocks:
+        if block.messages_processed > max_messages:
+            max_messages = block.messages_processed
+    return max_messages
+
+
+def _update_tokens_maximum(config: Config, max_tokens: int, suppress_output: bool) -> bool:
+    """Update tokens maximum if new value is higher."""
+    if max_tokens > config.max_unified_block_tokens_encountered:
+        from rich.console import Console
+
+        from .token_calculator import format_token_count
+
+        old_max = config.max_unified_block_tokens_encountered
+        config.max_unified_block_tokens_encountered = max_tokens
+
+        if not suppress_output:
+            console = Console()
+            console.print(
+                f"[yellow]Updated max unified block tokens (from all blocks scan): {format_token_count(old_max)} → {format_token_count(max_tokens)}[/yellow]"
+            )
+        return True
+    return False
+
+
+def _update_messages_maximum(config: Config, max_messages: int, suppress_output: bool) -> bool:
+    """Update messages maximum if new value is higher."""
+    if max_messages > config.max_unified_block_messages_encountered:
+        from rich.console import Console
+
+        old_max = config.max_unified_block_messages_encountered
+        config.max_unified_block_messages_encountered = max_messages
+
+        if not suppress_output:
+            console = Console()
+            console.print(
+                f"[yellow]Updated max unified block messages (from all blocks scan): {old_max:,} → {max_messages:,}[/yellow]"
+            )
+        return True
+    return False
+
+
 def _auto_update_unified_block_maximums_from_all_blocks(
     config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block maximums by scanning ALL unified blocks for highest values."""
-    from rich.console import Console
+    if config.config_ro:
+        return  # Skip update if config is read-only
 
-    console = Console()
     config_updated = False
 
-    # Find maximum tokens across all unified blocks
-    max_unified_tokens = 0
-    for block in unified_blocks:
-        if block.total_tokens > max_unified_tokens:
-            max_unified_tokens = block.total_tokens
-
-    # Update unified block tokens maximum if we found a higher value
-    if max_unified_tokens > config.max_unified_block_tokens_encountered:
-        old_max = config.max_unified_block_tokens_encountered
-        config.max_unified_block_tokens_encountered = max_unified_tokens
+    # Update tokens maximum
+    max_tokens = _find_max_tokens_in_blocks(unified_blocks)
+    if _update_tokens_maximum(config, max_tokens, suppress_output):
         config_updated = True
 
-        from .token_calculator import format_token_count
-
-        if not suppress_output:
-            console.print(
-                f"[yellow]Updated max unified block tokens (from all blocks scan): {format_token_count(old_max)} → {format_token_count(max_unified_tokens)}[/yellow]"
-            )
-
-    # Find maximum messages across all unified blocks
-    max_unified_messages = 0
-    for block in unified_blocks:
-        if block.messages_processed > max_unified_messages:
-            max_unified_messages = block.messages_processed
-
-    # Update unified block messages maximum if we found a higher value
-    if max_unified_messages > config.max_unified_block_messages_encountered:
-        old_max = config.max_unified_block_messages_encountered
-        config.max_unified_block_messages_encountered = max_unified_messages
+    # Update messages maximum
+    max_messages = _find_max_messages_in_blocks(unified_blocks)
+    if _update_messages_maximum(config, max_messages, suppress_output):
         config_updated = True
-
-        if not suppress_output:
-            console.print(
-                f"[yellow]Updated max unified block messages (from all blocks scan): {old_max:,} → {max_unified_messages:,}[/yellow]"
-            )
 
     # Save config if any updates were made
     if config_updated and actual_config_file:
@@ -582,8 +506,8 @@ async def _auto_update_unified_block_cost_maximum(
     config: Config, snapshot: UsageSnapshot, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block cost maximum if current unified block exceeds historical maximum."""
-    if not snapshot.unified_block_start_time:
-        return
+    if not snapshot.unified_block_start_time or config.config_ro:
+        return  # Skip update if config is read-only
 
     from rich.console import Console
 
@@ -617,6 +541,9 @@ async def _auto_update_unified_block_cost_maximum_from_all_blocks(
     config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
     """Auto-update unified block cost maximum by scanning ALL unified blocks for highest cost."""
+    if config.config_ro:
+        return  # Skip update if config is read-only
+
     from rich.console import Console
 
     console = Console()
@@ -1004,13 +931,7 @@ async def _monitor_async(
     # Auto-update max cost encountered if higher costs found
     # Suppress output in continuous monitor mode to prevent console jumping
     suppress_output = not options.snapshot
-    await _auto_update_max_cost(config, projects, actual_config_file, suppress_output)
-
-    # Auto-update max tokens encountered if higher tokens found
-    _auto_update_max_tokens(config, projects, actual_config_file, suppress_output)
-
-    # Auto-update max messages encountered if higher messages found
-    _auto_update_max_messages(config, projects, actual_config_file, suppress_output)
+    # Note: Individual block max values are now legacy - unified blocks handle all maximums
 
     # Auto-update unified block maximums by scanning ALL unified blocks for highest values
     _auto_update_unified_block_maximums_from_all_blocks(config, unified_blocks, actual_config_file, suppress_output)
@@ -1229,15 +1150,7 @@ def list_usage(
         else:
             config.token_limit = get_default_token_limit()
 
-    # Auto-update max cost encountered if higher costs found
-
-    asyncio.run(_auto_update_max_cost(config, projects, config_file_used if config_file_used.exists() else None))
-
-    # Auto-update max tokens encountered if higher tokens found
-    _auto_update_max_tokens(config, projects, config_file_used if config_file_used.exists() else None)
-
-    # Auto-update max messages encountered if higher messages found
-    _auto_update_max_messages(config, projects, config_file_used if config_file_used.exists() else None)
+    # Note: Individual block max values are now legacy - unified blocks handle all maximums
 
     # Auto-update unified block maximums by scanning ALL unified blocks for highest values
     _auto_update_unified_block_maximums_from_all_blocks(
@@ -1294,31 +1207,102 @@ def init(
     console.print(f"[green]Created default configuration at {config_file}[/green]")
 
 
+def _validate_limit_type(limit_type: str) -> str:
+    """Validate and normalize limit type."""
+    limit_type = limit_type.lower()
+    if limit_type not in ["token", "message", "cost"]:
+        console.print(f"[red]Invalid limit type '{limit_type}'. Must be 'token', 'message', or 'cost'[/red]")
+        sys.exit(1)
+    return limit_type
+
+
+def _validate_limit_value(limit_type: str, limit_value: float) -> int | float:
+    """Validate limit value based on type."""
+    if limit_type in ["token", "message"]:
+        if limit_value != int(limit_value) or limit_value < 0:
+            console.print(f"[red]{limit_type.title()} limit must be a non-negative integer[/red]")
+            sys.exit(1)
+        return int(limit_value)
+    elif limit_type == "cost":
+        if limit_value < 0:
+            console.print("[red]Cost limit must be non-negative[/red]")
+            sys.exit(1)
+        return limit_value
+    return limit_value
+
+
+def _get_old_limit_value(config: Config, limit_type: str) -> int | float | None:
+    """Get the current limit value for the specified type."""
+    if limit_type == "token":
+        return config.token_limit
+    elif limit_type == "message":
+        return config.message_limit
+    else:  # cost
+        return config.cost_limit
+
+
+def _update_config_limit(config: Config, limit_type: str, limit_value: int | float) -> None:
+    """Update the configuration with the new limit value."""
+    if limit_type == "token":
+        config.token_limit = int(limit_value)
+    elif limit_type == "message":
+        config.message_limit = int(limit_value)
+    else:  # cost
+        config.cost_limit = limit_value
+
+
+def _display_limit_update_result(limit_type: str, old_limit: int | float | None, new_value: int | float) -> None:
+    """Display the result of the limit update."""
+    if limit_type == "cost":
+        # Format cost values
+        if old_limit:
+            console.print(f"[green]Updated {limit_type} limit from ${old_limit:.2f} to ${new_value:.2f}[/green]")
+        else:
+            console.print(f"[green]Set {limit_type} limit to ${new_value:.2f}[/green]")
+    else:
+        # Format token/message values with commas
+        if old_limit:
+            console.print(f"[green]Updated {limit_type} limit from {old_limit:,} to {new_value:,}[/green]")
+        else:
+            console.print(f"[green]Set {limit_type} limit to {new_value:,}[/green]")
+
+
 @app.command("set-limit")
 def set_limit(
-    limit: Annotated[int, typer.Argument(help="Token limit to set")],
+    limit_type: Annotated[str, typer.Argument(help="Type of limit to set: 'token', 'message', or 'cost'")],
+    limit_value: Annotated[float, typer.Argument(help="Limit value to set")],
     config_file: Annotated[
         Path, typer.Option("--config", "-c", help="Configuration file path")
     ] = get_config_file_path(),
 ) -> None:
-    """Set the token limit in the configuration."""
+    """Set a limit in the configuration (token, message, or cost)."""
     if not config_file.exists():
         console.print(f"[red]Configuration file not found: {config_file}[/red]")
         console.print("[yellow]Run 'par-cc-usage init' to create a configuration file[/yellow]")
         sys.exit(1)
 
+    # Validate and normalize inputs
+    validated_type = _validate_limit_type(limit_type)
+    validated_value = _validate_limit_value(validated_type, limit_value)
+
     # Load current config
     config = load_config(config_file)
-    old_limit = config.token_limit
+    old_limit = _get_old_limit_value(config, validated_type)
 
-    # Update token limit
-    config.token_limit = limit
+    # Temporarily disable config_ro to allow CLI-specified limit update
+    was_readonly = config.config_ro
+    config.config_ro = False
+
+    # Update the appropriate limit
+    _update_config_limit(config, validated_type, validated_value)
+
+    # Restore original config_ro setting
+    config.config_ro = was_readonly
+
     save_config(config, config_file)
 
-    if old_limit:
-        console.print(f"[green]Updated token limit from {old_limit:,} to {limit:,}[/green]")
-    else:
-        console.print(f"[green]Set token limit to {limit:,}[/green]")
+    # Display result
+    _display_limit_update_result(validated_type, old_limit, validated_value)
 
 
 @app.command("clear-cache")
