@@ -55,6 +55,9 @@ uv run pccu monitor --no-tools
 # Disable pricing display if desired  
 uv run pccu monitor --no-pricing
 
+# Disable P90 limits and use absolute maximum values
+uv run pccu monitor --no-p90
+
 # Take a single debug snapshot (monitor once and exit)
 uv run pccu monitor --snapshot
 
@@ -97,6 +100,13 @@ uv run pccu list --format csv --output costs.csv
 - **Burn Rate Estimation**: 5-hour block cost projections
 - **Individual Project/Session Breakdown**: Cost tracking per project and session
 - **Export Support**: JSON and CSV export with cost data
+
+### P90 Progress Bar Limits (Default Enabled)
+- **Stable Progress Bars**: Uses 90th percentile (P90) instead of absolute maximum values for more stable progress indicators
+- **Outlier Filtering**: Ignores extreme usage spikes that might skew progress bars
+- **Realistic Projections**: Shows more typical usage patterns while capturing 90% of historical data
+- **Visual Indicator**: Displays "(P90)" next to limits when enabled
+- **Optional**: Can be disabled to use absolute maximum values via `--no-p90` or config setting
 
 ## Troubleshooting
 
@@ -184,6 +194,7 @@ PAR CC Usage is built around a **unified block system** that tracks token usage 
 - **Unified Block System**: Cross-project/session billing block detection using standard behavior
 - **Message Count Tracking**: Accurate message counts displayed per model and total (💬)
 - **Active Project/Session Counts**: Real-time counts of active projects and sessions in current block
+- **P90 Progress Limits**: Stable progress bars using 90th percentile values instead of outlier maximums
 - **High-Performance Cache**: File position tracking for 12x faster startup (0.3s vs 3.9s)
 - **Tool Usage Tracking**: Monitors Claude Code tool usage (Read, Edit, Bash, etc.)
 - **Cost Analysis**: Real-time cost tracking with burn rate estimation

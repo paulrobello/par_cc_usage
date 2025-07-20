@@ -13,6 +13,24 @@ from rich.text import Text
 
 from par_cc_usage.display import MonitorDisplay
 from par_cc_usage.enums import DisplayMode
+
+
+def create_mock_config(display_mode=DisplayMode.COMPACT):
+    """Create a mock config with all required fields for P90 functionality."""
+    config = Mock()
+    from par_cc_usage.config import DisplayConfig
+    config.display = DisplayConfig(display_mode=display_mode)
+    config.max_cost_encountered = 0.0
+    config.max_tokens_encountered = 0
+    config.max_messages_encountered = 0
+    config.max_unified_block_tokens_encountered = 0
+    config.max_unified_block_messages_encountered = 0
+    config.max_unified_block_cost_encountered = 0.0
+    # Add P90 fields
+    config.p90_unified_block_tokens_encountered = 0
+    config.p90_unified_block_messages_encountered = 0
+    config.p90_unified_block_cost_encountered = 0.0
+    return config
 from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage, UsageSnapshot
 
 
@@ -42,14 +60,7 @@ class TestMonitorDisplay:
         from par_cc_usage.config import DisplayConfig
 
         # Create config with compact mode
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
 
         assert display.compact_mode is True
@@ -60,14 +71,7 @@ class TestMonitorDisplay:
         from par_cc_usage.config import DisplayConfig
 
         # Create config with normal mode
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.NORMAL)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.NORMAL)
         display = MonitorDisplay(config=config)
 
         assert display.compact_mode is False
@@ -101,14 +105,7 @@ class TestMonitorDisplay:
         from par_cc_usage.config import DisplayConfig
 
         # Create config with compact mode
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config, show_sessions=True)
 
         # Check layout structure - should only have header and progress
@@ -120,14 +117,7 @@ class TestMonitorDisplay:
         """Test layout setup in compact mode without sessions."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config, show_sessions=False)
 
         assert display.layout is not None
@@ -188,14 +178,7 @@ class TestMonitorDisplay:
         """Test progress bars creation in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
 
         panel = await display._create_progress_bars(sample_usage_snapshot)
@@ -208,14 +191,7 @@ class TestMonitorDisplay:
         """Test model displays in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
 
         model_tokens = {"claude-3-5-sonnet": 1000, "claude-3-opus": 500}
@@ -230,14 +206,7 @@ class TestMonitorDisplay:
         """Test model displays in normal mode."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.NORMAL)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.NORMAL)
         display = MonitorDisplay(config=config)
 
         model_tokens = {"claude-3-5-sonnet": 1000}
@@ -287,14 +256,7 @@ class TestMonitorDisplay:
         """Test update method in compact mode only updates essential elements."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0  # Add max_cost_encountered attribute
+        config = create_mock_config(DisplayMode.COMPACT)  # Add max_cost_encountered attribute
 
         display = MonitorDisplay(config=config)
 
@@ -340,14 +302,7 @@ class TestMonitorDisplay:
         """Test that compact mode hides sessions even when show_sessions=True."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         # Request sessions to be shown, but compact mode should override
         display = MonitorDisplay(config=config, show_sessions=True)
 
@@ -360,14 +315,7 @@ class TestMonitorDisplay:
         """Test burn rate calculation and display in compact mode."""
         from par_cc_usage.config import DisplayConfig
 
-        config = Mock()
-        config.display = DisplayConfig(display_mode=DisplayMode.COMPACT)
-        config.max_cost_encountered = 0.0
-        config.max_tokens_encountered = 0
-        config.max_messages_encountered = 0
-        config.max_unified_block_tokens_encountered = 0
-        config.max_unified_block_messages_encountered = 0
-        config.max_unified_block_cost_encountered = 0.0
+        config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
 
         # Create progress bars panel which includes burn rate in compact mode

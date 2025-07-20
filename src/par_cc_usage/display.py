@@ -398,10 +398,16 @@ class MonitorDisplay:
             model_messages = snapshot.messages_by_model()
             total_tokens = snapshot.active_tokens
 
-        # Use max tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
+        # Use max or P90 tokens encountered across all blocks as the progress bar limit, with fallback to configured limit
         base_limit = snapshot.total_limit or 500_000
-        if self.config and self.config.max_unified_block_tokens_encountered > 0:
-            total_limit = self.config.max_unified_block_tokens_encountered
+        if self.config:
+            # Check if P90 mode is enabled and P90 value is available
+            if self.config.display.use_p90_limit and self.config.p90_unified_block_tokens_encountered > 0:
+                total_limit = self.config.p90_unified_block_tokens_encountered
+            elif self.config.max_unified_block_tokens_encountered > 0:
+                total_limit = self.config.max_unified_block_tokens_encountered
+            else:
+                total_limit = base_limit
         else:
             total_limit = base_limit
 
@@ -418,6 +424,18 @@ class MonitorDisplay:
             # If cost calculation fails, continue without cost display
             return 0.0
 
+    def _get_limit_text(self, use_p90: bool, p90_value: int | float, max_value: int | float, formatter=None) -> str:
+        """Get limit text based on P90 or max value."""
+        if use_p90 and p90_value > 0:
+            if formatter:
+                return f" / {formatter(p90_value)} (P90)"
+            return f" / {p90_value:,} (P90)"
+        elif max_value > 0:
+            if formatter:
+                return f" / {formatter(max_value)}"
+            return f" / {max_value:,}"
+        return ""
+
     def _create_progress_text(
         self, total_tokens: int, total_limit: int, total_messages: int, total_message_limit: int, total_cost: float
     ) -> str:
@@ -426,17 +444,24 @@ class MonitorDisplay:
 
         # Tokens part
         tokens_text = f"🪙 {format_token_count(total_tokens)}"
-        if self.config and self.config.max_unified_block_tokens_encountered > 0:
-            max_tokens_text = format_token_count(self.config.max_unified_block_tokens_encountered)
-            tokens_text += f" / {max_tokens_text}"
+        if self.config:
+            tokens_text += self._get_limit_text(
+                self.config.display.use_p90_limit,
+                self.config.p90_unified_block_tokens_encountered,
+                self.config.max_unified_block_tokens_encountered,
+                format_token_count,
+            )
         parts.append(tokens_text)
 
         # Messages part
         if total_messages > 0:
             messages_text = f"💬 {total_messages:,}"
-            if self.config and self.config.max_unified_block_messages_encountered > 0:
-                max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
-                messages_text += f" / {max_messages_text}"
+            if self.config:
+                messages_text += self._get_limit_text(
+                    self.config.display.use_p90_limit,
+                    self.config.p90_unified_block_messages_encountered,
+                    self.config.max_unified_block_messages_encountered,
+                )
             parts.append(messages_text)
 
         # Cost part
@@ -444,9 +469,13 @@ class MonitorDisplay:
             from .pricing import format_cost
 
             cost_text = f"💰 {format_cost(total_cost)}"
-            if self.config and self.config.max_unified_block_cost_encountered > 0:
-                max_cost_text = format_cost(self.config.max_unified_block_cost_encountered)
-                cost_text += f" / {max_cost_text}"
+            if self.config:
+                cost_text += self._get_limit_text(
+                    self.config.display.use_p90_limit,
+                    self.config.p90_unified_block_cost_encountered,
+                    self.config.max_unified_block_cost_encountered,
+                    format_cost,
+                )
             parts.append(cost_text)
 
         return "   " + " - ".join(parts)
@@ -472,17 +501,24 @@ class MonitorDisplay:
 
         # Tokens part
         tokens_text = f"🪙 {format_token_count(total_tokens)}"
-        if self.config and self.config.max_unified_block_tokens_encountered > 0:
-            max_tokens_text = format_token_count(self.config.max_unified_block_tokens_encountered)
-            tokens_text += f" / {max_tokens_text}"
+        if self.config:
+            tokens_text += self._get_limit_text(
+                self.config.display.use_p90_limit,
+                self.config.p90_unified_block_tokens_encountered,
+                self.config.max_unified_block_tokens_encountered,
+                format_token_count,
+            )
         parts.append(tokens_text)
 
         # Messages part
         if total_messages > 0:
             messages_text = f"💬 {total_messages:,}"
-            if self.config and self.config.max_unified_block_messages_encountered > 0:
-                max_messages_text = f"{self.config.max_unified_block_messages_encountered:,}"
-                messages_text += f" / {max_messages_text}"
+            if self.config:
+                messages_text += self._get_limit_text(
+                    self.config.display.use_p90_limit,
+                    self.config.p90_unified_block_messages_encountered,
+                    self.config.max_unified_block_messages_encountered,
+                )
             parts.append(messages_text)
 
         # Cost part
@@ -490,9 +526,13 @@ class MonitorDisplay:
             from .pricing import format_cost
 
             cost_text = f"💰 {format_cost(total_cost)}"
-            if self.config and self.config.max_unified_block_cost_encountered > 0:
-                max_cost_text = format_cost(self.config.max_unified_block_cost_encountered)
-                cost_text += f" / {max_cost_text}"
+            if self.config:
+                cost_text += self._get_limit_text(
+                    self.config.display.use_p90_limit,
+                    self.config.p90_unified_block_cost_encountered,
+                    self.config.max_unified_block_cost_encountered,
+                    format_cost,
+                )
             parts.append(cost_text)
 
         total_text.append(" - ".join(parts) + " ", style=text_style)
@@ -526,8 +566,14 @@ class MonitorDisplay:
         # Calculate message metrics
         total_messages = sum(model_messages.values()) if model_messages else 0
         base_message_limit = snapshot.message_limit or 50
-        if self.config and self.config.max_unified_block_messages_encountered > 0:
-            total_message_limit = self.config.max_unified_block_messages_encountered
+        if self.config:
+            # Check if P90 mode is enabled and P90 value is available
+            if self.config.display.use_p90_limit and self.config.p90_unified_block_messages_encountered > 0:
+                total_message_limit = self.config.p90_unified_block_messages_encountered
+            elif self.config.max_unified_block_messages_encountered > 0:
+                total_message_limit = self.config.max_unified_block_messages_encountered
+            else:
+                total_message_limit = max(base_message_limit, total_messages)
         else:
             total_message_limit = max(base_message_limit, total_messages)
 
@@ -1826,8 +1872,14 @@ class MonitorDisplay:
 
         # Calculate message limit
         base_message_limit = snapshot.message_limit or 50
-        if self.config and self.config.max_unified_block_messages_encountered > 0:
-            total_message_limit = self.config.max_unified_block_messages_encountered
+        if self.config:
+            # Check if P90 mode is enabled and P90 value is available
+            if self.config.display.use_p90_limit and self.config.p90_unified_block_messages_encountered > 0:
+                total_message_limit = self.config.p90_unified_block_messages_encountered
+            elif self.config.max_unified_block_messages_encountered > 0:
+                total_message_limit = self.config.max_unified_block_messages_encountered
+            else:
+                total_message_limit = max(base_message_limit, total_messages)
         else:
             total_message_limit = max(base_message_limit, total_messages)
 

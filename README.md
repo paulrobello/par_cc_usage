@@ -20,6 +20,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [📊 Real-Time Monitoring](#-real-time-monitoring)
   - [🔥 Advanced Burn Rate Analytics](#-advanced-burn-rate-analytics)
   - [⚙️ Intelligent Block Management](#️-intelligent-block-management)
+  - [📏 P90 Progress Bar Limits](#-p90-progress-bar-limits)
   - [🎯 Smart Features](#-smart-features)
   - [💰 Cost Tracking & Pricing](#-cost-tracking--pricing)
   - [📁 File System Support](#-file-system-support)
@@ -89,6 +90,13 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Manual override**: CLI option to set custom block start times for testing or corrections
 - **Automatic detection**: Smart detection of session boundaries and billing periods
 - **Gap handling**: Proper handling of inactivity periods longer than 5 hours
+
+### 📏 P90 Progress Bar Limits
+- **Stable progress bars**: Uses 90th percentile (P90) values instead of absolute maximums for more realistic progress indicators
+- **Outlier filtering**: Automatically ignores extreme usage spikes that can skew progress displays
+- **Realistic projections**: Shows typical usage patterns while capturing 90% of historical data
+- **Visual P90 indicator**: Clear "(P90)" labels when P90 mode is active
+- **Configurable**: Toggle between P90 and absolute maximum via `--no-p90` flag or config setting
 
 ### 🎯 Smart Features
 - **Auto-adjusting limits**: Automatically increases token limits when exceeded and saves to config
@@ -222,6 +230,10 @@ pccu monitor --interval 2 --token-limit 1000000 --show-sessions
 
 # Monitor with custom configuration
 pccu monitor --config production-config.yaml
+
+# P90 vs Absolute Maximum options
+pccu monitor  # Default: P90 limits for stable progress bars
+pccu monitor --no-p90  # Use absolute maximum values instead
 
 # Testing and debugging scenarios
 pccu monitor --no-cache --block-start 18  # Fresh scan + custom block timing
@@ -459,6 +471,7 @@ display:
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
   show_pricing: false  # Enable cost calculations and display (default: false)
+  use_p90_limit: true  # Use P90 values instead of absolute maximum for progress bar limits (default: true)
   theme: default  # Theme: 'default', 'dark', 'light', 'accessibility', or 'minimal'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
     - "-Users-"
@@ -483,6 +496,7 @@ notifications:
 - `PAR_CC_USAGE_CONFIG_RO`: Read-only mode - prevents automatic updates to config file ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_SHOW_PROGRESS_BARS`: Show progress bars
 - `PAR_CC_USAGE_SHOW_ACTIVE_SESSIONS`: Show active sessions (default: true)
+- `PAR_CC_USAGE_USE_P90_LIMIT`: Use P90 values instead of absolute maximum for progress bars ('true', '1', 'yes', 'on' for true, default: true)
 - `PAR_CC_USAGE_UPDATE_IN_PLACE`: Update display in place
 - `PAR_CC_USAGE_REFRESH_INTERVAL`: Display refresh interval
 - `PAR_CC_USAGE_TIME_FORMAT`: Time format ('12h' or '24h')
@@ -1071,6 +1085,13 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 #### 🧪 Test Coverage Improvements
 - **72% Overall Coverage**: Improved from 66% to 72% total test coverage (+6% improvement)
+
+#### 📏 P90 Progress Bar Limits (New Feature)
+- **P90-Based Progress Bars**: Progress bars now use 90th percentile (P90) values by default instead of absolute maximums for more stable and realistic progress indicators
+- **Outlier Resilience**: Automatically filters out extreme usage spikes that previously skewed progress displays
+- **Visual P90 Indicators**: Clear "(P90)" labels when P90 mode is active
+- **Configurable Toggle**: Switch between P90 and absolute maximum via `--no-p90` flag or `use_p90_limit` config setting
+- **Default Enabled**: P90 mode is enabled by default for better user experience
 
 ### v0.2.1 - Progress Bar & Max Value Tracking Fixes
 

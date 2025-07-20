@@ -57,6 +57,10 @@ class DisplayConfig(BaseModel):
         default=ThemeType.DEFAULT,
         description="Theme to use for display styling: 'default', 'dark', 'light', 'accessibility', or 'minimal'",
     )
+    use_p90_limit: bool = Field(
+        default=True,
+        description="Use P90 values instead of absolute maximum for progress bar limits",
+    )
 
 
 class NotificationConfig(BaseModel):
@@ -123,6 +127,18 @@ class Config(BaseModel):
     max_unified_block_cost_encountered: float = Field(
         default=0.0,
         description="Maximum cost from any unified block (5-hour period) encountered in history (updated automatically)",
+    )
+    p90_unified_block_tokens_encountered: int = Field(
+        default=0,
+        description="P90 tokens from unified blocks (5-hour periods) encountered in history (updated automatically)",
+    )
+    p90_unified_block_messages_encountered: int = Field(
+        default=0,
+        description="P90 messages from unified blocks (5-hour periods) encountered in history (updated automatically)",
+    )
+    p90_unified_block_cost_encountered: float = Field(
+        default=0.0,
+        description="P90 cost from unified blocks (5-hour periods) encountered in history (updated automatically)",
     )
     cache_dir: Path = Field(
         default_factory=get_cache_dir,
@@ -299,6 +315,7 @@ def _parse_env_value(value: str, config_key: str) -> Any:
         "show_tool_usage",
         "show_pricing",
         "config_ro",
+        "use_p90_limit",
     ]:
         return _parse_bool_value(value)
 
@@ -367,6 +384,7 @@ def _get_display_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_DISPLAY_MODE": "display_mode",
         "PAR_CC_USAGE_SHOW_PRICING": "show_pricing",
         "PAR_CC_USAGE_THEME": "theme",
+        "PAR_CC_USAGE_USE_P90_LIMIT": "use_p90_limit",
     }
 
 
@@ -495,6 +513,9 @@ def save_config(config: Config, config_file: Path) -> None:
         "max_unified_block_tokens_encountered": config.max_unified_block_tokens_encountered,
         "max_unified_block_messages_encountered": config.max_unified_block_messages_encountered,
         "max_unified_block_cost_encountered": config.max_unified_block_cost_encountered,
+        "p90_unified_block_tokens_encountered": config.p90_unified_block_tokens_encountered,
+        "p90_unified_block_messages_encountered": config.p90_unified_block_messages_encountered,
+        "p90_unified_block_cost_encountered": config.p90_unified_block_cost_encountered,
         "cache_dir": str(config.cache_dir),
         "display": {
             "show_progress_bars": config.display.show_progress_bars,
@@ -505,6 +526,7 @@ def save_config(config: Config, config_file: Path) -> None:
             "project_name_prefixes": config.display.project_name_prefixes,
             "display_mode": config.display.display_mode.value,
             "show_pricing": config.display.show_pricing,
+            "use_p90_limit": config.display.use_p90_limit,
         },
         "notifications": {
             "discord_webhook_url": config.notifications.discord_webhook_url,

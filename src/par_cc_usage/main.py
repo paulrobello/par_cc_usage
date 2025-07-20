@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import statistics
 import sys
 import time
 from datetime import UTC, datetime, timedelta
@@ -440,6 +441,57 @@ def _find_max_messages_in_blocks(unified_blocks: list) -> int:
     return max_messages
 
 
+def _calculate_p90_tokens_in_blocks(unified_blocks: list) -> int:
+    """Calculate P90 tokens across all unified blocks."""
+    if not unified_blocks:
+        return 0
+
+    token_values = [block.total_tokens for block in unified_blocks if block.total_tokens > 0]
+    if not token_values:
+        return 0
+    if len(token_values) == 1:
+        return token_values[0]
+
+    return int(statistics.quantiles(token_values, n=10)[8])  # P90 is the 9th quantile (index 8)
+
+
+def _calculate_p90_messages_in_blocks(unified_blocks: list) -> int:
+    """Calculate P90 messages across all unified blocks."""
+    if not unified_blocks:
+        return 0
+
+    message_values = [block.messages_processed for block in unified_blocks if block.messages_processed > 0]
+    if not message_values:
+        return 0
+    if len(message_values) == 1:
+        return message_values[0]
+
+    return int(statistics.quantiles(message_values, n=10)[8])  # P90 is the 9th quantile (index 8)
+
+
+async def _calculate_p90_cost_in_blocks(unified_blocks: list) -> float:
+    """Calculate P90 cost across all unified blocks."""
+    if not unified_blocks:
+        return 0.0
+
+    cost_values = []
+    for block in unified_blocks:
+        try:
+            cost = await block.get_total_cost()
+            if cost > 0:
+                cost_values.append(cost)
+        except Exception:
+            # Skip blocks where cost calculation fails
+            continue
+
+    if not cost_values:
+        return 0.0
+    if len(cost_values) == 1:
+        return cost_values[0]
+
+    return statistics.quantiles(cost_values, n=10)[8]  # P90 is the 9th quantile (index 8)
+
+
 def _update_tokens_maximum(config: Config, max_tokens: int, suppress_output: bool) -> bool:
     """Update tokens maximum if new value is higher."""
     if max_tokens > config.max_unified_block_tokens_encountered:
@@ -476,6 +528,59 @@ def _update_messages_maximum(config: Config, max_messages: int, suppress_output:
     return False
 
 
+def _update_tokens_p90(config: Config, p90_tokens: int, suppress_output: bool) -> bool:
+    """Update tokens P90 if new value is higher."""
+    if p90_tokens > config.p90_unified_block_tokens_encountered:
+        from rich.console import Console
+
+        from .token_calculator import format_token_count
+
+        old_p90 = config.p90_unified_block_tokens_encountered
+        config.p90_unified_block_tokens_encountered = p90_tokens
+
+        if not suppress_output:
+            console = Console()
+            console.print(
+                f"[yellow]Updated P90 unified block tokens (from all blocks scan): {format_token_count(old_p90)} → {format_token_count(p90_tokens)}[/yellow]"
+            )
+        return True
+    return False
+
+
+def _update_messages_p90(config: Config, p90_messages: int, suppress_output: bool) -> bool:
+    """Update messages P90 if new value is higher."""
+    if p90_messages > config.p90_unified_block_messages_encountered:
+        from rich.console import Console
+
+        old_p90 = config.p90_unified_block_messages_encountered
+        config.p90_unified_block_messages_encountered = p90_messages
+
+        if not suppress_output:
+            console = Console()
+            console.print(
+                f"[yellow]Updated P90 unified block messages (from all blocks scan): {old_p90:,} → {p90_messages:,}[/yellow]"
+            )
+        return True
+    return False
+
+
+def _update_cost_p90(config: Config, p90_cost: float, suppress_output: bool) -> bool:
+    """Update cost P90 if new value is higher."""
+    if p90_cost > config.p90_unified_block_cost_encountered:
+        from rich.console import Console
+
+        old_p90 = config.p90_unified_block_cost_encountered
+        config.p90_unified_block_cost_encountered = p90_cost
+
+        if not suppress_output:
+            console = Console()
+            console.print(
+                f"[yellow]Updated P90 unified block cost (from all blocks scan): ${old_p90:.4f} → ${p90_cost:.4f}[/yellow]"
+            )
+        return True
+    return False
+
+
 def _auto_update_unified_block_maximums_from_all_blocks(
     config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
 ) -> None:
@@ -495,11 +600,40 @@ def _auto_update_unified_block_maximums_from_all_blocks(
     if _update_messages_maximum(config, max_messages, suppress_output):
         config_updated = True
 
+    # Update P90 values
+    p90_tokens = _calculate_p90_tokens_in_blocks(unified_blocks)
+    if _update_tokens_p90(config, p90_tokens, suppress_output):
+        config_updated = True
+
+    p90_messages = _calculate_p90_messages_in_blocks(unified_blocks)
+    if _update_messages_p90(config, p90_messages, suppress_output):
+        config_updated = True
+
     # Save config if any updates were made
     if config_updated and actual_config_file:
         from .config import save_config
 
         save_config(config, actual_config_file)
+
+
+async def _auto_update_unified_block_p90_cost_from_all_blocks(
+    config: Config, unified_blocks: list, actual_config_file: Path | None, suppress_output: bool = False
+) -> None:
+    """Auto-update unified block P90 cost by scanning ALL unified blocks for P90 value."""
+    if config.config_ro:
+        return  # Skip update if config is read-only
+
+    try:
+        p90_cost = await _calculate_p90_cost_in_blocks(unified_blocks)
+        if _update_cost_p90(config, p90_cost, suppress_output):
+            # Save config if we have a config file
+            if actual_config_file:
+                from .config import save_config
+
+                save_config(config, actual_config_file)
+    except Exception:
+        # If P90 cost calculation fails, don't break the entire process
+        pass
 
 
 async def _auto_update_unified_block_cost_maximum(
@@ -573,6 +707,11 @@ async def _auto_update_unified_block_cost_maximum_from_all_blocks(
                     console.print(
                         f"[yellow]Updated max unified block cost (from all blocks scan): {format_cost(old_max)} → {format_cost(max_unified_cost)}[/yellow]"
                     )
+
+        # Also update P90 cost value
+        await _auto_update_unified_block_p90_cost_from_all_blocks(
+            config, unified_blocks, actual_config_file, suppress_output
+        )
     except Exception:
         # If cost calculation fails, skip update
         pass
