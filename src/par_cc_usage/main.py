@@ -1470,6 +1470,7 @@ def main() -> None:
     app()
 
 
+# Entry point for the CLI application
 if __name__ == "__main__":
     main()
 
