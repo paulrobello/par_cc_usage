@@ -40,6 +40,7 @@ class TestMainAppCommands:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""timezone: UTC
 projects_dir: /tmp/claude_projects_test
+cache_dir: /tmp/claude_cache_test
 token_limit: 1000000
 message_limit: 50
 cost_limit: null
@@ -77,15 +78,31 @@ notifications:
             config_path = f.name
 
         try:
+            # Create the test directories that config references
+            import os
+            os.makedirs("/tmp/claude_projects_test", exist_ok=True)
+            os.makedirs("/tmp/claude_cache_test", exist_ok=True)
+
             # Mock scan_all_projects to avoid file system issues
             with patch('par_cc_usage.main.scan_all_projects') as mock_scan:
                 mock_scan.return_value = ({}, [])
 
                 result = runner.invoke(app, ["monitor", "--config", config_path, "--snapshot"])
                 # Should complete without major errors
+                if result.exit_code != 0:
+                    print(f"Exit code: {result.exit_code}")
+                    print(f"Output: {result.output}")
+                    if result.exception:
+                        print(f"Exception: {result.exception}")
+                        import traceback
+                        traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
                 assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_list_projects_command(self):
         """Test list projects command."""
@@ -94,6 +111,7 @@ notifications:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""timezone: UTC
 projects_dir: /tmp/claude_projects_test
+cache_dir: /tmp/claude_cache_test
 token_limit: 1000000
 message_limit: 50
 cost_limit: null
@@ -131,13 +149,29 @@ notifications:
             config_path = f.name
 
         try:
+            # Create the test directories that config references
+            import os
+            os.makedirs("/tmp/claude_projects_test", exist_ok=True)
+            os.makedirs("/tmp/claude_cache_test", exist_ok=True)
+
             with patch('par_cc_usage.main.scan_all_projects') as mock_scan:
                 mock_scan.return_value = ({}, [])
 
                 result = runner.invoke(app, ["list", "--config", config_path])
+                if result.exit_code != 0:
+                    print(f"Exit code: {result.exit_code}")
+                    print(f"Output: {result.output}")
+                    if result.exception:
+                        print(f"Exception: {result.exception}")
+                        import traceback
+                        traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
                 assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_set_limit_command_token_limit(self):
         """Test set-limit command for token limit."""
@@ -160,6 +194,10 @@ notifications:
                 mock_save.assert_called_once()
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_set_limit_command_message_limit(self):
         """Test set-limit command for message limit."""
@@ -182,6 +220,10 @@ notifications:
                 mock_save.assert_called_once()
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_set_limit_command_cost_limit(self):
         """Test set-limit command for cost limit."""
@@ -204,6 +246,10 @@ notifications:
                 mock_save.assert_called_once()
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
 
 class TestHelperFunctions:
@@ -413,6 +459,10 @@ class TestListSessionsFunction:
                 assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_debug_sessions_command(self):
         """Test debug-sessions command."""
@@ -430,6 +480,10 @@ class TestListSessionsFunction:
                 assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
 
 class TestAdditionalCommands:
@@ -460,6 +514,10 @@ class TestAdditionalCommands:
                     assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_test_webhook_command(self):
         """Test test-webhook command."""
@@ -487,6 +545,10 @@ class TestAdditionalCommands:
                     assert result.exit_code == 0
         finally:
             Path(config_path).unlink(missing_ok=True)
+            # Clean up test directories
+            import shutil
+            shutil.rmtree("/tmp/claude_projects_test", ignore_errors=True)
+            shutil.rmtree("/tmp/claude_cache_test", ignore_errors=True)
 
     def test_init_command(self):
         """Test init command."""
