@@ -39,15 +39,40 @@ class TestMainAppCommands:
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""timezone: UTC
+projects_dir: /tmp/claude_projects_test
 token_limit: 1000000
+message_limit: 50
+cost_limit: null
 p90_unified_block_tokens_encountered: 0
 p90_unified_block_messages_encountered: 0
 p90_unified_block_cost_encountered: 0.0
 max_unified_block_tokens_encountered: 0
 max_unified_block_messages_encountered: 0
 max_unified_block_cost_encountered: 0.0
+polling_interval: 5
+recent_activity_window_hours: 5
+disable_cache: false
+config_ro: false
 display:
+  show_progress_bars: true
+  show_active_sessions: true
+  update_in_place: true
+  refresh_interval: 5
+  time_format: "24h"
+  project_name_prefixes:
+    - "-Users-"
+    - "-home-"
+  aggregate_by_project: true
+  show_tool_usage: true
+  display_mode: "normal"
+  show_pricing: true
+  theme: "default"
   use_p90_limit: true
+notifications:
+  discord_webhook_url: null
+  slack_webhook_url: null
+  notify_on_block_completion: true
+  cooldown_minutes: 5
 """)
             config_path = f.name
 
@@ -68,15 +93,40 @@ display:
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""timezone: UTC
+projects_dir: /tmp/claude_projects_test
 token_limit: 1000000
+message_limit: 50
+cost_limit: null
 p90_unified_block_tokens_encountered: 0
 p90_unified_block_messages_encountered: 0
 p90_unified_block_cost_encountered: 0.0
 max_unified_block_tokens_encountered: 0
 max_unified_block_messages_encountered: 0
 max_unified_block_cost_encountered: 0.0
+polling_interval: 5
+recent_activity_window_hours: 5
+disable_cache: false
+config_ro: false
 display:
+  show_progress_bars: true
+  show_active_sessions: true
+  update_in_place: true
+  refresh_interval: 5
+  time_format: "24h"
+  project_name_prefixes:
+    - "-Users-"
+    - "-home-"
+  aggregate_by_project: true
+  show_tool_usage: true
+  display_mode: "normal"
+  show_pricing: true
+  theme: "default"
   use_p90_limit: true
+notifications:
+  discord_webhook_url: null
+  slack_webhook_url: null
+  notify_on_block_completion: true
+  cooldown_minutes: 5
 """)
             config_path = f.name
 
