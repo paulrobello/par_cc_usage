@@ -25,7 +25,8 @@ The configuration file is located at `~/.config/par_cc_usage/config.yaml`:
 ```yaml
 projects_dir: ~/.claude/projects
 polling_interval: 5
-timezone: America/Los_Angeles
+timezone: auto  # Automatically detects system timezone, or use IANA timezone name
+auto_detected_timezone: America/New_York  # Automatically populated when timezone=auto
 token_limit: 500000
 message_limit: 1000  # Optional message limit
 cost_limit: 50.00    # Optional cost limit in USD
@@ -53,11 +54,48 @@ notifications:
 config_ro: false  # Read-only mode: prevents automatic config updates (default: false)
 ```
 
+## Timezone Configuration
+
+PAR CC Usage supports automatic timezone detection for seamless multi-timezone usage:
+
+### Automatic Detection (Recommended)
+Set `timezone: auto` to automatically detect your system's timezone:
+
+```yaml
+timezone: auto
+```
+
+When set to `auto`:
+- The system timezone is automatically detected on startup
+- The detected timezone is stored in `auto_detected_timezone` field
+- Changes to your system timezone are automatically detected on config reload
+- Works across Windows, macOS, and Linux platforms
+
+### Manual Configuration
+You can also set an explicit IANA timezone name:
+
+```yaml
+timezone: America/New_York  # Or any valid IANA timezone
+```
+
+### How It Works
+- **Config Setting**: `timezone` stores your preference (`auto` or explicit timezone)
+- **Detected Value**: `auto_detected_timezone` stores the system-detected timezone (updated automatically)
+- **Effective Timezone**: When `timezone` is `auto`, `auto_detected_timezone` is used for all time displays
+- **Dynamic Updates**: System timezone changes are detected when the config is reloaded
+
+### Common IANA Timezone Examples
+- `America/New_York` (Eastern Time)
+- `America/Chicago` (Central Time)
+- `America/Denver` (Mountain Time)
+- `America/Los_Angeles` (Pacific Time)
+- `Europe/London`, `Europe/Paris`, `Asia/Tokyo`, etc.
+
 ## Environment Variables
 
 - `PAR_CC_USAGE_PROJECTS_DIR`: Override projects directory
 - `PAR_CC_USAGE_POLLING_INTERVAL`: Set polling interval
-- `PAR_CC_USAGE_TIMEZONE`: Set timezone
+- `PAR_CC_USAGE_TIMEZONE`: Set timezone ('auto' for system detection or IANA timezone name)
 - `PAR_CC_USAGE_TOKEN_LIMIT`: Set token limit
 - `PAR_CC_USAGE_CACHE_DIR`: Override cache directory (defaults to XDG cache directory)
 - `PAR_CC_USAGE_DISABLE_CACHE`: Disable file monitoring cache ('true', '1', 'yes', 'on' for true)

@@ -75,12 +75,15 @@ notifications:
                 # Load config - should NOT migrate (XDG config exists)
                 config = load_config()
 
-                # Verify no migration occurred
-                assert xdg_config_file.read_text() == "polling_interval: 20"
+                # Verify no migration occurred (legacy file unchanged)
                 assert legacy_config.read_text() == "polling_interval: 5"
 
                 # Verify XDG config values are used
                 assert config.polling_interval == 20
+
+                # Verify XDG config file still contains original setting (may have additional auto-detected fields)
+                xdg_content = xdg_config_file.read_text()
+                assert "polling_interval: 20" in xdg_content
 
     def test_load_config_with_no_legacy_config(self):
         """Test load_config when no legacy config exists."""

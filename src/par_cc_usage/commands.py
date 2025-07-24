@@ -69,10 +69,14 @@ def debug_blocks(
 
     # Create snapshot to use the unified block logic
     snapshot = aggregate_usage(
-        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+        projects,
+        config.token_limit,
+        config.message_limit,
+        config.get_effective_timezone(),
+        unified_blocks=unified_blocks,
     )
 
-    console.print(f"[bold]Configured Timezone:[/bold] {config.timezone}")
+    console.print(f"[bold]Configured Timezone:[/bold] {config.timezone} -> {config.get_effective_timezone()}")
     console.print(f"[bold]Snapshot Timestamp:[/bold] {snapshot.timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     # Show unified block info
@@ -249,12 +253,16 @@ def debug_unified_block(
 
     # Create snapshot
     snapshot = aggregate_usage(
-        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+        projects,
+        config.token_limit,
+        config.message_limit,
+        config.get_effective_timezone(),
+        unified_blocks=unified_blocks,
     )
 
     # Show step-by-step calculation
     console.print("[bold]Step 1: Current time configuration[/bold]")
-    console.print(f"  • Configured timezone: {config.timezone}")
+    console.print(f"  • Configured timezone: {config.timezone} -> {config.get_effective_timezone()}")
     console.print(f"  • Snapshot timestamp: {snapshot.timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
     console.print("  • Unified block strategy: unified timeline")
 
@@ -279,7 +287,7 @@ def debug_unified_block(
     # Convert to configured timezone for display
     import pytz
 
-    configured_tz = pytz.timezone(config.timezone)
+    configured_tz = pytz.timezone(config.get_effective_timezone())
     earliest_local = earliest_block.start_time.astimezone(configured_tz)
     console.print(f"    - Start time (local): {earliest_local.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
@@ -352,11 +360,13 @@ def debug_recent_activity(
     # Get current time and the cutoff time
     import pytz
 
-    tz = pytz.timezone(config.timezone)
+    tz = pytz.timezone(config.get_effective_timezone())
     current_time = datetime.now(tz)
     cutoff_time = current_time - timedelta(hours=hours)
 
-    console.print(f"[bold]Current time ({config.timezone}):[/bold] {current_time.strftime('%Y-%m-%d %I:%M:%S %p %Z')}")
+    console.print(
+        f"[bold]Current time ({config.get_effective_timezone()}):[/bold] {current_time.strftime('%Y-%m-%d %I:%M:%S %p %Z')}"
+    )
     console.print(f"[bold]Showing activity since:[/bold] {cutoff_time.strftime('%Y-%m-%d %I:%M:%S %p %Z')}")
 
     # Collect recent sessions and blocks
@@ -412,7 +422,11 @@ def debug_recent_activity(
 
     # Analysis
     snapshot = aggregate_usage(
-        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+        projects,
+        config.token_limit,
+        config.message_limit,
+        config.get_effective_timezone(),
+        unified_blocks=unified_blocks,
     )
     _print_recent_activity_analysis(most_recent_active, snapshot, config, tz, expected_hour)
 
@@ -618,7 +632,11 @@ def debug_session_table(
         unified_blocks = create_unified_blocks(unified_entries)
 
         snapshot = aggregate_usage(
-            projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+            projects,
+            config.token_limit,
+            config.message_limit,
+            config.get_effective_timezone(),
+            unified_blocks=unified_blocks,
         )
     except Exception as e:
         console.print(f"[red]Error scanning projects: {e}[/red]")

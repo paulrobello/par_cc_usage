@@ -62,11 +62,11 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
   - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
   - [v0.1.12 - Documentation Restructure](#v0112---documentation-restructure--organization)
-  - [v0.1.11 - UI Enhancement Package](#v0111---ui-enhancement-package)
   - [older...](#older)
 - [Development](#development)
 
@@ -131,7 +131,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 ### 🌐 Configuration & Customization
 - **XDG directory compliance**: Config, cache, and data files stored in standard locations
 - **Automatic migration**: Legacy config files automatically moved to XDG locations
-- **Timezone support**: Full timezone handling with configurable display formats
+- **Automatic timezone detection**: Seamlessly detects system timezone changes, with manual override support
 - **Time formats**: 12-hour or 24-hour time display options
 - **Project name cleanup**: Strip common path prefixes for cleaner display
 - **Flexible output**: Table, JSON, and CSV export formats
@@ -457,7 +457,8 @@ The configuration file is located at `~/.config/par_cc_usage/config.yaml`:
 ```yaml
 projects_dir: ~/.claude/projects
 polling_interval: 5
-timezone: America/Los_Angeles
+timezone: auto  # Automatically detects system timezone, or use IANA timezone name
+auto_detected_timezone: America/New_York  # Automatically populated when timezone=auto
 token_limit: 500000
 cache_dir: ~/.cache/par_cc_usage  # XDG cache directory (automatically set)
 disable_cache: false  # Set to true to disable file monitoring cache
@@ -488,7 +489,7 @@ notifications:
 
 - `PAR_CC_USAGE_PROJECTS_DIR`: Override projects directory
 - `PAR_CC_USAGE_POLLING_INTERVAL`: Set polling interval
-- `PAR_CC_USAGE_TIMEZONE`: Set timezone
+- `PAR_CC_USAGE_TIMEZONE`: Set timezone ('auto' for system detection or IANA timezone name)
 - `PAR_CC_USAGE_TOKEN_LIMIT`: Set token limit
 - `PAR_CC_USAGE_CACHE_DIR`: Override cache directory (defaults to XDG cache directory)
 - `PAR_CC_USAGE_DISABLE_CACHE`: Disable file monitoring cache ('true', '1', 'yes', 'on' for true)
@@ -1078,6 +1079,17 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.4.0 - Automatic Timezone Detection
+
+**Seamless Timezone Management**: Intelligent automatic timezone detection with dynamic system timezone change support:
+
+#### 🌐 Automatic Timezone Detection (New Feature)
+- **System Auto-Detection**: Automatically detects your system's timezone on startup - no manual configuration needed
+- **Dynamic Updates**: Detects system timezone changes when config is reloaded (perfect for travelers or system changes)
+- **Cross-Platform Support**: Works seamlessly across Windows, macOS, and Linux platforms
+- **Smart Fallback**: Graceful fallback to Pacific timezone if detection fails
+- **New Default**: `timezone: auto` is now the default for all new installations and examples
 
 ### v0.3.0 - Test Suite Improvements & Infrastructure
 

@@ -110,7 +110,7 @@ class TestConfig:
 
         # Check other defaults
         assert config.polling_interval == 5
-        assert config.timezone == "America/Los_Angeles"
+        assert config.timezone == "auto"
         assert config.token_limit is None
         assert config.disable_cache is False
         assert config.recent_activity_window_hours == 5

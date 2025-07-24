@@ -855,7 +855,7 @@ def process_jsonl_line(
     session_id: str,
     projects: dict[str, Project],
     dedup_state: DeduplicationState | None = None,
-    timezone_str: str = "America/Los_Angeles",
+    timezone_str: str = "auto",
     unified_entries: list[UnifiedEntry] | None = None,
 ) -> None:
     """Process a single JSONL line and update projects data with robust error handling.
@@ -1019,7 +1019,7 @@ def aggregate_usage(
     projects: dict[str, Project],
     token_limit: int | None = None,
     message_limit: int | None = None,
-    timezone_str: str = "America/Los_Angeles",
+    timezone_str: str = "auto",
     block_start_override: datetime | None = None,
     unified_blocks: list[UnifiedBlock] | None = None,
 ) -> UsageSnapshot:

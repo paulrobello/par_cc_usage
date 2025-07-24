@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .models import UsageSnapshot
 
 from .enums import DisplayMode, ThemeType, TimeFormat
-from .utils import expand_path
+from .utils import detect_system_timezone, expand_path
 from .xdg_dirs import (
     get_cache_dir,
     get_config_file_path,
@@ -101,8 +101,12 @@ class Config(BaseModel):
         description="File polling interval in seconds",
     )
     timezone: str = Field(
+        default="auto",
+        description="Timezone for display (IANA timezone name or 'auto' for system detection)",
+    )
+    auto_detected_timezone: str = Field(
         default="America/Los_Angeles",
-        description="Timezone for display (IANA timezone name)",
+        description="Automatically detected system timezone (used when timezone='auto')",
     )
     token_limit: int | None = Field(
         default=None,
@@ -168,6 +172,17 @@ class Config(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Ensure directories exist after initialization."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def get_effective_timezone(self) -> str:
+        """Get the effective timezone to use for display.
+
+        Returns:
+            The timezone string to use - either auto_detected_timezone if timezone is 'auto',
+            or the configured timezone value
+        """
+        if self.timezone == "auto":
+            return self.auto_detected_timezone or "America/Los_Angeles"
+        return self.timezone
 
     def get_claude_paths(self) -> list[Path]:
         """Get all Claude project directories to monitor.
@@ -474,13 +489,21 @@ def load_config(config_file: Path | None = None) -> Config:
 
     config = Config(**config_dict)
 
-    # Save the migrated config back to file if migration was performed
+    # Handle automatic timezone detection
+    config_updated = False
+    if config.timezone == "auto":
+        detected_tz = detect_system_timezone()
+        if detected_tz != config.auto_detected_timezone:
+            config.auto_detected_timezone = detected_tz
+            config_updated = True
+
+    # Save the migrated or updated config back to file if changes were made
     # and the config file exists (don't create new files just for migration)
-    if migration_performed and config_file.exists():
+    if (migration_performed or config_updated) and config_file.exists():
         try:
             save_config(config, config_file)
         except (PermissionError, OSError):
-            # If we can't save, just continue - migration still worked in memory
+            # If we can't save, just continue - changes still worked in memory
             pass
 
     return config
@@ -507,6 +530,7 @@ def save_config(config: Config, config_file: Path) -> None:
         "projects_dir": str(config.projects_dir),
         "polling_interval": config.polling_interval,
         "timezone": config.timezone,
+        "auto_detected_timezone": config.auto_detected_timezone,
         "token_limit": config.token_limit,
         "message_limit": config.message_limit,
         "cost_limit": config.cost_limit,

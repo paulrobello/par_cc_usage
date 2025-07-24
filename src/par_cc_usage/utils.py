@@ -121,3 +121,65 @@ def format_date_time_range(start_dt: datetime, end_dt: datetime, time_format: st
         start_str = start_dt.strftime("%Y-%m-%d %H:%M")
         end_str = end_dt.strftime("%H:%M")
         return f"{start_str} - {end_str}"
+
+
+def detect_system_timezone() -> str:
+    """Detect the system's local timezone.
+
+    Returns:
+        IANA timezone name string, or "America/Los_Angeles" as fallback
+    """
+    try:
+        # Get the system's local timezone
+        local_tz = datetime.now().astimezone().tzinfo
+
+        # Try to get the IANA timezone name
+        if hasattr(local_tz, "zone") and local_tz is not None:
+            # pytz timezone objects have a 'zone' attribute
+            zone = getattr(local_tz, "zone", None)
+            if zone:
+                return str(zone)
+        elif hasattr(local_tz, "key") and local_tz is not None:
+            # Some timezone implementations use 'key'
+            key = getattr(local_tz, "key", None)
+            if key:
+                return str(key)
+        elif local_tz is not None and hasattr(local_tz, "tzname"):
+            # Try to get timezone name and map common abbreviations
+            tz_name = local_tz.tzname(datetime.now())
+            if tz_name:
+                # Map common timezone abbreviations to IANA names
+                tz_mapping = {
+                    "PST": "America/Los_Angeles",
+                    "PDT": "America/Los_Angeles",
+                    "MST": "America/Denver",
+                    "MDT": "America/Denver",
+                    "CST": "America/Chicago",
+                    "CDT": "America/Chicago",
+                    "EST": "America/New_York",
+                    "EDT": "America/New_York",
+                    "UTC": "UTC",
+                    "GMT": "UTC",
+                }
+                return tz_mapping.get(tz_name, "America/Los_Angeles")
+
+        # If we can't determine the timezone name, try using the offset
+        # This is a last resort and may not be fully accurate
+        offset = datetime.now().astimezone().utcoffset()
+        if offset:
+            hours = offset.total_seconds() / 3600
+            # Map common UTC offsets to likely IANA timezones
+            offset_mapping = {
+                -8.0: "America/Los_Angeles",  # PST
+                -7.0: "America/Denver",  # MST
+                -6.0: "America/Chicago",  # CST
+                -5.0: "America/New_York",  # EST
+                0.0: "UTC",  # UTC
+            }
+            return offset_mapping.get(hours, "America/Los_Angeles")
+
+    except Exception:
+        # If anything fails, fall back to Pacific timezone
+        pass
+
+    return "America/Los_Angeles"

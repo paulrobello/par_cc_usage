@@ -83,7 +83,13 @@ def process_file(
         with JSONLReader(file_path) as reader:
             for data, position in reader.read_lines(from_position=file_state.last_position):
                 process_jsonl_line(
-                    data, project_path, session_id, projects, dedup_state, config.timezone, unified_entries
+                    data,
+                    project_path,
+                    session_id,
+                    projects,
+                    dedup_state,
+                    config.get_effective_timezone(),
+                    unified_entries,
                 )
                 messages_processed += 1
                 file_state.last_position = position
@@ -213,7 +219,7 @@ def _print_config_info(config: Config, theme_override: ThemeType | None = None) 
     console.print(f"  • Projects directory: {config.projects_dir}")
     console.print(f"  • Cache directory: {config.cache_dir}")
     console.print(f"  • Cache disabled: {config.disable_cache}")
-    console.print(f"  • Timezone: [bold]{config.timezone}[/bold]")
+    console.print(f"  • Timezone: [bold]{config.timezone} -> {config.get_effective_timezone()}[/bold]")
     console.print(f"  • Polling interval: {config.polling_interval}s")
     console.print(f"  • Token limit: {config.token_limit:,}" if config.token_limit else "  • Token limit: Auto-detect")
     console.print(f"  • Update in place: {config.display.update_in_place}")
@@ -233,7 +239,7 @@ def _print_config_info(config: Config, theme_override: ThemeType | None = None) 
     import pytz
 
     system_time = datetime.now()
-    configured_tz = pytz.timezone(config.timezone)
+    configured_tz = pytz.timezone(config.get_effective_timezone())
     configured_time = datetime.now(configured_tz)
     console.print("\n[bold yellow]Time Information:[/bold yellow]")
     console.print(f"  • System time: {system_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
@@ -784,7 +790,7 @@ def _parse_block_start_time(block_start_override: int | None, config: Config) ->
     try:
         hour = block_start_override
         # Create datetime for today in configured timezone with minute=0
-        tz = ZoneInfo(config.timezone)
+        tz = ZoneInfo(config.get_effective_timezone())
         now = datetime.now(tz)
         override_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
 
@@ -833,7 +839,7 @@ def _get_current_usage_snapshot(
             projects,
             config.token_limit,
             config.message_limit,
-            config.timezone,
+            config.get_effective_timezone(),
             block_start_override_utc,
             unified_blocks,
         )
@@ -1088,7 +1094,7 @@ async def _monitor_async(
             projects,
             config.token_limit,
             config.message_limit,
-            config.timezone,
+            config.get_effective_timezone(),
             options.block_start_override_utc,
             unified_blocks,
         )
@@ -1175,7 +1181,7 @@ async def _monitor_async(
                     projects,
                     config.token_limit,
                     config.message_limit,
-                    config.timezone,
+                    config.get_effective_timezone(),
                     options.block_start_override_utc,
                     unified_blocks,
                 )
@@ -1303,7 +1309,11 @@ def list_usage(
 
     # Create snapshot
     snapshot = aggregate_usage(
-        projects, config.token_limit, config.message_limit, config.timezone, unified_blocks=unified_blocks
+        projects,
+        config.token_limit,
+        config.message_limit,
+        config.get_effective_timezone(),
+        unified_blocks=unified_blocks,
     )
 
     # Update unified block maximums for proper progress display
@@ -1569,7 +1579,9 @@ def _scan_projects_for_sessions(config) -> dict[str, Project]:
         with JSONLReader(file_path) as reader:
             for data, _position in reader.read_lines():
                 session_id, project_path = parse_session_from_path(file_path, config.projects_dir)
-                process_jsonl_line(data, project_path, session_id, projects, dedup_state, config.timezone)
+                process_jsonl_line(
+                    data, project_path, session_id, projects, dedup_state, config.get_effective_timezone()
+                )
 
     return projects
 
@@ -1721,7 +1733,7 @@ def _print_debug_header(config, snapshot):
     console.print("[bold blue]Debug: Session Activity Analysis[/]")
     console.print("─" * 50)
     console.print(f"Current Time (UTC): {datetime.now(UTC)}")
-    console.print(f"Configured Timezone: {config.timezone}")
+    console.print(f"Configured Timezone: {config.timezone} -> {config.get_effective_timezone()}")
     console.print(f"Snapshot Timestamp: {snapshot.timestamp}")
     console.print(f"Unified Block Start Time: {snapshot.unified_block_start_time}")
 
@@ -1798,7 +1810,7 @@ def debug_sessions(
     console.print(f"Scanning projects in {config.projects_dir}...")
 
     projects = _scan_projects_for_sessions(config)
-    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.timezone)
+    snapshot = aggregate_usage(projects, config.token_limit, config.message_limit, config.get_effective_timezone())
 
     _print_debug_header(config, snapshot)
     table = _create_debug_table()
