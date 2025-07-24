@@ -492,10 +492,14 @@ def load_config(config_file: Path | None = None) -> Config:
     # Handle automatic timezone detection
     config_updated = False
     if config.timezone == "auto":
-        detected_tz = detect_system_timezone()
-        if detected_tz != config.auto_detected_timezone:
-            config.auto_detected_timezone = detected_tz
-            config_updated = True
+        try:
+            detected_tz = detect_system_timezone()
+            if detected_tz != config.auto_detected_timezone:
+                config.auto_detected_timezone = detected_tz
+                config_updated = True
+        except Exception:
+            # If timezone detection fails, keep the existing auto_detected_timezone value
+            pass
 
     # Save the migrated or updated config back to file if changes were made
     # and the config file exists (don't create new files just for migration)

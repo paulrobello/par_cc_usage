@@ -12,6 +12,7 @@ import pytest
 
 from par_cc_usage.token_calculator import format_token_count
 from par_cc_usage.utils import (
+    detect_system_timezone,
     ensure_directory,
     expand_path,
     format_bytes,
@@ -252,3 +253,159 @@ class TestFormatTimeRange:
         assert "09:00" in result
         assert "17:30" in result
         assert "UTC" in result
+
+
+class TestDetectSystemTimezone:
+    """Test system timezone detection functionality."""
+
+    def test_detect_system_timezone_returns_string(self):
+        """Test that detect_system_timezone returns a string."""
+        result = detect_system_timezone()
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_detect_system_timezone_returns_valid_timezone(self):
+        """Test that the returned timezone is a valid IANA name or fallback."""
+        result = detect_system_timezone()
+
+        # Should be a valid IANA timezone name or the fallback
+        valid_patterns = [
+            "America/",
+            "Europe/",
+            "Asia/",
+            "Africa/",
+            "Australia/",
+            "Pacific/",
+            "Atlantic/",
+            "Indian/",
+            "UTC",
+        ]
+
+        assert any(pattern in result for pattern in valid_patterns), f"Invalid timezone: {result}"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_with_pytz_zone_attribute(self, mock_datetime):
+        """Test timezone detection when tzinfo has zone attribute."""
+        # Mock timezone object with zone attribute
+        mock_tz = type('MockTZ', (), {})()
+        mock_tz.zone = "America/New_York"
+
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = mock_tz
+
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "America/New_York"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_with_key_attribute(self, mock_datetime):
+        """Test timezone detection when tzinfo has key attribute."""
+        # Mock timezone object with key attribute
+        mock_tz = type('MockTZ', (), {})()
+        mock_tz.key = "Europe/London"
+
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = mock_tz
+
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "Europe/London"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_with_tzname_mapping(self, mock_datetime):
+        """Test timezone detection using tzname mapping."""
+        # Mock timezone object with tzname method
+        mock_tz = type('MockTZ', (), {})()
+        mock_tz.tzname = lambda dt: "PST"
+
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = mock_tz
+
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "America/Los_Angeles"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_with_utc_offset(self, mock_datetime):
+        """Test timezone detection using UTC offset."""
+        from datetime import timedelta
+
+        # Mock timezone object without zone/key/tzname attributes
+        mock_tz = type('MockTZ', (), {})()
+
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = mock_tz
+        mock_dt.utcoffset = lambda: timedelta(hours=-8)  # Add utcoffset method
+
+        # Mock utcoffset to return -8 hours (PST)
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "America/Los_Angeles"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_with_unknown_tzname(self, mock_datetime):
+        """Test timezone detection with unknown tzname."""
+        # Mock timezone object with unknown tzname
+        mock_tz = type('MockTZ', (), {})()
+        mock_tz.tzname = lambda dt: "UNKNOWN"
+
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = mock_tz
+
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "America/Los_Angeles"  # Should fall back to default
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_exception_fallback(self, mock_datetime):
+        """Test timezone detection fallback when exception occurs."""
+        # Mock datetime to raise an exception
+        mock_datetime.now.side_effect = Exception("Mock error")
+
+        result = detect_system_timezone()
+        assert result == "America/Los_Angeles"
+
+    @patch("par_cc_usage.utils.datetime")
+    def test_detect_system_timezone_none_tzinfo(self, mock_datetime):
+        """Test timezone detection when tzinfo is None."""
+        mock_dt = type('MockDT', (), {})()
+        mock_dt.tzinfo = None
+
+        mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+        result = detect_system_timezone()
+        assert result == "America/Los_Angeles"
+
+    def test_detect_system_timezone_common_timezones(self):
+        """Test that common timezone abbreviations map correctly."""
+        timezone_mappings = {
+            "EST": "America/New_York",
+            "EDT": "America/New_York",
+            "CST": "America/Chicago",
+            "CDT": "America/Chicago",
+            "MST": "America/Denver",
+            "MDT": "America/Denver",
+            "PST": "America/Los_Angeles",
+            "PDT": "America/Los_Angeles",
+            "UTC": "UTC",
+            "GMT": "UTC",
+        }
+
+        for abbrev, expected in timezone_mappings.items():
+            with patch("par_cc_usage.utils.datetime") as mock_datetime:
+                # Mock timezone object with tzname method
+                mock_tz = type('MockTZ', (), {})()
+                mock_tz.tzname = lambda dt: abbrev
+
+                mock_dt = type('MockDT', (), {})()
+                mock_dt.tzinfo = mock_tz
+
+                mock_datetime.now.return_value.astimezone.return_value = mock_dt
+
+                result = detect_system_timezone()
+                assert result == expected, f"Expected {expected} for {abbrev}, got {result}"

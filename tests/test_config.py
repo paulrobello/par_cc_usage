@@ -175,6 +175,35 @@ class TestConfig:
         assert new_default in paths
         assert legacy_default in paths
 
+    def test_get_effective_timezone_with_auto(self):
+        """Test get_effective_timezone when timezone is 'auto'."""
+        config = Config(timezone="auto", auto_detected_timezone="America/New_York")
+
+        result = config.get_effective_timezone()
+        assert result == "America/New_York"
+
+    def test_get_effective_timezone_with_explicit_timezone(self):
+        """Test get_effective_timezone with explicit timezone."""
+        config = Config(timezone="Europe/London", auto_detected_timezone="America/New_York")
+
+        result = config.get_effective_timezone()
+        assert result == "Europe/London"
+
+    def test_get_effective_timezone_auto_with_empty_detected(self):
+        """Test get_effective_timezone when auto_detected_timezone is empty."""
+        config = Config(timezone="auto", auto_detected_timezone="")
+
+        result = config.get_effective_timezone()
+        assert result == "America/Los_Angeles"  # Falls back to default
+
+    def test_get_effective_timezone_auto_with_none_detected(self):
+        """Test get_effective_timezone when auto_detected_timezone is None."""
+        config = Config(timezone="auto")
+        config.auto_detected_timezone = None
+
+        result = config.get_effective_timezone()
+        assert result == "America/Los_Angeles"  # Falls back to default
+
 
 class TestLoadConfig:
     """Test the load_config function."""
@@ -278,6 +307,119 @@ class TestLoadConfig:
         config = load_config()
 
         assert config.projects_dirs == [dir1, dir2]
+
+
+class TestTimezoneDetection:
+    """Test automatic timezone detection in config loading."""
+
+    @patch("par_cc_usage.config.detect_system_timezone")
+    def test_load_config_detects_timezone_when_auto(self, mock_detect, temp_dir):
+        """Test that load_config detects timezone when set to 'auto'."""
+        mock_detect.return_value = "America/Chicago"
+
+        # Create a config file with timezone: auto
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: auto\n")
+
+        config = load_config(config_file)
+
+        assert config.timezone == "auto"
+        assert config.auto_detected_timezone == "America/Chicago"
+        mock_detect.assert_called_once()
+
+    @patch("par_cc_usage.config.detect_system_timezone")
+    def test_load_config_skips_detection_when_explicit(self, mock_detect, temp_dir):
+        """Test that load_config skips detection when timezone is explicit."""
+        mock_detect.return_value = "America/Chicago"
+
+        # Create a config file with explicit timezone
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: Europe/London\n")
+
+        config = load_config(config_file)
+
+        assert config.timezone == "Europe/London"
+        assert config.auto_detected_timezone == "America/Los_Angeles"  # Default value
+        mock_detect.assert_not_called()
+
+    @patch("par_cc_usage.config.detect_system_timezone")
+    def test_load_config_updates_detected_timezone(self, mock_detect, temp_dir):
+        """Test that load_config updates auto_detected_timezone when it changes."""
+        mock_detect.return_value = "Europe/Paris"
+
+        # Create a config file with timezone: auto and old detected timezone
+        config_file = temp_dir / "config.yaml"
+        config_content = """
+timezone: auto
+auto_detected_timezone: America/New_York
+"""
+        config_file.write_text(config_content)
+
+        config = load_config(config_file)
+
+        assert config.timezone == "auto"
+        assert config.auto_detected_timezone == "Europe/Paris"
+        mock_detect.assert_called_once()
+
+        # Verify the config file was updated
+        updated_content = config_file.read_text()
+        assert "auto_detected_timezone: Europe/Paris" in updated_content
+
+    @patch("par_cc_usage.config.detect_system_timezone")
+    def test_load_config_no_update_when_same_timezone(self, mock_detect, temp_dir):
+        """Test that config file is not updated when detected timezone is the same."""
+        mock_detect.return_value = "America/New_York"
+
+        # Create a config file with matching detected timezone
+        config_file = temp_dir / "config.yaml"
+        config_content = """
+timezone: auto
+auto_detected_timezone: America/New_York
+"""
+        config_file.write_text(config_content)
+        original_mtime = config_file.stat().st_mtime
+
+        config = load_config(config_file)
+
+        assert config.timezone == "auto"
+        assert config.auto_detected_timezone == "America/New_York"
+        mock_detect.assert_called_once()
+
+        # Verify the config file was not updated (same modification time)
+        # Small delay to ensure mtime would change if file was written
+        import time
+        time.sleep(0.01)
+        new_mtime = config_file.stat().st_mtime
+        assert new_mtime == original_mtime
+
+    @patch("par_cc_usage.config.detect_system_timezone")
+    def test_load_config_handles_detection_failure(self, mock_detect, temp_dir):
+        """Test that load_config handles timezone detection failure gracefully."""
+        mock_detect.side_effect = Exception("Detection failed")
+
+        # Create a config file with timezone: auto
+        config_file = temp_dir / "config.yaml"
+        config_file.write_text("timezone: auto\n")
+
+        config = load_config(config_file)
+
+        assert config.timezone == "auto"
+        # Should still have the default auto_detected_timezone value
+        assert config.auto_detected_timezone == "America/Los_Angeles"
+        mock_detect.assert_called_once()
+
+    def test_load_config_default_timezone_is_auto(self, temp_dir):
+        """Test that default timezone is 'auto' when no config exists."""
+        config_file = temp_dir / "nonexistent_config.yaml"
+
+        with patch("par_cc_usage.config.detect_system_timezone") as mock_detect:
+            mock_detect.return_value = "America/Denver"
+
+            config = load_config(config_file)
+
+            assert config.timezone == "auto"
+            assert config.auto_detected_timezone == "America/Denver"
+            mock_detect.assert_called_once()
 
 
 class TestXDGConfigIntegration:
