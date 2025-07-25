@@ -165,10 +165,33 @@ class TokenBlock:
 
     @property
     def model_multiplier(self) -> float:
-        """Get the model multiplier based on model name."""
-        if "opus" in self.model.lower():
-            return 5.0
-        return 1.0
+        """Get the model multiplier based on model name (fallback to hardcoded)."""
+        return self.get_model_multiplier()
+
+    def get_model_multiplier(self, model_multipliers: dict[str, float] | None = None) -> float:
+        """Get the model multiplier based on model name and configuration.
+
+        Args:
+            model_multipliers: Dictionary of model multipliers from config
+
+        Returns:
+            Multiplier for the model
+        """
+        if model_multipliers is None:
+            # Fallback to hardcoded values if no config provided
+            if "opus" in self.model.lower():
+                return 5.0
+            # Sonnet and all other models default to 1.0
+            return 1.0
+
+        # Check for exact model name match first
+        model_lower = self.model.lower()
+        for model_key, multiplier in model_multipliers.items():
+            if model_key.lower() in model_lower:
+                return multiplier
+
+        # Use default multiplier if no match found
+        return model_multipliers.get("default", 1.0)
 
     @property
     def adjusted_tokens(self) -> int:
@@ -190,11 +213,8 @@ class TokenBlock:
                 return self.token_usage.actual_total
             else:
                 # Last resort: use display tokens divided by multiplier
-                return (
-                    int(self.token_usage.total / self.model_multiplier)
-                    if self.model_multiplier > 0
-                    else self.token_usage.total
-                )
+                multiplier = self.model_multiplier
+                return int(self.token_usage.total / multiplier) if multiplier > 0 else self.token_usage.total
 
     @property
     def all_models_display(self) -> str:

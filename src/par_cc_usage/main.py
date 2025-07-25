@@ -90,6 +90,7 @@ def process_file(
                     dedup_state,
                     config.get_effective_timezone(),
                     unified_entries,
+                    config.model_multipliers,
                 )
                 messages_processed += 1
                 file_state.last_position = position
@@ -232,6 +233,12 @@ def _print_config_info(config: Config, theme_override: ThemeType | None = None) 
         console.print(f"  • Theme: {theme_override.value} [dim](override)[/dim]")
     else:
         console.print(f"  • Theme: {config.display.theme.value}")
+
+    # Show model multipliers
+    console.print("\n[bold blue]Model Multipliers:[/bold blue]")
+    sorted_multipliers = sorted(config.model_multipliers.items())
+    for model, multiplier in sorted_multipliers:
+        console.print(f"  • {model}: {multiplier:.1f}x")
 
     # Show time information
     from datetime import datetime
@@ -946,6 +953,12 @@ def monitor(
     compact: Annotated[bool, typer.Option("--compact", help="Use compact display mode (minimal view)")] = False,
     theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
     debug: Annotated[bool, typer.Option("--debug", help="Enable debug output (shows processing messages)")] = False,
+    model_multipliers: Annotated[
+        str | None,
+        typer.Option(
+            "--model-multipliers", "-m", help="Override model multipliers (format: opus=5.0,sonnet=1.5,default=1.0)"
+        ),
+    ] = None,
 ) -> None:
     """Monitor Claude Code token usage in real-time with tool usage display enabled by default."""
 
@@ -984,8 +997,22 @@ def monitor(
             snapshot=snapshot,
             compact=compact,
             theme=theme,
+            model_multipliers=model_multipliers,
         )
     )
+
+
+def _apply_model_multipliers_override(model_multipliers: str | None, config: Config) -> None:
+    """Apply model multipliers override from CLI argument."""
+    if model_multipliers:
+        from .config import _parse_model_multipliers_value
+
+        try:
+            parsed_multipliers = _parse_model_multipliers_value(model_multipliers)
+            if parsed_multipliers:
+                config.model_multipliers = parsed_multipliers
+        except Exception as e:
+            console.print(f"[red]Warning: Invalid model multipliers format '{model_multipliers}': {e}[/red]")
 
 
 async def _monitor_async(
@@ -1000,6 +1027,7 @@ async def _monitor_async(
     snapshot: bool,
     compact: bool,
     theme: ThemeType | None,
+    model_multipliers: str | None,
 ) -> None:
     """Async implementation of monitor command."""
     # Initialize configuration
@@ -1008,8 +1036,6 @@ async def _monitor_async(
     # Apply temporary theme override if provided (before printing config)
     if theme is not None:
         apply_temporary_theme(theme)
-
-    _print_config_info(config, theme)
 
     # Create themed console after theme is applied
     from .theme import create_themed_console
@@ -1034,6 +1060,12 @@ async def _monitor_async(
 
     # Apply command line overrides
     _apply_command_overrides(config, options)
+
+    # Apply model multipliers override if provided
+    _apply_model_multipliers_override(model_multipliers, config)
+
+    # Print config info after all overrides are applied
+    _print_config_info(config, theme)
 
     console.print("[dim]" + "─" * 50 + "[/dim]\n")
 
@@ -1580,7 +1612,14 @@ def _scan_projects_for_sessions(config) -> dict[str, Project]:
             for data, _position in reader.read_lines():
                 session_id, project_path = parse_session_from_path(file_path, config.projects_dir)
                 process_jsonl_line(
-                    data, project_path, session_id, projects, dedup_state, config.get_effective_timezone()
+                    data,
+                    project_path,
+                    session_id,
+                    projects,
+                    dedup_state,
+                    config.get_effective_timezone(),
+                    None,
+                    config.model_multipliers,
                 )
 
     return projects

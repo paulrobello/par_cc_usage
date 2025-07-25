@@ -255,6 +255,10 @@ pccu monitor --theme light  # Use light theme for this session
 pccu monitor --theme dark --show-sessions  # Dark theme with session details
 pccu monitor --theme accessibility --show-pricing  # High contrast theme with pricing
 pccu monitor --theme minimal --compact  # Minimal theme with compact display
+
+# Model multiplier overrides
+pccu monitor --model-multipliers opus=5.0,sonnet=1.0,default=1.0  # Override model multipliers
+pccu monitor --model-multipliers opus=10.0,default=2.0  # Custom Opus multiplier with default fallback
 ```
 
 #### Monitor Display Features
@@ -464,6 +468,10 @@ cache_dir: ~/.cache/par_cc_usage  # XDG cache directory (automatically set)
 disable_cache: false  # Set to true to disable file monitoring cache
 recent_activity_window_hours: 5  # Hours to consider as 'recent' activity for smart strategy (matches billing cycle)
 config_ro: false  # Read-only mode: prevents automatic updates to config file (max values, limits)
+model_multipliers:  # Token multipliers per model type (default fallback for unlisted models)
+  opus: 5.0  # Opus models use 5x multiplier to reflect higher cost
+  sonnet: 1.0  # Sonnet models use 1x multiplier (baseline cost)
+  default: 1.0  # Fallback multiplier for unlisted models
 display:
   show_progress_bars: true
   show_active_sessions: true  # Default: show session details
@@ -495,6 +503,7 @@ notifications:
 - `PAR_CC_USAGE_DISABLE_CACHE`: Disable file monitoring cache ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS`: Hours to consider as 'recent' activity for smart strategy (default: 5)
 - `PAR_CC_USAGE_CONFIG_RO`: Read-only mode - prevents automatic updates to config file ('true', '1', 'yes', 'on' for true)
+- `PAR_CC_USAGE_MODEL_MULTIPLIERS`: Override model multipliers (format: opus=5.0,sonnet=1.0,default=1.0)
 - `PAR_CC_USAGE_SHOW_PROGRESS_BARS`: Show progress bars
 - `PAR_CC_USAGE_SHOW_ACTIVE_SESSIONS`: Show active sessions (default: true)
 - `PAR_CC_USAGE_USE_P90_LIMIT`: Use P90 values instead of absolute maximum for progress bars ('true', '1', 'yes', 'on' for true, default: true)
@@ -644,13 +653,29 @@ PAR CC Usage calculates token consumption using a comprehensive approach that ac
 **Total Calculation**: All token types are summed together for accurate billing representation.
 
 #### Model-Based Token Multipliers
-To reflect the actual cost differences between Claude models, tokens are adjusted using multipliers:
+To reflect the actual cost differences between Claude models, tokens are adjusted using configurable multipliers:
 
+**Default Configuration:**
 - **Opus models** (`claude-opus-*`): **5x multiplier** - reflects significantly higher cost
 - **Sonnet models** (`claude-sonnet-*`): **1x multiplier** - baseline cost
-- **Other/Unknown models**: **1x multiplier** - baseline cost
+- **Other/Unknown models**: **1x multiplier** - default fallback
+
+**Configuration Options:**
+Token multipliers can be customized through:
+- **Configuration file**: Set `model_multipliers` in `config.yaml`
+- **Environment variable**: `PAR_CC_USAGE_MODEL_MULTIPLIERS=opus=5.0,sonnet=1.0,default=1.0`
+- **CLI override**: `--model-multipliers opus=5.0,sonnet=1.0,default=1.0`
 
 **Multiplier Application**: The multiplier is applied to the total token count (input + output + cache tokens) for each message, then aggregated by model within each billing block.
+
+**Example Custom Configuration:**
+```yaml
+model_multipliers:
+  opus: 10.0    # Custom higher multiplier for Opus
+  sonnet: 1.5   # Custom multiplier for Sonnet
+  haiku: 0.5    # Custom multiplier for any Haiku models
+  default: 1.0  # Fallback for unlisted models
+```
 
 #### Block-Level Aggregation
 - **Per-session blocks**: Each 5-hour session maintains separate token counts

@@ -63,6 +63,9 @@ uv run pccu monitor --snapshot
 
 # Enable debug output
 uv run pccu monitor --debug
+
+# Override model multipliers
+uv run pccu monitor --model-multipliers opus=5.0,sonnet=1.0,default=1.0
 ```
 
 ### Debug Commands

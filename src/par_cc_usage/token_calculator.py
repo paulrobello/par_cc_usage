@@ -177,11 +177,31 @@ class UnifiedBlockCalculator:
         return None
 
 
-def _get_model_multiplier(model: str) -> float:
-    """Get the model multiplier based on model name."""
-    if "opus" in model.lower():
-        return 5.0
-    return 1.0
+def _get_model_multiplier(model: str, model_multipliers: dict[str, float] | None = None) -> float:
+    """Get the model multiplier based on model name and configuration.
+
+    Args:
+        model: Model name to check
+        model_multipliers: Dictionary of model multipliers from config
+
+    Returns:
+        Multiplier for the given model
+    """
+    if model_multipliers is None:
+        # Fallback to hardcoded values if no config provided
+        if "opus" in model.lower():
+            return 5.0
+        # Sonnet and all other models default to 1.0
+        return 1.0
+
+    # Check for exact model name match first
+    model_lower = model.lower()
+    for model_key, multiplier in model_multipliers.items():
+        if model_key.lower() in model_lower:
+            return multiplier
+
+    # Use default multiplier if no match found
+    return model_multipliers.get("default", 1.0)
 
 
 def _populate_model_tokens(block: TokenBlock, model: str, token_usage: TokenUsage) -> None:
@@ -395,12 +415,15 @@ def extract_tool_usage(message_data: dict[str, Any]) -> tuple[list[str], int]:
     return tools_used, tool_use_count
 
 
-def extract_token_usage(data: dict[str, Any], message_data: dict[str, Any]) -> TokenUsage | None:
+def extract_token_usage(
+    data: dict[str, Any], message_data: dict[str, Any], model_multipliers: dict[str, float] | None = None
+) -> TokenUsage | None:
     """Extract token usage from a message data dictionary.
 
     Args:
         data: Top-level data from JSONL line
         message_data: Message data from JSONL
+        model_multipliers: Dictionary of model multipliers from config
 
     Returns:
         TokenUsage instance or None if no usage data
@@ -435,7 +458,7 @@ def extract_token_usage(data: dict[str, Any], message_data: dict[str, Any]) -> T
     actual_output_tokens = output_tokens
 
     # Calculate display tokens (actual x multiplier)
-    multiplier = _get_model_multiplier(model)
+    multiplier = _get_model_multiplier(model, model_multipliers)
     display_input_tokens = int(input_tokens * multiplier)
     display_cache_creation_input_tokens = int(cache_creation_input_tokens * multiplier)
     display_cache_read_input_tokens = int(cache_read_input_tokens * multiplier)
@@ -520,7 +543,10 @@ def _get_or_create_session(
 
 
 def _process_token_usage(
-    data: dict[str, Any], message: dict[str, Any], dedup_state: DeduplicationState | None
+    data: dict[str, Any],
+    message: dict[str, Any],
+    dedup_state: DeduplicationState | None,
+    model_multipliers: dict[str, float] | None = None,
 ) -> TokenUsage | None:
     """Process and validate token usage data.
 
@@ -528,12 +554,13 @@ def _process_token_usage(
         data: Parsed JSON data from line
         message: Message data
         dedup_state: Deduplication state (optional)
+        model_multipliers: Dictionary of model multipliers from config
 
     Returns:
         TokenUsage or None if invalid
     """
     try:
-        token_usage = extract_token_usage(data, message)
+        token_usage = extract_token_usage(data, message, model_multipliers)
         if not token_usage or token_usage.total == 0:
             return None
 
@@ -709,7 +736,9 @@ def _validate_jsonl_data(data: dict[str, Any]) -> ValidationResult:
 
 
 def _process_message_data(
-    data: dict[str, Any], dedup_state: DeduplicationState | None = None
+    data: dict[str, Any],
+    dedup_state: DeduplicationState | None = None,
+    model_multipliers: dict[str, float] | None = None,
 ) -> tuple[str, str, TokenUsage] | None:
     """Process message data and return normalized model, original model, and token usage."""
     # Validate using Pydantic models
@@ -750,7 +779,7 @@ def _process_message_data(
     }
 
     # Process token usage using existing logic
-    token_usage = _process_token_usage(legacy_data, legacy_message, dedup_state)
+    token_usage = _process_token_usage(legacy_data, legacy_message, dedup_state, model_multipliers)
     if token_usage is None:
         return None
 
@@ -802,6 +831,7 @@ def create_unified_entry(
     project_path: str,
     session_id: str,
     dedup_state: DeduplicationState | None = None,
+    model_multipliers: dict[str, float] | None = None,
 ) -> UnifiedEntry | None:
     """Create a UnifiedEntry from JSONL data.
 
@@ -810,6 +840,7 @@ def create_unified_entry(
         project_path: Path of the project
         session_id: Session ID
         dedup_state: Deduplication state (optional)
+        model_multipliers: Dictionary of model multipliers from config
 
     Returns:
         UnifiedEntry or None if processing fails
@@ -821,7 +852,7 @@ def create_unified_entry(
             return None
 
         # Process message data
-        message_result = _process_message_data(data, dedup_state)
+        message_result = _process_message_data(data, dedup_state, model_multipliers)
         if message_result is None:
             return None
 
@@ -857,6 +888,7 @@ def process_jsonl_line(
     dedup_state: DeduplicationState | None = None,
     timezone_str: str = "auto",
     unified_entries: list[UnifiedEntry] | None = None,
+    model_multipliers: dict[str, float] | None = None,
 ) -> None:
     """Process a single JSONL line and update projects data with robust error handling.
 
@@ -868,10 +900,11 @@ def process_jsonl_line(
         dedup_state: Deduplication state (optional)
         timezone_str: Timezone for display
         unified_entries: Optional list to collect unified entries for unified block calculation
+        model_multipliers: Dictionary of model multipliers from config
     """
     # If unified_entries is provided, create and collect the entry
     if unified_entries is not None:
-        entry = create_unified_entry(data, project_path, session_id, dedup_state)
+        entry = create_unified_entry(data, project_path, session_id, dedup_state, model_multipliers)
         if entry is not None:
             unified_entries.append(entry)
 
@@ -886,7 +919,7 @@ def process_jsonl_line(
         session = _get_or_create_session(project_path, session_id, projects, timestamp)
 
         # Process message data
-        message_result = _process_message_data(data, dedup_state)
+        message_result = _process_message_data(data, dedup_state, model_multipliers)
         if message_result is None:
             logger.debug(f"No message data found for session {session_id}")
             return

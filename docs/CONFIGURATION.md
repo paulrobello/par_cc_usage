@@ -33,6 +33,11 @@ cost_limit: 50.00    # Optional cost limit in USD
 cache_dir: ~/.cache/par_cc_usage  # XDG cache directory (automatically set)
 disable_cache: false  # Set to true to disable file monitoring cache
 recent_activity_window_hours: 5  # Hours to consider as 'recent' activity for smart strategy (matches billing cycle)
+config_ro: false  # Read-only mode: prevents automatic updates to config file (max values, limits)
+model_multipliers:  # Token multipliers per model type (default fallback for unlisted models)
+  opus: 5.0  # Opus models use 5x multiplier to reflect higher cost
+  sonnet: 1.0  # Sonnet models use 1x multiplier (baseline cost)
+  default: 1.0  # Fallback multiplier for unlisted models
 display:
   show_progress_bars: true
   show_active_sessions: true  # Default: show session details
@@ -91,6 +96,86 @@ timezone: America/New_York  # Or any valid IANA timezone
 - `America/Los_Angeles` (Pacific Time)
 - `Europe/London`, `Europe/Paris`, `Asia/Tokyo`, etc.
 
+## Model Multipliers Configuration
+
+PAR CC Usage applies configurable multipliers to token counts to reflect the cost differences between Claude models. This provides more accurate usage representation based on actual pricing.
+
+### Default Configuration
+
+```yaml
+model_multipliers:
+  opus: 5.0    # Opus models use 5x multiplier (higher cost)
+  sonnet: 1.0  # Sonnet models use 1x multiplier (baseline)
+  default: 1.0 # Fallback for unlisted models
+```
+
+### Configuration Options
+
+Token multipliers can be customized through multiple methods:
+
+#### 1. Configuration File
+Add the `model_multipliers` section to your `config.yaml`:
+
+```yaml
+model_multipliers:
+  opus: 10.0   # Custom higher multiplier for Opus
+  sonnet: 1.5  # Custom multiplier for Sonnet
+  haiku: 0.5   # Custom multiplier for Haiku models
+  default: 1.0 # Fallback for unlisted models
+```
+
+#### 2. Environment Variable
+Set the `PAR_CC_USAGE_MODEL_MULTIPLIERS` environment variable:
+
+```bash
+export PAR_CC_USAGE_MODEL_MULTIPLIERS="opus=5.0,sonnet=1.0,default=1.0"
+```
+
+#### 3. CLI Override
+Use the `--model-multipliers` option with the monitor command:
+
+```bash
+pccu monitor --model-multipliers opus=5.0,sonnet=1.0,default=1.0
+pccu monitor --model-multipliers opus=10.0,default=2.0
+```
+
+### How Multipliers Work
+
+1. **Model Detection**: Models are matched using case-insensitive substring matching
+   - `claude-3-opus-20240229` matches `opus` → 5.0x multiplier
+   - `claude-3-sonnet-20240229` matches `sonnet` → 1.0x multiplier
+   - `unknown-model` falls back to `default` → 1.0x multiplier
+
+2. **Token Calculation**: Multipliers are applied to the total token count (input + output + cache tokens) for each message
+
+3. **Block Aggregation**: Multiplied tokens are aggregated by model within each 5-hour billing block
+
+### Validation
+
+- All multiplier values must be positive numbers
+- The `default` key is automatically added if not specified (defaults to 1.0)
+- Invalid multiplier formats will show clear error messages
+- Configuration validation occurs on startup and CLI usage
+
+### Examples
+
+**Cost-based multipliers (reflecting actual pricing):**
+```yaml
+model_multipliers:
+  opus: 5.0    # ~5x more expensive than Sonnet
+  sonnet: 1.0  # Baseline cost
+  haiku: 0.25  # ~4x cheaper than Sonnet
+  default: 1.0
+```
+
+**Usage-based multipliers (custom weighting):**
+```yaml
+model_multipliers:
+  opus: 10.0   # High weight for premium model usage
+  sonnet: 2.0  # Medium weight for standard usage
+  default: 1.0 # Low weight for other models
+```
+
 ## Environment Variables
 
 - `PAR_CC_USAGE_PROJECTS_DIR`: Override projects directory
@@ -113,6 +198,7 @@ timezone: America/New_York  # Or any valid IANA timezone
 - `PAR_CC_USAGE_NOTIFY_ON_BLOCK_COMPLETION`: Send block completion notifications ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_COOLDOWN_MINUTES`: Minimum minutes between notifications
 - `PAR_CC_USAGE_CONFIG_RO`: Enable read-only mode ('true', '1', 'yes', 'on' for true)
+- `PAR_CC_USAGE_MODEL_MULTIPLIERS`: Override model multipliers (format: opus=5.0,sonnet=1.0,default=1.0)
 
 ## File Locations
 

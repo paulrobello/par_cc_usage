@@ -26,8 +26,9 @@ PAR CC Usage provides comprehensive Claude Code usage monitoring with advanced a
 - **Deduplication**: Prevents double-counting using message and request IDs
 - **Model name simplification**: Clean display names (Opus, Sonnet) for better readability
 - **Session sorting**: Newest-first ordering for active sessions
-- **Per-model token tracking**: Accurate token attribution with proper multipliers (Opus 5x, others 1x)
+- **Per-model token tracking**: Accurate token attribution with configurable multipliers (default: Opus 5x, Sonnet 1x)
 - **Compact display mode**: Minimal interface option for reduced screen space usage
+- **Configurable model multipliers**: Customize token multipliers per model type for accurate cost representation
 
 ## 💰 Cost Tracking & Pricing
 - **Real-time cost calculations**: Live cost tracking using LiteLLM pricing data
@@ -124,6 +125,12 @@ PAR CC Usage provides comprehensive Claude Code usage monitoring with advanced a
 - Deduplication using message and request IDs
 - Model name simplification for better readability
 - Session sorting by newest activity first
+
+**Configurable Model Multipliers**
+- Customize token multipliers per model type (Opus, Sonnet, etc.)
+- Configuration via YAML file, environment variables, or CLI overrides
+- Automatic validation with clear error messages
+- Flexible fallback system with `default` multiplier for unlisted models
 
 ### Cost Tracking System
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
     from .models import UsageSnapshot
@@ -168,6 +168,24 @@ class Config(BaseModel):
         default=False,
         description="Read-only mode: prevents automatic updates to config file (max values, limits)",
     )
+    model_multipliers: dict[str, float] = Field(
+        default_factory=lambda: {"opus": 5.0, "sonnet": 1.0, "default": 1.0},
+        description="Token multipliers per model type (default fallback for unlisted models)",
+    )
+
+    @field_validator("model_multipliers")
+    @classmethod
+    def validate_model_multipliers(cls, v: dict[str, float]) -> dict[str, float]:
+        """Validate model multipliers are positive values."""
+        for model, multiplier in v.items():
+            if multiplier <= 0:
+                raise ValueError(f"Model multiplier for '{model}' must be positive, got {multiplier}")
+
+        # Ensure 'default' is present
+        if "default" not in v:
+            v["default"] = 1.0
+
+        return v
 
     def model_post_init(self, __context: Any) -> None:
         """Ensure directories exist after initialization."""
@@ -302,6 +320,30 @@ def _parse_prefix_list_value(value: str) -> list[str]:
     return [prefix.strip() for prefix in value.split(",") if prefix.strip()]
 
 
+def _parse_model_multipliers_value(value: str) -> dict[str, float]:
+    """Parse model multipliers from string format 'opus=5.0,sonnet=1.5,default=1.0'."""
+    multipliers = {}
+    for pair in value.split(","):
+        if "=" in pair:
+            model, multiplier_str = pair.split("=", 1)
+            try:
+                multiplier = float(multiplier_str.strip())
+                if multiplier <= 0:
+                    raise ValueError(f"Multiplier for '{model.strip()}' must be positive, got {multiplier}")
+                multipliers[model.strip()] = multiplier
+            except ValueError as e:
+                raise ValueError(f"Invalid multiplier value for '{model.strip()}': {e}") from e
+
+    if not multipliers:
+        raise ValueError("No valid multipliers found in input string")
+
+    # Ensure 'default' is present
+    if "default" not in multipliers:
+        multipliers["default"] = 1.0
+
+    return multipliers
+
+
 def _parse_env_value(value: str, config_key: str) -> Any:
     """Parse environment variable value based on config key type."""
     # Integer fields
@@ -344,6 +386,10 @@ def _parse_env_value(value: str, config_key: str) -> Any:
     elif config_key == "project_name_prefixes":
         return _parse_prefix_list_value(value)
 
+    # Dictionary fields
+    elif config_key == "model_multipliers":
+        return _parse_model_multipliers_value(value)
+
     # String fields (timezone, webhook URLs, etc.)
     else:
         return value
@@ -383,6 +429,7 @@ def _get_top_level_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_DISABLE_CACHE": "disable_cache",
         "PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS": "recent_activity_window_hours",
         "PAR_CC_USAGE_CONFIG_RO": "config_ro",
+        "PAR_CC_USAGE_MODEL_MULTIPLIERS": "model_multipliers",
     }
 
 
@@ -545,6 +592,7 @@ def save_config(config: Config, config_file: Path) -> None:
         "p90_unified_block_messages_encountered": config.p90_unified_block_messages_encountered,
         "p90_unified_block_cost_encountered": config.p90_unified_block_cost_encountered,
         "cache_dir": str(config.cache_dir),
+        "model_multipliers": config.model_multipliers,
         "display": {
             "show_progress_bars": config.display.show_progress_bars,
             "show_active_sessions": config.display.show_active_sessions,
