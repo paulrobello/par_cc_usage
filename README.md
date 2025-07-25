@@ -62,6 +62,7 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
@@ -1104,6 +1105,26 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability
+
+**Enhanced Model Support & Stability**: Added full support for Claude Sonnet 4 model and improved monitor mode reliability:
+
+#### 🤖 Claude Sonnet 4 Support (New Feature)
+- **Full Model Support**: Added complete support for `ModelType.CLAUDE_SONNET_4` model type
+- **Pricing Integration**: Automatic pricing fallback to Claude 3.5 Sonnet rates for cost calculations
+- **Enum Handling**: Robust handling of ModelType enum objects throughout the pricing system
+
+#### 🖥️ Monitor Mode Stability Improvements
+- **Error Suppression**: Eliminated pricing warnings that caused monitor display to jump and scroll
+- **Stable Interface**: Clean, uninterrupted real-time monitoring experience
+- **Debug Mode**: Pricing warnings still available in debug mode for troubleshooting
+- **Graceful Fallbacks**: Better error handling for unknown model types
+
+#### 🛠️ Technical Improvements
+- **Type Safety**: Enhanced type checking for model name parameters
+- **Logging Configuration**: Improved logging levels to prevent display disruption
+- **Code Quality**: All changes pass strict linting and type checking standards
 
 ### v0.4.0 - Automatic Timezone Detection
 

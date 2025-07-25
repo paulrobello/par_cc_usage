@@ -136,6 +136,10 @@ class PricingCache:
             # Try common Claude model names as fallbacks
             ("opus", ["claude-3-opus-20240229", "anthropic/claude-3-opus-20240229"]),
             (
+                "sonnet-4",
+                ["claude-3-5-sonnet-20241022", "anthropic/claude-3-5-sonnet-20241022", "claude-3-sonnet-20240229"],
+            ),
+            (
                 "sonnet",
                 ["claude-3-5-sonnet-20241022", "claude-3-sonnet-20240229", "anthropic/claude-3-5-sonnet-20241022"],
             ),
@@ -214,7 +218,7 @@ async def get_pricing_cache() -> PricingCache:
 
 
 async def calculate_token_cost(
-    model_name: str,
+    model_name: str | Any,
     input_tokens: int = 0,
     output_tokens: int = 0,
     cache_creation_tokens: int = 0,
@@ -223,7 +227,7 @@ async def calculate_token_cost(
     """Calculate cost for token usage.
 
     Args:
-        model_name: Model name
+        model_name: Model name (string or ModelType enum)
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
         cache_creation_tokens: Number of cache creation tokens
@@ -232,6 +236,12 @@ async def calculate_token_cost(
     Returns:
         TokenCost with breakdown of costs
     """
+    # Convert ModelType enum to string if needed
+    if hasattr(model_name, "value") and not isinstance(model_name, str):
+        model_name = str(model_name.value)
+    elif not isinstance(model_name, str):
+        model_name = str(model_name)
+
     # Handle edge cases
     if not model_name or model_name.lower() in ("unknown", "none", "", "null"):
         logger.debug(f"Skipping cost calculation for unknown model: {model_name}")
@@ -242,7 +252,7 @@ async def calculate_token_cost(
         pricing = await cache.get_pricing(model_name)
 
         if pricing is None:
-            logger.warning(f"No pricing found for model: {model_name}")
+            logger.debug(f"No pricing found for model: {model_name}")
             return TokenCost()
 
         input_cost = (pricing.input_cost_per_token or 0.0) * input_tokens

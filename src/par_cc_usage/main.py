@@ -981,7 +981,12 @@ def monitor(
         # Print debug file location to user
         console.print(f"[yellow]Debug output will be written to: {debug_file.name}[/yellow]")
     else:
-        logging.basicConfig(level=logging.WARNING, format="%(message)s")
+        # In monitor mode, suppress pricing warnings to prevent display disruption
+        logging.basicConfig(level=logging.ERROR, format="%(message)s")
+
+        # Specifically suppress pricing module warnings
+        pricing_logger = logging.getLogger("par_cc_usage.pricing")
+        pricing_logger.setLevel(logging.ERROR)
 
     # Run the async monitor function
     asyncio.run(

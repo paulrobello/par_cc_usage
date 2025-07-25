@@ -440,8 +440,8 @@ class TestMonitorCommand:
 
                             runner.invoke(app, ["monitor"])
 
-                            # Should have configured logging for WARNING level (default)
-                            mock_logging.assert_called_with(level=logging.WARNING, format="%(message)s")
+                            # Should have configured logging for ERROR level (to suppress pricing warnings in monitor mode)
+                            mock_logging.assert_called_with(level=logging.ERROR, format="%(message)s")
 
     @patch('par_cc_usage.main.logger')
     def test_monitor_debug_message_logging(self, mock_logger, mock_config):
