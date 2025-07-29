@@ -25,9 +25,11 @@ class TestDisplayMode:
 
     def test_display_mode_membership(self):
         """Test DisplayMode membership."""
-        assert "normal" in DisplayMode
-        assert "compact" in DisplayMode
-        assert "invalid" not in DisplayMode
+        # Test membership using enum values list for cross-version compatibility
+        display_mode_values = [mode.value for mode in DisplayMode]
+        assert "normal" in display_mode_values
+        assert "compact" in display_mode_values
+        assert "invalid" not in display_mode_values
 
     def test_display_mode_iteration(self):
         """Test DisplayMode iteration."""
