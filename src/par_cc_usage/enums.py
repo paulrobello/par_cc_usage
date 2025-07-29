@@ -74,3 +74,12 @@ class ThemeType(str, Enum):
     LIGHT = "light"
     ACCESSIBILITY = "accessibility"
     MINIMAL = "minimal"
+
+
+class TimeBucket(str, Enum):
+    """Time bucket options for usage summary."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    ALL = "all"

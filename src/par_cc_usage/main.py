@@ -28,7 +28,7 @@ from .config import (
     update_config_token_limit,
 )
 from .display import DisplayManager, create_error_display, create_info_display
-from .enums import DisplayMode, OutputFormat, SortBy, ThemeType
+from .enums import DisplayMode, OutputFormat, SortBy, ThemeType, TimeBucket
 from .file_monitor import FileMonitor, FileState, JSONLReader, parse_session_from_path
 from .list_command import display_usage_list
 from .models import DeduplicationState, Project, TokenBlock, UsageSnapshot
@@ -2085,6 +2085,127 @@ def filter_sessions(
             _display_csv_results(filtered_sessions, show_pricing)
 
     asyncio.run(_filter_sessions_async())
+
+
+@app.command("usage-summary")
+def usage_summary(
+    time_bucket: Annotated[
+        TimeBucket, typer.Option("--time-bucket", "-t", help="Time bucket for grouping")
+    ] = TimeBucket.MONTHLY,
+    output_format: Annotated[OutputFormat, typer.Option("--format", "-f", help="Output format")] = OutputFormat.TABLE,
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Output file path")] = None,
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    theme: Annotated[ThemeType | None, typer.Option("--theme", help="Override theme for this session")] = None,
+    show_pricing: Annotated[bool, typer.Option("--show-pricing/--no-pricing", help="Show pricing information")] = True,
+    show_p90: Annotated[bool, typer.Option("--show-p90/--no-p90", help="Show P90 statistics")] = True,
+    show_models: Annotated[bool, typer.Option("--show-models", help="Show model breakdown")] = False,
+    show_tools: Annotated[bool, typer.Option("--show-tools", help="Show tool usage breakdown")] = False,
+    period_limit: Annotated[int | None, typer.Option("--period-limit", "-p", help="Limit to last N periods")] = None,
+) -> None:
+    """Display usage summary with totals, averages, and P90 statistics for different time buckets."""
+    asyncio.run(
+        _usage_summary_async(
+            time_bucket=time_bucket,
+            output_format=output_format,
+            output=output,
+            config_file=config_file,
+            theme=theme,
+            show_pricing=show_pricing,
+            show_p90=show_p90,
+            show_models=show_models,
+            show_tools=show_tools,
+            period_limit=period_limit,
+        )
+    )
+
+
+async def _usage_summary_async(
+    time_bucket: TimeBucket,
+    output_format: OutputFormat,
+    output: Path | None,
+    config_file: Path | None,
+    theme: ThemeType | None,
+    show_pricing: bool,
+    show_p90: bool,
+    show_models: bool,
+    show_tools: bool,
+    period_limit: int | None,
+) -> None:
+    """Async implementation of usage-summary command."""
+    # Load configuration
+    config = load_config(config_file)
+
+    # Apply temporary theme override if provided
+    if theme is not None:
+        apply_temporary_theme(theme)
+
+    # Create themed console after theme application
+    from .theme import create_themed_console
+
+    themed_console = create_themed_console()
+
+    # Check if Claude directories exist
+    claude_paths = config.get_claude_paths()
+    if not claude_paths:
+        themed_console.print(create_error_display("No Claude directories found!"))
+        sys.exit(1)
+
+    # Show scanning message for table output
+    if output_format == OutputFormat.TABLE:
+        from .theme import get_color
+
+        themed_console.print(
+            f"[{get_color('info')}]Scanning projects in {', '.join(str(p) for p in claude_paths)}...[/{get_color('info')}]"
+        )
+
+    # Scan all projects and collect unified entries
+    projects, unified_entries = scan_all_projects(config, use_cache=False)
+
+    if not unified_entries:
+        if output_format == OutputFormat.TABLE:
+            themed_console.print("[yellow]No usage data found[/yellow]")
+        else:
+            # For JSON/CSV output, create empty summary
+            from .models import UsageSummaryData
+            from .summary_display import SummaryDisplayManager
+
+            empty_summary = UsageSummaryData(time_bucket_type=time_bucket.value)
+            display_manager = SummaryDisplayManager(themed_console)
+            await display_manager.display_summary(
+                empty_summary,
+                output_format,
+                output,
+                show_pricing,
+                show_p90,
+                show_models,
+                show_tools,
+            )
+        return
+
+    # Create unified blocks
+    from .token_calculator import create_unified_blocks
+
+    unified_blocks = create_unified_blocks(unified_entries)
+
+    # Calculate usage summary
+    from .summary_calculator import UsageSummaryCalculator
+
+    calculator = UsageSummaryCalculator(config.get_effective_timezone())
+    summary = await calculator.calculate_summary(unified_entries, unified_blocks, time_bucket, period_limit)
+
+    # Display the summary
+    from .summary_display import SummaryDisplayManager
+
+    display_manager = SummaryDisplayManager(themed_console)
+    await display_manager.display_summary(
+        summary,
+        output_format,
+        output,
+        show_pricing,
+        show_p90,
+        show_models,
+        show_tools,
+    )
 
 
 @app.command("theme")

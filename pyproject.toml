@@ -17,8 +17,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows :: Windows 10",
     "Operating System :: Microsoft :: Windows :: Windows 11",
@@ -40,7 +40,7 @@ keywords = [
     "usage-tracking",
     "real-time",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "rich>=13.7.0",
     "typer>=0.9.0",
@@ -114,5 +114,5 @@ path = "src/par_cc_usage/__init__.py"
 allow-direct-references = true
 
 [tool.pyright]
-pythonVersion = "3.12"
-typeCheckingMode = "strict"
+pythonVersion = "3.11"
+typeCheckingMode = "basic"

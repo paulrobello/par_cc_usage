@@ -25,14 +25,10 @@ If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
  - OS: [e.g. macOS, Linux, Windows]
- - Python version: [e.g. 3.12.0]
- - PAR CC Usage version: [e.g. 0.1.0]
- - Installation method: [e.g. uv, pip]
-
-**Configuration:**
- - Config file location: [e.g. ~/.config/par_cc_usage/config.yaml]
- - Claude projects directory: [e.g. ~/.config/claude/projects]
- - Any relevant config settings
+ - Python version: [e.g. 3.12]
+ - Terminal: [e.g. iTerm2, Terminal, Windows Terminal]
+ - Shell: [e.g. zsh, bash]
+ - Package version: [e.g. 0.1.0]
 
 **Additional context**
 Add any other context about the problem here.

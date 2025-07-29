@@ -974,3 +974,138 @@ class DeduplicationState:
     def unique_messages(self) -> int:
         """Get count of unique messages processed."""
         return self.total_messages - self.duplicate_count
+
+
+@dataclass
+class TimeBucketSummary:
+    """Summary statistics for a specific time bucket."""
+
+    period_name: str  # e.g., "2025-01", "2025-W04", "2025-01-29", "All Time"
+    start_date: datetime
+    end_date: datetime
+
+    # Token statistics
+    total_tokens: int = 0
+    average_tokens: float = 0.0
+    p90_tokens: int = 0
+
+    # Message statistics
+    total_messages: int = 0
+    average_messages: float = 0.0
+    p90_messages: int = 0
+
+    # Cost statistics
+    total_cost: float = 0.0
+    average_cost: float = 0.0
+    p90_cost: float = 0.0
+
+    # Activity statistics
+    active_projects: int = 0
+    active_sessions: int = 0
+    unified_blocks_count: int = 0
+
+    # Model breakdown
+    tokens_by_model: dict[str, int] = field(default_factory=dict[str, int])
+    messages_by_model: dict[str, int] = field(default_factory=dict[str, int])
+    cost_by_model: dict[str, float] = field(default_factory=dict[str, float])
+
+    # Tool usage
+    tool_usage: dict[str, int] = field(default_factory=dict[str, int])
+    total_tool_calls: int = 0
+
+
+@dataclass
+class UsageSummaryData:
+    """Overall usage summary containing all time buckets and aggregate statistics."""
+
+    time_bucket_type: str  # "daily", "weekly", "monthly", "all"
+    buckets: list[TimeBucketSummary] = field(default_factory=list[TimeBucketSummary])
+
+    # Overall statistics (across all buckets)
+    overall_total_tokens: int = 0
+    overall_total_messages: int = 0
+    overall_total_cost: float = 0.0
+    overall_average_tokens: float = 0.0
+    overall_average_messages: float = 0.0
+    overall_average_cost: float = 0.0
+    overall_p90_tokens: int = 0
+    overall_p90_messages: int = 0
+    overall_p90_cost: float = 0.0
+
+    # Time span
+    earliest_date: datetime | None = None
+    latest_date: datetime | None = None
+    total_time_span_days: int = 0
+
+    # Activity overview
+    unique_projects: set[str] = field(default_factory=set[str])
+    unique_sessions: set[str] = field(default_factory=set[str])
+    unique_models: set[str] = field(default_factory=set[str])
+    unique_tools: set[str] = field(default_factory=set[str])
+
+    def add_bucket(self, bucket: TimeBucketSummary) -> None:
+        """Add a time bucket to the summary."""
+        self.buckets.append(bucket)
+
+        # Update overall statistics
+        self.overall_total_tokens += bucket.total_tokens
+        self.overall_total_messages += bucket.total_messages
+        self.overall_total_cost += bucket.total_cost
+
+        # Update time span
+        if self.earliest_date is None or bucket.start_date < self.earliest_date:
+            self.earliest_date = bucket.start_date
+        if self.latest_date is None or bucket.end_date > self.latest_date:
+            self.latest_date = bucket.end_date
+
+        # Update unique sets from bucket data
+        for model in bucket.tokens_by_model.keys():
+            self.unique_models.add(model)
+        for tool in bucket.tool_usage.keys():
+            self.unique_tools.add(tool)
+
+    def calculate_overall_averages(self) -> None:
+        """Calculate overall averages across all buckets."""
+        if not self.buckets:
+            return
+
+        active_bucket_count = len([b for b in self.buckets if b.total_tokens > 0])
+
+        if active_bucket_count > 0:
+            self.overall_average_tokens = self.overall_total_tokens / active_bucket_count
+            self.overall_average_messages = self.overall_total_messages / active_bucket_count
+            self.overall_average_cost = self.overall_total_cost / active_bucket_count
+
+        # Calculate time span
+        if self.earliest_date and self.latest_date:
+            self.total_time_span_days = (self.latest_date - self.earliest_date).days + 1
+
+    def calculate_overall_p90(self) -> None:
+        """Calculate overall P90 values across all buckets."""
+        if not self.buckets:
+            return
+
+        import statistics
+
+        # Get non-zero values for P90 calculation
+        token_values = [b.total_tokens for b in self.buckets if b.total_tokens > 0]
+        message_values = [b.total_messages for b in self.buckets if b.total_messages > 0]
+        cost_values = [b.total_cost for b in self.buckets if b.total_cost > 0]
+
+        if token_values:
+            if len(token_values) == 1:
+                self.overall_p90_tokens = token_values[0]
+            else:
+                self.overall_p90_tokens = int(statistics.quantiles(token_values, n=10)[8])
+
+        if message_values:
+            if len(message_values) == 1:
+                self.overall_p90_messages = message_values[0]
+            else:
+                self.overall_p90_messages = int(statistics.quantiles(message_values, n=10)[8])
+
+        if cost_values:
+            if len(cost_values) == 1:
+                self.overall_p90_cost = cost_values[0]
+            else:
+                self.overall_p90_cost = statistics.quantiles(cost_values, n=10)[8]

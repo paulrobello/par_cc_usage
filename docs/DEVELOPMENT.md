@@ -386,6 +386,43 @@ Fixed unified block time calculation to use standard behavior:
 - **Result**: Block time display now accurately reflects actual usage patterns instead of just current time
 - **Validation**: Monitor display changed from incorrect "11:00 PM - 04:00 AM" to correct "09:00 PM - 02:00 AM"
 
+#### Project Configuration Standardization (2025-07-29)
+Major infrastructure improvements for development consistency and CI/CD pipeline setup:
+
+**Configuration Standardization**
+- **Python Version**: Standardized to Python 3.11 across all configuration files
+  - Updated `pyproject.toml` to `requires-python = ">=3.11"`
+  - Updated `ruff.toml` to `target-version = "py311"`
+  - Updated `pyrightconfig.json` to `pythonVersion: "3.11"`
+- **Type Checking**: Standardized to basic mode (`typeCheckingMode: "basic"`)
+- **Dependency Management**: Regenerated `uv.lock` file to resolve corruption issues
+
+**GitHub Actions Integration**
+- **CI/CD Pipeline**: Copied and adapted GitHub Actions workflows from related project
+- **Workflow Updates**: Modified all workflow files to reference `par_cc_usage` instead of source project
+- **Version Integration**: Updated workflows to use `src.par_cc_usage` for version imports
+- **Python Version**: Updated all GitHub Actions to use Python 3.11 consistently
+- **Cache Keys**: Updated dependency cache keys to match new Python version
+- **Custom Actions**: Added `setup-python-uv` composite action for streamlined CI setup
+
+**Code Quality Improvements**
+- **Complexity Reduction**: Fixed cyclomatic complexity violations in two critical functions:
+  - `_calculate_bucket_statistics` in `summary_calculator.py` (reduced from 12 to ≤10)
+  - `_generate_json` in `summary_display.py` (reduced from 11 to ≤10)
+- **Function Decomposition**: Broke complex functions into focused helper functions:
+  - Data collection helpers (grouping, statistics calculation)
+  - Processing helpers (cost calculation, P90 computation)
+  - Display helpers (JSON building, data formatting)
+- **Type Safety**: Fixed all type checking errors introduced during refactoring
+- **Code Quality**: All checks pass - format ✅, lint ✅, typecheck ✅, test ✅ (709/709 tests)
+
+**Benefits**
+1. **Development Consistency**: All tools now use the same Python version and configuration
+2. **CI/CD Ready**: Complete GitHub Actions pipeline for automated testing and publishing  
+3. **Code Quality**: Eliminated complexity violations while maintaining functionality
+4. **Type Safety**: Resolved all type checking issues with proper union types
+5. **Future-Proof**: Infrastructure ready for automated releases and quality gates
+
 #### Major Complexity Refactoring
 Successfully reduced cyclomatic complexity across all core modules:
 

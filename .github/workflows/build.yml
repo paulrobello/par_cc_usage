@@ -6,23 +6,30 @@ on:
       - main
     tags:
       - 'v*.*.*'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
 
 jobs:
   build:
     name: Build distribution 📦
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python with uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
 
-      - name: Run Tests and Quality Checks
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Lint and Typecheck
         run: |
           make checkall
 
@@ -33,16 +40,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dist
-          key: ${{ runner.os }}-3.12-x64-${{ hashFiles('**/pyproject.toml') }}-${{ github.sha }}
+          key: ${{ runner.os }}-3.11-x64-${{ hashFiles('**/pyproject.toml') }}-${{ github.sha }}
 
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
         with:
-          name: python-package-distributions-ubuntu-latest-3.12-x64
+          name: python-package-distributions-ubuntu-latest-3.11-x64
           path: dist/
 
-  validate-version:
+  tag-version:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write  # Grant write access to the repository
     needs:
       - build # Wait for all build jobs to complete
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -50,40 +60,82 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python with uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
 
-      - name: Validate version
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Get version from __init__.py
         id: get_version
-        uses: ./.github/actions/validate-version
+        run: |
+          version=$(uv run python -c "from src.par_cc_usage import __version__; print(__version__)")
+          echo "Raw version output: $version"
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - name: Check version
+        id: check_version
+        run: |
+          echo "Version in env: ${{ env.VERSION }}"
+          if [ -z "${{ env.VERSION }}" ]; then
+            echo "Error: VERSION is empty"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: App VERSION
+        run: echo "VERSION is ${{ env.VERSION }}"
 
       - name: Fetch all tags
         run: git fetch --tags
 
-      - name: Check if tag already exists
+      - name: Check if tag exists
         id: check_tag
         run: |
-          set -euo pipefail
-          version="${{ steps.get_version.outputs.version }}"
-          tag="v$version"
-          echo "Checking if tag $tag already exists..."
-
-          TAG_EXISTS=$(git tag --list "$tag" || true)
-          if [ -n "$TAG_EXISTS" ]; then
-            echo "::warning::Tag $tag already exists. Consider bumping the version."
-            echo "TAG_EXISTS=true" >> $GITHUB_ENV
-          else
+          TAG_EXISTS=$(git tag --list "v${{ env.VERSION }}")
+          if [ -z "$TAG_EXISTS" ]; then
             echo "TAG_EXISTS=false" >> $GITHUB_ENV
-            echo "Tag $tag does not exist. Good to proceed."
+          else
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
           fi
 
-      - name: Validate tag uniqueness
+      - name: Delete existing tag locally and remotely
         if: env.TAG_EXISTS == 'true'
+        env:
+          VERSION: ${{ env.VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          version="${{ steps.get_version.outputs.version }}"
-          tag="v$version"
-          echo "::error::Tag $tag already exists. Please bump the version before pushing."
-          echo "Recent existing tags:"
-          git tag --list "v*" | sort -V | tail -10 || echo "No existing tags found"
-          exit 1
+          git tag -d "v$VERSION"
+          git push --delete origin "v$VERSION"
+
+      - name: Create new tag
+        env:
+          VERSION: ${{ env.VERSION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! git tag -a "v$VERSION" -m "Version $VERSION"; then
+            echo "Failed to create tag"
+            exit 1
+          fi
+          if ! git push origin "v$VERSION"; then
+            echo "Failed to push tag"
+            exit 1
+          fi
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          git tag -d "v${{ env.VERSION }}" || true
+          git push --delete origin "v${{ env.VERSION }}" || true

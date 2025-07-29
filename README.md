@@ -27,11 +27,13 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [🌐 Configuration & Customization](#-configuration--customization)
   - [🎨 Theme System](#-theme-system)
   - [🔔 Notification System](#-notification-system)
+  - [📈 Usage Summary Analytics](#-usage-summary-analytics)
   - [🛠️ Developer Tools](#️-developer-tools)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Monitor Token Usage](#monitor-token-usage)
   - [List Usage Data](#list-usage-data)
+  - [Usage Summary Analytics](#usage-summary-analytics)
   - [Configuration Management](#configuration-management)
   - [Cache Management](#cache-management)
   - [Webhook Notifications](#webhook-notifications)
@@ -62,12 +64,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
   - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
   - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
-  - [v0.1.12 - Documentation Restructure](#v0112---documentation-restructure--organization)
   - [older...](#older)
 - [Development](#development)
 
@@ -151,6 +153,15 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Cooldown protection**: Configurable minimum time between notifications
 - **Rich information**: Detailed usage statistics in notifications
 
+### 📈 Usage Summary Analytics
+- **Time-based analysis**: Generate summaries by daily, weekly, monthly, or all-time periods
+- **Statistical insights**: Totals, averages, and P90 values for tokens, messages, and costs
+- **Usage patterns**: Identify peak usage periods and typical session sizes
+- **Model breakdown**: Analyze which Claude models are used most frequently
+- **Tool usage tracking**: See which tools (Read, Edit, Bash, etc.) are used most often
+- **Export capabilities**: JSON and CSV export for external analysis and reporting
+- **Flexible period filtering**: Limit analysis to recent periods (last N days/weeks/months)
+
 ### 🛠️ Developer Tools
 - **Debug commands**: Comprehensive debugging tools for block calculation and timing
 - **Activity analysis**: Historical activity pattern analysis
@@ -206,7 +217,7 @@ python -m par_cc_usage.main monitor
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.11 or higher
 - Claude Code must be installed and have generated usage data
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip for installation
 
@@ -313,6 +324,52 @@ pccu list --theme light --show-pricing  # Light theme with pricing
 pccu list --theme accessibility --format table  # High contrast theme
 pccu list --theme minimal --sort-by tokens  # Minimal theme with token sorting
 ```
+
+### Usage Summary Analytics
+Generate comprehensive usage summaries with statistical analysis:
+```bash
+# Monthly summary (default) with totals, averages, and P90 statistics
+pccu usage-summary
+
+# Weekly breakdown for the last 8 weeks
+pccu usage-summary --time-bucket weekly --period-limit 8
+
+# Daily analysis for the last 30 days
+pccu usage-summary --time-bucket daily --period-limit 30
+
+# All-time summary across entire usage history
+pccu usage-summary --time-bucket all
+
+# Export comprehensive monthly analysis to CSV
+pccu usage-summary --format csv --output monthly-summary.csv
+
+# Detailed summary with model and tool breakdowns
+pccu usage-summary --show-models --show-tools
+
+# Summary with all statistics (including P90) and model breakdown
+pccu usage-summary --show-p90 --show-models --show-pricing
+
+# Minimal summary without P90 statistics
+pccu usage-summary --no-p90
+
+# JSON export for data analysis
+pccu usage-summary --format json --output usage-analysis.json
+
+# Theme customization for summary output
+pccu usage-summary --theme dark --show-models
+```
+
+**What the Summary Shows:**
+- **Totals**: Total tokens, messages, and costs per time period
+- **Averages**: Average usage per session within each period
+- **P90 Statistics**: 90th percentile values showing typical high usage (filters outliers)
+- **Activity Metrics**: Number of active projects and sessions per period
+- **Model Breakdown**: Usage distribution across different Claude models (with `--show-models`)
+- **Tool Usage**: Analysis of which tools are used most frequently (with `--show-tools`)
+- **Time Periods**: Flexible bucketing by day, week (ISO weeks), month, or all-time
+
+**Understanding P90 vs Average:**
+P90 values are typically higher than averages because they represent the 90th percentile - meaning 90% of your sessions used less than this amount, while 10% used more. This helps identify your typical "high usage" sessions while filtering out extreme outliers. The gap between average and P90 indicates usage variability.
 
 ### Configuration Management
 
@@ -1105,6 +1162,37 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.6.0 - Usage Summary Analytics
+
+**Comprehensive Usage Analytics**: New usage summary command with advanced statistical analysis and flexible time bucketing:
+
+#### 📈 Usage Summary Analytics (New Feature)
+- **Statistical Analysis**: Totals, averages, and P90 (90th percentile) statistics for tokens, messages, and costs
+- **Time Bucketing**: Flexible time period analysis - daily, weekly (ISO weeks), monthly, or all-time summaries
+- **P90 Insights**: P90 values show typical "high usage" sessions while filtering extreme outliers
+- **Model & Tool Breakdowns**: Optional detailed breakdowns showing usage distribution across Claude models and tools
+- **Multiple Export Formats**: Rich tables (default), JSON for data analysis, and CSV for spreadsheet import
+- **Period Limiting**: Control analysis scope with `--period-limit` (e.g., last 4 weeks, last 30 days)
+- **Comprehensive Options**: Full integration with existing pricing, theming, and configuration systems
+
+#### 📊 Statistical Features
+- **Time Span Analysis**: Automatically calculates total time span across usage history
+- **Unique Tracking**: Counts unique projects, sessions, models, and tools used
+- **Overall Statistics**: Cross-period summary with overall totals and averages
+- **P90 vs Average**: Helps identify usage variability patterns (P90 > average indicates healthy variation)
+
+#### 💻 Command Examples
+```bash
+# Monthly summary with all features
+pccu usage-summary --show-models --show-tools --show-pricing
+
+# Weekly analysis for last 8 weeks
+pccu usage-summary --time-bucket weekly --period-limit 8
+
+# Export detailed analysis to CSV
+pccu usage-summary --format csv --output analysis.csv
+```
 
 ### v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability
 

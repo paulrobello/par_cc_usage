@@ -97,6 +97,86 @@ pccu list --theme accessibility --format table  # High contrast theme
 pccu list --theme minimal --sort-by tokens  # Minimal theme with token sorting
 ```
 
+## Usage Summary Analytics
+
+Generate comprehensive usage summaries with statistical analysis:
+
+```bash
+# Monthly summary (default) with totals, averages, and P90 statistics
+pccu usage-summary
+
+# Weekly breakdown for the last 8 weeks
+pccu usage-summary --time-bucket weekly --period-limit 8
+
+# Daily analysis for the last 30 days
+pccu usage-summary --time-bucket daily --period-limit 30
+
+# All-time summary across entire usage history
+pccu usage-summary --time-bucket all
+
+# Export comprehensive monthly analysis to CSV
+pccu usage-summary --format csv --output monthly-summary.csv
+
+# Detailed summary with model and tool breakdowns
+pccu usage-summary --show-models --show-tools
+
+# Summary with all statistics (including P90) and model breakdown
+pccu usage-summary --show-p90 --show-models --show-pricing
+
+# Minimal summary without P90 statistics
+pccu usage-summary --no-p90
+
+# JSON export for data analysis
+pccu usage-summary --format json --output usage-analysis.json
+
+# Theme customization for summary output
+pccu usage-summary --theme dark --show-models
+
+# Period-limited analysis
+pccu usage-summary --time-bucket weekly --period-limit 4  # Last 4 weeks only
+pccu usage-summary --time-bucket daily --period-limit 7   # Last 7 days only
+pccu usage-summary --time-bucket monthly --period-limit 6 # Last 6 months only
+```
+
+### Summary Features
+
+**Time Bucketing Options:**
+- `daily`: Group usage by calendar day (midnight to midnight)
+- `weekly`: Group by ISO weeks (Monday to Sunday)
+- `monthly`: Group by calendar month (1st to last day)
+- `all`: Single summary across entire usage history
+
+**Statistical Analysis:**
+- **Totals**: Sum of tokens, messages, and costs per time period
+- **Averages**: Mean usage per session within each time period
+- **P90 Statistics**: 90th percentile values showing typical high usage
+- **Activity Metrics**: Count of active projects and sessions per period
+
+**Breakdown Options:**
+- `--show-models`: Usage distribution across Claude models (Opus, Sonnet, etc.)
+- `--show-tools`: Tool usage frequency (Read, Edit, Bash, etc.)
+- `--show-pricing`: Cost analysis and breakdown
+- `--show-p90`: Include P90 statistical values in output
+
+**Export Formats:**
+- `table`: Rich formatted table (default)
+- `json`: Structured JSON for data analysis
+- `csv`: Comma-separated values for spreadsheet import
+
+**Understanding P90 vs Average:**
+P90 values are typically higher than averages because they represent the 90th percentile - meaning 90% of your sessions used less than this amount, while 10% used more. This helps identify your typical "high usage" sessions while filtering out extreme outliers. The gap between average and P90 indicates usage variability.
+
+**Example Output:**
+```
+Usage Summary (Monthly)
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Period       ┃ Total Tokens ┃ Avg Tokens ┃ P90 Tokens ┃ Messages ┃ Projects ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━┩
+│ 2025-01      │       1.2M   │      45.3K │      89.2K │    1,543 │        8 │
+│ 2024-12      │       890K   │      32.1K │      67.8K │      987 │        6 │
+└──────────────┴──────────────┴────────────┴────────────┴──────────┴──────────┘
+```
+
 ## Webhook Notifications
 
 ```bash
