@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
@@ -31,6 +32,9 @@ def register_commands() -> None:
     app.command(name="debug-unified")(debug_unified_block)
     app.command(name="debug-activity")(debug_recent_activity)
     app.command(name="debug-session-table")(debug_session_table)
+
+    # Add configuration update command
+    app.command(name="update-maximums")(update_maximums_sync)
 
 
 @app.command("debug-blocks")
@@ -662,3 +666,345 @@ def debug_session_table(
 
     stats = _analyze_blocks(snapshot, unified_start, unified_end, now)
     _print_summary(*stats)
+
+
+async def update_maximums(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Force update even if config is read-only")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", "-d", help="Show what would be updated without making changes")
+    ] = False,
+    use_current_block: Annotated[
+        bool,
+        typer.Option(
+            "--use-current-block", "-u", help="Use only current active block totals instead of historical maximums"
+        ),
+    ] = False,
+) -> None:
+    """Update config file maximum values with current usage and set read-only mode.
+
+    This command:
+    1. Gets the current usage snapshot from all projects
+    2. Updates the config file maximum values with current usage
+    3. Sets the config_ro parameter to true to prevent automatic updates
+
+    This is useful to set your configuration baselines based on actual usage.
+    """
+    from .config import get_config_file_path, load_config, save_config
+    from .main import _get_current_usage_snapshot, scan_all_projects
+    from .token_calculator import create_unified_blocks
+
+    # Load configuration
+    config_file_to_use = config_file if config_file else get_config_file_path()
+    config = load_config(config_file_to_use)
+
+    # Check if config is read-only and force is not set
+    if config.config_ro and not force:
+        console.print("[red]Configuration is in read-only mode![/red]")
+        console.print("[yellow]Use --force to override read-only mode[/yellow]")
+        return
+
+    # Get current usage snapshot
+    console.print("[cyan]Scanning projects to get current usage...[/cyan]")
+    snapshot = _get_current_usage_snapshot(config)
+
+    if not snapshot:
+        console.print("[yellow]No usage data found![/yellow]")
+        return
+
+    # Get current values from snapshot
+    current_values = await _get_current_values(snapshot)
+
+    if use_current_block:
+        # Use only current block values
+        console.print("[cyan]Using current active block totals for maximums...[/cyan]")
+        max_values = current_values.copy()
+        p90_values = current_values.copy()
+        total_blocks = 1  # Current block only
+    else:
+        # Analyze historical data
+        console.print("[cyan]Analyzing all historical data for maximums...[/cyan]")
+        projects, unified_entries = scan_all_projects(config, use_cache=False)
+        unified_blocks = create_unified_blocks(unified_entries)
+
+        # Calculate all values
+        max_values = await _calculate_max_values(unified_blocks, current_values, config)
+        p90_values = await _calculate_p90_values(unified_blocks)
+        total_blocks = len(unified_blocks)
+
+    # Display results
+    _display_update_summary(config, current_values, max_values, p90_values, total_blocks)
+
+    # Handle dry run
+    if dry_run:
+        console.print("\n[yellow]Dry run mode - no changes will be made[/yellow]")
+        return
+
+    # Get confirmation
+    if not force:
+        import typer
+
+        if not typer.confirm("\nUpdate configuration with these values?"):
+            console.print("[yellow]Update cancelled[/yellow]")
+            return
+
+    # Apply updates
+    _apply_config_updates(config, max_values, p90_values)
+    save_config(config, config_file_to_use)
+
+    console.print("\n[green]✓ Configuration updated successfully![/green]")
+    console.print("[green]✓ Read-only mode enabled[/green]")
+    console.print(f"[dim]Configuration saved to: {config_file_to_use}[/dim]")
+
+
+def update_maximums_sync(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Force update even if config is read-only")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", "-d", help="Show what would be updated without making changes")
+    ] = False,
+    use_current_block: Annotated[
+        bool,
+        typer.Option(
+            "--use-current-block", "-u", help="Use only current active block totals instead of historical maximums"
+        ),
+    ] = False,
+) -> None:
+    """Update config file maximum values with current usage and set read-only mode.
+
+    This command:
+    1. Gets the current usage snapshot from all projects
+    2. Updates the config file maximum values with current usage
+    3. Sets the config_ro parameter to true to prevent automatic updates
+
+    This is useful to set your configuration baselines based on actual usage.
+    """
+    asyncio.run(update_maximums(config_file, force, dry_run, use_current_block))
+
+
+async def _get_current_values(snapshot: UsageSnapshot) -> dict[str, float]:
+    """Get current values from snapshot."""
+    return {
+        "tokens": snapshot.unified_block_tokens(),
+        "messages": snapshot.unified_block_messages(),
+        "cost": await snapshot.get_unified_block_total_cost(),
+    }
+
+
+async def _calculate_block_cost(block) -> float:
+    """Calculate total cost for a block asynchronously."""
+    from .pricing import calculate_token_cost
+
+    block_cost = 0.0
+    for entry in block.entries:
+        usage = entry.token_usage
+        cost_result = await calculate_token_cost(
+            entry.full_model_name,
+            usage.actual_input_tokens,
+            usage.actual_output_tokens,
+            usage.actual_cache_creation_input_tokens,
+            usage.actual_cache_read_input_tokens,
+        )
+        block_cost += cost_result.total_cost
+    return block_cost
+
+
+async def _calculate_max_values(
+    unified_blocks: list, current_values: dict[str, float], config: Config
+) -> dict[str, float]:
+    """Calculate maximum values from historical data."""
+    # Find historical maximums from all unified blocks
+    max_tokens_found = max((block.total_tokens for block in unified_blocks), default=0)
+    max_messages_found = max((block.messages_processed for block in unified_blocks), default=0)
+
+    # Calculate max cost from all blocks
+    max_cost = 0.0
+    for block in unified_blocks:
+        try:
+            block_cost = await _calculate_block_cost(block)
+            max_cost = max(max_cost, block_cost)
+        except Exception:
+            # Skip blocks where cost calculation fails
+            continue
+
+    # Determine new maximum values (use historical max or current, whichever is higher)
+    return {
+        "tokens": max(max_tokens_found, current_values["tokens"], config.max_unified_block_tokens_encountered),
+        "messages": max(max_messages_found, current_values["messages"], config.max_unified_block_messages_encountered),
+        "cost": max(max_cost, current_values["cost"], config.max_unified_block_cost_encountered),
+    }
+
+
+def _calculate_percentile(values: list[int], percentile: float) -> int:
+    """Calculate percentile of a list of values without numpy dependency."""
+    if not values:
+        return 0
+    sorted_values = sorted(values)
+    n = len(sorted_values)
+    if n == 0:
+        return 0
+    if n == 1:
+        return sorted_values[0]
+
+    # Calculate percentile index
+    index = (percentile / 100.0) * (n - 1)
+
+    # If index is whole number, return that element
+    if index == int(index):
+        return sorted_values[int(index)]
+
+    # Otherwise, interpolate between the two nearest values
+    lower_index = int(index)
+    upper_index = min(lower_index + 1, n - 1)
+    weight = index - lower_index
+
+    lower_value = sorted_values[lower_index]
+    upper_value = sorted_values[upper_index]
+
+    return int(lower_value + weight * (upper_value - lower_value))
+
+
+async def _calculate_p90_values(unified_blocks: list) -> dict[str, float]:
+    """Calculate P90 values from unified blocks."""
+    if len(unified_blocks) == 0:
+        return {"tokens": 0, "messages": 0, "cost": 0.0}
+
+    token_values = [block.total_tokens for block in unified_blocks if block.total_tokens > 0]
+    message_values = [block.messages_processed for block in unified_blocks if block.messages_processed > 0]
+
+    new_p90_tokens = _calculate_percentile(token_values, 90)
+    new_p90_messages = _calculate_percentile(message_values, 90)
+
+    # Calculate P90 cost
+    cost_values = []
+    for block in unified_blocks:
+        try:
+            block_cost = await _calculate_block_cost(block)
+            if block_cost > 0:
+                cost_values.append(block_cost)
+        except Exception:
+            continue
+
+    # Calculate P90 cost using percentile logic for floats
+    if cost_values:
+        sorted_costs = sorted(cost_values)
+        n = len(sorted_costs)
+        if n == 1:
+            new_p90_cost = sorted_costs[0]
+        else:
+            # Calculate 90th percentile for floats
+            index = 0.9 * (n - 1)
+            if index == int(index):
+                new_p90_cost = sorted_costs[int(index)]
+            else:
+                lower_index = int(index)
+                upper_index = min(lower_index + 1, n - 1)
+                weight = index - lower_index
+                lower_value = sorted_costs[lower_index]
+                upper_value = sorted_costs[upper_index]
+                new_p90_cost = lower_value + weight * (upper_value - lower_value)
+    else:
+        new_p90_cost = 0.0
+
+    return {"tokens": new_p90_tokens, "messages": new_p90_messages, "cost": new_p90_cost}
+
+
+def _format_change(old_val: float, new_val: float) -> str:
+    """Format numeric change display."""
+    if new_val > old_val:
+        return f"+{new_val - old_val:,}"
+    elif new_val < old_val:
+        return f"-{old_val - new_val:,}"
+    else:
+        return "No change"
+
+
+def _format_cost_change(old_val: float, new_val: float) -> str:
+    """Format cost change display."""
+    if new_val > old_val:
+        return f"+${new_val - old_val:.2f}"
+    elif new_val < old_val:
+        return f"-${old_val - new_val:.2f}"
+    else:
+        return "No change"
+
+
+def _display_update_summary(
+    config: Config,
+    current_values: dict[str, float],
+    max_values: dict[str, float],
+    p90_values: dict[str, float],
+    total_blocks: int,
+) -> None:
+    """Display the configuration update summary table."""
+    from rich.table import Table
+
+    table = Table(title="Configuration Update Summary", show_header=True, header_style="bold magenta")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Current Value", style="yellow", justify="right")
+    table.add_column("New Value", style="green", justify="right")
+    table.add_column("Change", style="blue")
+
+    # Add rows to table
+    table.add_row(
+        "Max Tokens (Unified Block)",
+        f"{config.max_unified_block_tokens_encountered:,}",
+        f"{max_values['tokens']:,.0f}",
+        _format_change(config.max_unified_block_tokens_encountered, max_values["tokens"]),
+    )
+    table.add_row(
+        "Max Messages (Unified Block)",
+        f"{config.max_unified_block_messages_encountered:,}",
+        f"{max_values['messages']:,.0f}",
+        _format_change(config.max_unified_block_messages_encountered, max_values["messages"]),
+    )
+    table.add_row(
+        "Max Cost (Unified Block)",
+        f"${config.max_unified_block_cost_encountered:.2f}",
+        f"${max_values['cost']:.2f}",
+        _format_cost_change(config.max_unified_block_cost_encountered, max_values["cost"]),
+    )
+    table.add_row(
+        "P90 Tokens (Unified Block)",
+        f"{config.p90_unified_block_tokens_encountered:,}",
+        f"{p90_values['tokens']:,.0f}",
+        _format_change(config.p90_unified_block_tokens_encountered, p90_values["tokens"]),
+    )
+    table.add_row(
+        "P90 Messages (Unified Block)",
+        f"{config.p90_unified_block_messages_encountered:,}",
+        f"{p90_values['messages']:,.0f}",
+        _format_change(config.p90_unified_block_messages_encountered, p90_values["messages"]),
+    )
+    table.add_row(
+        "P90 Cost (Unified Block)",
+        f"${config.p90_unified_block_cost_encountered:.2f}",
+        f"${p90_values['cost']:.2f}",
+        _format_cost_change(config.p90_unified_block_cost_encountered, p90_values["cost"]),
+    )
+    table.add_row(
+        "Read-Only Mode",
+        str(config.config_ro),
+        "True",
+        "Will be enabled" if not config.config_ro else "Already enabled",
+    )
+
+    console.print(table)
+
+    # Additional current usage info
+    console.print("\n[bold]Current Usage Snapshot:[/bold]")
+    console.print(f"  Current Unified Block Tokens: {current_values['tokens']:,.0f}")
+    console.print(f"  Current Unified Block Messages: {current_values['messages']:,.0f}")
+    console.print(f"  Current Unified Block Cost: ${current_values['cost']:.2f}")
+    console.print(f"  Total Historical Unified Blocks: {total_blocks:,}")
+
+
+def _apply_config_updates(config: Config, max_values: dict[str, float], p90_values: dict[str, float]) -> None:
+    """Apply the calculated values to configuration."""
+    config.max_unified_block_tokens_encountered = int(max_values["tokens"])
+    config.max_unified_block_messages_encountered = int(max_values["messages"])
+    config.max_unified_block_cost_encountered = max_values["cost"]
+    config.p90_unified_block_tokens_encountered = int(p90_values["tokens"])
+    config.p90_unified_block_messages_encountered = int(p90_values["messages"])
+    config.p90_unified_block_cost_encountered = p90_values["cost"]
+    config.config_ro = True

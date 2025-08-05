@@ -68,6 +68,24 @@ uv run pccu monitor --debug
 uv run pccu monitor --model-multipliers opus=5.0,sonnet=1.0,default=1.0
 ```
 
+### Configuration Management
+```bash
+# Update config maximums based on current usage and enable read-only mode
+uv run pccu update-maximums
+
+# Preview changes without applying them
+uv run pccu update-maximums --dry-run
+
+# Force update even if config is read-only
+uv run pccu update-maximums --force
+
+# Use only current active block totals instead of historical maximums
+uv run pccu update-maximums --use-current-block
+
+# Use specific config file
+uv run pccu update-maximums --config /path/to/config.yaml
+```
+
 ### Debug Commands
 ```bash
 # Debug unified block calculation
@@ -110,6 +128,13 @@ uv run pccu list --format csv --output costs.csv
 - **Realistic Projections**: Shows more typical usage patterns while capturing 90% of historical data
 - **Visual Indicator**: Displays "(P90)" next to limits when enabled
 - **Optional**: Can be disabled to use absolute maximum values via `--no-p90` or config setting
+
+### Configuration Management
+- **Dynamic Baseline Updates**: `update-maximums` command analyzes historical usage and updates configuration maximums
+- **Read-Only Protection**: Automatically enables read-only mode to prevent accidental config changes
+- **Historical Analysis**: Scans all unified blocks to find true maximum and P90 values
+- **Preview Mode**: Dry-run capability to preview changes before applying
+- **Force Override**: Ability to update read-only configurations when needed
 
 ## Troubleshooting
 

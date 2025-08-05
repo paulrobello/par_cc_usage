@@ -64,12 +64,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
   - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
-  - [v0.2.0 - Documentation Clean-up](#v020---documentation-clean-up)
   - [older...](#older)
 - [Development](#development)
 
@@ -135,6 +135,8 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **XDG directory compliance**: Config, cache, and data files stored in standard locations
 - **Automatic migration**: Legacy config files automatically moved to XDG locations
 - **Automatic timezone detection**: Seamlessly detects system timezone changes, with manual override support
+- **Dynamic baseline updates**: `update-maximums` command automatically updates configuration limits based on actual usage patterns
+- **Read-only protection**: Automatic read-only mode activation to prevent accidental configuration changes
 - **Time formats**: 12-hour or 24-hour time display options
 - **Project name cleanup**: Strip common path prefixes for cleaner display
 - **Flexible output**: Table, JSON, and CSV export formats
@@ -382,8 +384,21 @@ pccu set-limit token 500000      # Set token limit
 pccu set-limit message 100       # Set message limit  
 pccu set-limit cost 25.50        # Set cost limit in USD
 
+# Update maximums based on current usage and enable read-only mode
+pccu update-maximums
+
+# Preview configuration changes without applying them
+pccu update-maximums --dry-run
+
+# Force update even if config is read-only
+pccu update-maximums --force
+
+# Use only current active block totals instead of historical maximums
+pccu update-maximums --use-current-block
+
 # Use custom config file
 pccu init --config my-config.yaml
+pccu update-maximums --config my-config.yaml
 ```
 
 ### Cache Management
@@ -1162,6 +1177,24 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.7.0 - Enhanced Configuration Management
+
+**Enhanced Update Maximums Command**: New `--use-current-block` option for more flexible configuration management:
+
+#### 🔧 Current Block Configuration (New Feature)
+- **Simplified Setup**: Use `--use-current-block` flag to set maximums based only on current active block totals
+- **Performance Optimized**: Skips expensive historical data analysis when using current block only
+- **Quick Baseline Setting**: Perfect for setting initial configuration baselines or adjusting after usage pattern changes
+- **Consistent Behavior**: Uses current block values for both maximum and P90 settings
+
+```bash
+# Set maximums to current block totals (fast)
+pccu update-maximums --use-current-block
+
+# Preview current block changes
+pccu update-maximums --use-current-block --dry-run
+```
 
 ### v0.6.0 - Usage Summary Analytics
 
