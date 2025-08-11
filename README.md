@@ -28,8 +28,15 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [🎨 Theme System](#-theme-system)
   - [🔔 Notification System](#-notification-system)
   - [📈 Usage Summary Analytics](#-usage-summary-analytics)
+  - [💻 Claude Code Status Line](#-claude-code-status-line)
   - [🛠️ Developer Tools](#️-developer-tools)
 - [Installation](#installation)
+- [Claude Code Status Line Integration](#claude-code-status-line-integration)
+  - [Quick Setup](#quick-setup)
+  - [Manual Setup](#manual-setup)
+  - [Status Line Display](#status-line-display)
+  - [Commands](#commands)
+  - [Configuration](#configuration)
 - [Usage](#usage)
   - [Monitor Token Usage](#monitor-token-usage)
   - [List Usage Data](#list-usage-data)
@@ -64,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
   - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
   - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
-  - [v0.2.1 - Progress Bar & Max Value Tracking Fixes](#v021---progress-bar--max-value-tracking-fixes)
   - [older...](#older)
 - [Development](#development)
 
@@ -164,6 +171,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Export capabilities**: JSON and CSV export for external analysis and reporting
 - **Flexible period filtering**: Limit analysis to recent periods (last N days/weeks/months)
 
+### 💻 Claude Code Status Line
+- **Real-time status bar**: Display token usage directly in Claude Code's interface
+- **Auto-installation**: Simple one-command setup with `pccu install-statusline`
+- **Session tracking**: Show per-session or grand total usage statistics
+- **Live updates**: Automatically refreshes when monitoring is active
+
 ### 🛠️ Developer Tools
 - **Debug commands**: Comprehensive debugging tools for block calculation and timing
 - **Activity analysis**: Historical activity pattern analysis
@@ -222,6 +235,79 @@ python -m par_cc_usage.main monitor
 - Python 3.11 or higher
 - Claude Code must be installed and have generated usage data
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip for installation
+
+## Claude Code Status Line Integration
+
+PAR CC Usage can display real-time token usage directly in Claude Code's status bar at the bottom of the interface.
+
+![Claude Code Status Line](status_line.png)
+
+### Quick Setup
+
+Install the status line with a single command:
+```bash
+pccu install-statusline
+```
+
+This will automatically configure Claude Code to display your token usage. Restart Claude Code to see the changes.
+
+### Manual Setup
+
+If you prefer to configure manually, add this to your `~/.claude/settings.json`:
+```json
+"statusLine": {
+  "type": "command",
+  "command": "pccu statusline"
+}
+```
+
+### Status Line Display
+
+The status line shows:
+- 🪙 **Token count** with limit and percentage
+- 💬 **Message count** with limit  
+- 💰 **Cost tracking** with limit (calculated from token usage)
+- ⏱️ **Time remaining** in current 5-hour billing block
+
+Example: `🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m`
+
+**Status Line Behavior:**
+- By default, shows per-session usage (tracks your current Claude Code session)
+- Can be configured to always show grand total across all sessions
+- Both modes include real-time cost calculations based on token usage
+- Displays remaining time in the current billing block (e.g., "2h 8m" or "45m")
+- Updates automatically as you interact with Claude Code
+
+**Important:** The status line is updated when `pccu monitor` is running. For real-time updates, keep the monitor running in a terminal.
+
+### Commands
+
+```bash
+# Install status line into Claude Code
+pccu install-statusline
+
+# Install with force (skip confirmation prompts)
+pccu install-statusline --force
+
+# Remove status line from Claude Code
+pccu uninstall-statusline
+
+# Remove with force (skip confirmation prompts)
+pccu uninstall-statusline --force
+```
+
+### Configuration
+
+Control status line behavior in your `config.yaml`:
+```yaml
+# Enable/disable status line generation (default: true)
+statusline_enabled: true
+
+# Always show grand total instead of per-session (default: false)
+statusline_use_grand_total: false
+```
+
+The status line automatically updates whenever you run `pccu monitor`, providing real-time usage feedback directly in your Claude Code interface.
 
 ## Usage
 
@@ -559,6 +645,8 @@ display:
     - "-Users-"
     - "-home-"
   aggregate_by_project: true  # Aggregate token usage by project instead of individual sessions (default)
+statusline_enabled: true  # Enable Claude Code status line generation (default: true)
+statusline_use_grand_total: false  # Always show grand total instead of per-session (default: false)
 notifications:
   discord_webhook_url: https://discord.com/api/webhooks/your-webhook-url
   slack_webhook_url: https://hooks.slack.com/services/your-webhook-url
@@ -586,6 +674,8 @@ notifications:
 - `PAR_CC_USAGE_THEME`: Theme name ('default', 'dark', 'light', 'accessibility', or 'minimal')
 - `PAR_CC_USAGE_PROJECT_NAME_PREFIXES`: Comma-separated list of prefixes to strip from project names
 - `PAR_CC_USAGE_AGGREGATE_BY_PROJECT`: Aggregate token usage by project instead of sessions ('true', '1', 'yes', 'on' for true)
+- `PAR_CC_USAGE_STATUSLINE_ENABLED`: Enable/disable Claude Code status line generation ('true', '1', 'yes', 'on' for true, default: true)
+- `PAR_CC_USAGE_STATUSLINE_USE_GRAND_TOTAL`: Always show grand total instead of per-session ('true', '1', 'yes', 'on' for true, default: false)
 - `PAR_CC_USAGE_DISCORD_WEBHOOK_URL`: Discord webhook URL for notifications
 - `PAR_CC_USAGE_SLACK_WEBHOOK_URL`: Slack webhook URL for notifications
 - `PAR_CC_USAGE_NOTIFY_ON_BLOCK_COMPLETION`: Send block completion notifications ('true', '1', 'yes', 'on' for true)
@@ -1177,6 +1267,38 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.8.0 - Claude Code Status Line Integration
+**Complete Claude Code Integration**: Real-time usage display in Claude Code's status bar with automatic installation:
+
+#### 🔌 Status Line Features (New)
+- **Automatic Installation**: Single command (`pccu install-statusline`) configures Claude Code
+- **Real-Time Display**: Live token usage, messages, costs, and block time remaining in status bar
+- **Per-Session Tracking**: Default mode tracks current Claude Code session with full cost data
+- **Grand Total Mode**: Optional aggregated view across all sessions
+- **Block Time Remaining**: Shows time left in current 5-hour billing block (e.g., ⏱️ 2h 8m)
+- **Cost Calculations**: Both session and grand total modes include real-time cost tracking
+
+#### 📊 Status Line Format
+```
+🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m
+```
+- **Tokens**: Current usage with limit and percentage
+- **Messages**: Message count with limit
+- **Cost**: Real-time cost tracking with limit
+- **Time**: Remaining time in current billing block (NEW!)
+
+#### 🚀 Quick Setup
+```bash
+# Install status line (automatic configuration)
+pccu install-statusline
+
+# Remove status line
+pccu uninstall-statusline
+
+# Test status line output
+echo '{"sessionId": "test"}' | pccu statusline
+```
 
 ### v0.7.0 - Enhanced Configuration Management
 

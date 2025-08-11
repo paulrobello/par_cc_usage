@@ -44,6 +44,33 @@ make test
 
 ## Common Commands
 
+### Claude Code Status Line Integration
+```bash
+# Install status line into Claude Code settings
+uv run pccu install-statusline
+
+# Install with force (skip confirmation prompts)
+uv run pccu install-statusline --force
+
+# Remove status line from Claude Code settings
+uv run pccu uninstall-statusline
+
+# Remove with force (skip confirmation prompts)
+uv run pccu uninstall-statusline --force
+
+# Manual status line command (called by Claude Code)
+# This reads session JSON from stdin and returns formatted status
+echo '{"sessionId": "test"}' | uv run pccu statusline
+```
+
+The status line displays real-time token usage in Claude Code's interface:
+- Format: `🪙 <tokens>/<limit> (<percentage>%) - 💬 <messages>/<limit> - 💰 <cost>/<limit> - ⏱️ <time_remaining>`
+- Updates automatically when `pccu monitor` is running (monitor must be running for real-time updates)
+- Shows per-session usage by default (tracks current Claude Code session with cost)
+- Can show grand total across all sessions (both modes include cost calculations)
+- Displays remaining time in current 5-hour billing block (e.g., "2h 8m" or "45m")
+- Configurable via `statusline_enabled` and `statusline_use_grand_total` in config.yaml
+
 ### Monitor Mode
 ```bash
 # Default behavior - tool usage and pricing displayed automatically
@@ -216,6 +243,7 @@ PAR CC Usage is built around a **unified block system** that tracks token usage 
 - **Display System**: Rich terminal UI with emoji-enhanced formatting (🪙💬💰) and real-time updates
 - **Pricing Integration**: LiteLLM API integration for cost calculations with fallback logic
 - **Configuration**: XDG-compliant configuration with automatic legacy migration
+- **Status Line Manager**: Generates and caches status lines for Claude Code integration
 
 ### Key Features
 
@@ -227,6 +255,7 @@ PAR CC Usage is built around a **unified block system** that tracks token usage 
 - **Tool Usage Tracking**: Monitors Claude Code tool usage (Read, Edit, Bash, etc.)
 - **Cost Analysis**: Real-time cost tracking with burn rate estimation
 - **Export Capabilities**: JSON/CSV export with comprehensive pricing data
+- **Claude Code Status Line**: Real-time usage display in Claude Code's interface with auto-installation
 
 ### Unified Block System
 

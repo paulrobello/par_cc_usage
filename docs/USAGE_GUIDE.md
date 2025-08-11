@@ -55,6 +55,46 @@ pccu monitor --theme minimal --compact  # Minimal theme with compact display
 - **Session details**: Individual session tracking (shown by default)
 - **Activity tables**: Project or session aggregation views with optional cost columns
 
+## Claude Code Status Line Integration
+
+Display real-time token usage directly in Claude Code's bottom status bar:
+
+### Quick Setup
+```bash
+# Install status line with automatic configuration
+pccu install-statusline
+
+# Install without confirmation prompts
+pccu install-statusline --force
+
+# Remove status line configuration
+pccu uninstall-statusline
+
+# Remove without confirmation prompts
+pccu uninstall-statusline --force
+```
+
+### Manual Testing
+```bash
+# Test status line output (for debugging)
+echo '{"sessionId": "test-session"}' | pccu statusline
+```
+
+### Status Line Features
+- **Real-time display**: Shows tokens, messages, and costs in Claude Code's status bar
+- **Per-session tracking**: Default mode tracks your current Claude Code session
+- **Grand total mode**: Optional mode shows aggregated usage across all sessions
+- **Cost calculations**: Both modes include real-time cost tracking
+- **Automatic updates**: Refreshes when `pccu monitor` is running
+- **Format**: `🪙 <tokens>/<limit> (<percent>%) - 💬 <messages>/<limit> - 💰 <cost>/<limit>`
+
+### Configuration
+```yaml
+# In ~/.config/par_cc_usage/config.yaml
+statusline_enabled: true              # Enable/disable status line generation
+statusline_use_grand_total: false     # Show grand total instead of per-session
+```
+
 ## List Usage Data
 
 Generate usage reports:

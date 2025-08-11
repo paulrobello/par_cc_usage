@@ -53,6 +53,17 @@ PAR CC Usage provides comprehensive Claude Code usage monitoring with advanced a
 - **XDG Base Directory compliance**: Uses standard Unix/Linux directory conventions
 - **Legacy migration**: Automatically migrates existing config files to XDG locations
 
+## 🔌 Claude Code Integration
+- **Status Line Display**: Real-time token usage directly in Claude Code's bottom status bar
+- **Automatic Installation**: Single command (`pccu install-statusline`) configures Claude Code
+- **Per-Session Tracking**: Default mode tracks current Claude Code session with cost
+- **Grand Total Mode**: Optional mode shows aggregated usage across all sessions
+- **Cost Calculations**: Both modes include real-time cost tracking from token usage
+- **Automatic Updates**: Status lines refresh automatically when monitor is running
+- **Cache Files**: Maintains status line cache in `~/.local/share/par_cc_usage/statuslines/`
+- **Session Detection**: Automatically detects and tracks Claude Code session IDs
+- **Configurable Behavior**: Control via `statusline_enabled` and `statusline_use_grand_total` options
+
 ## 🌐 Configuration & Customization
 - **XDG directory compliance**: Config, cache, and data files stored in standard locations
 - **Automatic migration**: Legacy config files automatically moved to XDG locations

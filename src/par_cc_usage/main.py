@@ -1020,7 +1020,7 @@ def _apply_model_multipliers_override(model_multipliers: str | None, config: Con
             console.print(f"[red]Warning: Invalid model multipliers format '{model_multipliers}': {e}[/red]")
 
 
-async def _monitor_async(
+async def _monitor_async(  # noqa: C901
     interval: int,
     token_limit: int | None,
     config_file: Path | None,
@@ -1169,6 +1169,16 @@ async def _monitor_async(
         ) as display_manager:
             await display_manager.update(usage_snapshot)
 
+            # Update status lines for snapshot mode too
+            if config.statusline_enabled:
+                try:
+                    from .statusline_manager import StatusLineManager
+
+                    status_manager = StatusLineManager(config)
+                    await status_manager.update_status_lines_async(usage_snapshot)
+                except Exception as e:
+                    logger.debug(f"Error updating status lines: {e}")
+
         from .theme import get_color
 
         themed_console.print(f"\n[{get_color('success')}]Snapshot complete.[/{get_color('success')}]")
@@ -1241,6 +1251,16 @@ async def _monitor_async(
                 )
 
                 await display_manager.update(usage_snapshot)
+
+                # Update status lines if enabled
+                if config.statusline_enabled:
+                    try:
+                        from .statusline_manager import StatusLineManager
+
+                        status_manager = StatusLineManager(config)
+                        await status_manager.update_status_lines_async(usage_snapshot)
+                    except Exception as e:
+                        logger.debug(f"Error updating status lines: {e}")
 
                 # Auto-scale config limits based on usage snapshot
                 try:
@@ -1505,6 +1525,168 @@ def clear_cache(
         console.print(f"[green]Cache cleared: {cache_file}[/green]")
     else:
         console.print(f"[yellow]Cache file not found: {cache_file}[/yellow]")
+
+
+@app.command("statusline")
+def statusline(
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+) -> None:
+    """Return cached status line for Claude Code integration.
+
+    Reads session JSON from stdin and returns the appropriate status line.
+    This command is designed to be called by Claude Code's status line feature.
+    """
+    import json
+
+    from .statusline_manager import StatusLineManager
+
+    # Load configuration
+    config = load_config(config_file)
+
+    # Check if statusline is enabled
+    if not config.statusline_enabled:
+        print("")
+        return
+
+    # Initialize status line manager
+    manager = StatusLineManager(config)
+
+    # Try to read JSON from stdin
+    try:
+        # Read from stdin
+        input_data = sys.stdin.read()
+        if not input_data:
+            # No input, return grand total
+            cached = manager.load_status_line("grand_total")
+            print(cached or "🪙 0 - 💬 0")
+            return
+
+        # Parse JSON
+        session_json = json.loads(input_data)
+
+        # Get appropriate status line
+        status_line = manager.get_status_line_for_request(session_json)
+        print(status_line)
+
+    except (json.JSONDecodeError, OSError):
+        # On error, return grand total as fallback
+        cached = manager.load_status_line("grand_total")
+        print(cached or "🪙 0 - 💬 0")
+
+
+@app.command("install-statusline")
+def install_statusline(
+    force: Annotated[bool, typer.Option("--force", "-f", help="Force installation without prompts")] = False,
+) -> None:
+    """Install PAR CC Usage status line into Claude Code settings."""
+    import json
+    import shutil  # for copy2
+
+    settings_path = Path.home() / ".claude" / "settings.json"
+
+    # Check if settings file exists
+    if not settings_path.exists():
+        console.print("[red]Claude Code settings.json not found at ~/.claude/settings.json[/red]")
+        console.print("[yellow]Please ensure Claude Code is installed and has been run at least once.[/yellow]")
+        return
+
+    # Create backup
+    backup_path = settings_path.with_suffix(".json.backup")
+    shutil.copy2(settings_path, backup_path)
+    console.print(f"[green]Created backup: {backup_path}[/green]")
+
+    try:
+        # Read existing settings
+        with open(settings_path, encoding="utf-8") as f:
+            settings = json.load(f)
+
+        # Check if statusLine already exists
+        if "statusLine" in settings and not force:
+            console.print("[yellow]Status line configuration already exists in settings.json[/yellow]")
+            if not typer.confirm("Do you want to replace it?"):
+                console.print("[red]Installation cancelled[/red]")
+                return
+
+        # Add statusLine configuration
+        settings["statusLine"] = {"type": "command", "command": "pccu statusline"}
+
+        # Write updated settings
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        console.print("[green]✓ Successfully installed PAR CC Usage status line![/green]")
+        console.print(f"[cyan]Status line command: {settings['statusLine']['command']}[/cyan]")
+        console.print("\n[yellow]Note: Restart Claude Code for the changes to take effect.[/yellow]")
+
+    except (json.JSONDecodeError, OSError) as e:
+        console.print(f"[red]Error updating settings.json: {e}[/red]")
+        console.print(f"[yellow]Restoring backup from {backup_path}[/yellow]")
+        shutil.copy2(backup_path, settings_path)
+
+
+@app.command("uninstall-statusline")
+def uninstall_statusline(
+    force: Annotated[bool, typer.Option("--force", "-f", help="Force removal without prompts")] = False,
+) -> None:
+    """Remove PAR CC Usage status line from Claude Code settings."""
+    import json
+    import shutil
+
+    settings_path = Path.home() / ".claude" / "settings.json"
+
+    # Check if settings file exists
+    if not settings_path.exists():
+        console.print("[red]Claude Code settings.json not found at ~/.claude/settings.json[/red]")
+        return
+
+    # Create backup
+    backup_path = settings_path.with_suffix(".json.backup")
+    shutil.copy2(settings_path, backup_path)
+    console.print(f"[green]Created backup: {backup_path}[/green]")
+
+    try:
+        # Read existing settings
+        with open(settings_path, encoding="utf-8") as f:
+            settings = json.load(f)
+
+        # Check if statusLine exists
+        if "statusLine" not in settings:
+            console.print("[yellow]No status line configuration found in settings.json[/yellow]")
+            return
+
+        # Check if it's our status line (skip check if force is used)
+        if not force:
+            # Handle both old string format and new object format
+            is_pccu = False
+            if isinstance(settings["statusLine"], str):
+                is_pccu = "pccu statusline" in settings["statusLine"]
+            elif isinstance(settings["statusLine"], dict):
+                is_pccu = "pccu statusline" in settings["statusLine"].get("command", "")
+
+            if not is_pccu:
+                console.print("[yellow]Current status line doesn't appear to be PAR CC Usage:[/yellow]")
+                if isinstance(settings["statusLine"], dict):
+                    console.print(f"[cyan]{settings['statusLine'].get('command', settings['statusLine'])}[/cyan]")
+                else:
+                    console.print(f"[cyan]{settings['statusLine']}[/cyan]")
+                if not typer.confirm("Do you want to remove it anyway?"):
+                    console.print("[red]Uninstall cancelled[/red]")
+                    return
+
+        # Remove statusLine configuration
+        del settings["statusLine"]
+
+        # Write updated settings
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        console.print("[green]✓ Successfully removed PAR CC Usage status line![/green]")
+        console.print("\n[yellow]Note: Restart Claude Code for the changes to take effect.[/yellow]")
+
+    except (json.JSONDecodeError, OSError) as e:
+        console.print(f"[red]Error updating settings.json: {e}[/red]")
+        console.print(f"[yellow]Restoring backup from {backup_path}[/yellow]")
+        shutil.copy2(backup_path, settings_path)
 
 
 def main() -> None:

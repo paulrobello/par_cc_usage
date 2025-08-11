@@ -69,9 +69,39 @@ def get_data_file_path(filename: str) -> Path:
     return get_data_dir() / filename
 
 
+def get_statusline_dir() -> Path:
+    """Get the directory for storing status line files.
+
+    Returns:
+        Path to the status line directory (e.g., ~/.local/share/par_cc_usage/statuslines/)
+    """
+    return get_data_dir() / "statuslines"
+
+
+def get_statusline_file_path(session_id: str) -> Path:
+    """Get the path for a session's status line file.
+
+    Args:
+        session_id: The session ID
+
+    Returns:
+        Path to the status line file
+    """
+    return get_statusline_dir() / f"{session_id}.txt"
+
+
+def get_grand_total_statusline_path() -> Path:
+    """Get the path for the grand total status line file.
+
+    Returns:
+        Path to the grand total status line file
+    """
+    return get_statusline_dir() / "grand_total.txt"
+
+
 def ensure_xdg_directories() -> None:
     """Ensure XDG directories exist for par_cc_usage."""
-    for dir_path in [get_config_dir(), get_cache_dir(), get_data_dir()]:
+    for dir_path in [get_config_dir(), get_cache_dir(), get_data_dir(), get_statusline_dir()]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
 

@@ -51,6 +51,8 @@ display:
     - "-Users-"
     - "-home-"
   aggregate_by_project: true  # Aggregate token usage by project instead of individual sessions (default)
+statusline_enabled: true  # Enable Claude Code status line generation (default: true)
+statusline_use_grand_total: false  # Always show grand total instead of per-session (default: false)
 notifications:
   discord_webhook_url: https://discord.com/api/webhooks/your-webhook-url
   slack_webhook_url: https://hooks.slack.com/services/your-webhook-url
@@ -193,6 +195,8 @@ model_multipliers:
 - `PAR_CC_USAGE_THEME`: Theme name ('default', 'dark', 'light', 'accessibility', or 'minimal')
 - `PAR_CC_USAGE_PROJECT_NAME_PREFIXES`: Comma-separated list of prefixes to strip from project names
 - `PAR_CC_USAGE_AGGREGATE_BY_PROJECT`: Aggregate token usage by project instead of sessions ('true', '1', 'yes', 'on' for true)
+- `PAR_CC_USAGE_STATUSLINE_ENABLED`: Enable/disable Claude Code status line generation ('true', '1', 'yes', 'on' for true, default: true)
+- `PAR_CC_USAGE_STATUSLINE_USE_GRAND_TOTAL`: Always show grand total instead of per-session ('true', '1', 'yes', 'on' for true, default: false)
 - `PAR_CC_USAGE_DISCORD_WEBHOOK_URL`: Discord webhook URL for notifications
 - `PAR_CC_USAGE_SLACK_WEBHOOK_URL`: Slack webhook URL for notifications
 - `PAR_CC_USAGE_NOTIFY_ON_BLOCK_COMPLETION`: Send block completion notifications ('true', '1', 'yes', 'on' for true)

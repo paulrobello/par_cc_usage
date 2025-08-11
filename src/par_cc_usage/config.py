@@ -172,6 +172,14 @@ class Config(BaseModel):
         default_factory=lambda: {"opus": 5.0, "sonnet": 1.0, "default": 1.0},
         description="Token multipliers per model type (default fallback for unlisted models)",
     )
+    statusline_enabled: bool = Field(
+        default=True,
+        description="Enable Claude Code status line generation and caching",
+    )
+    statusline_use_grand_total: bool = Field(
+        default=False,
+        description="Always return grand total in status line regardless of session",
+    )
 
     @field_validator("model_multipliers")
     @classmethod
@@ -373,6 +381,8 @@ def _parse_env_value(value: str, config_key: str) -> Any:
         "show_pricing",
         "config_ro",
         "use_p90_limit",
+        "statusline_enabled",
+        "statusline_use_grand_total",
     ]:
         return _parse_bool_value(value)
 
@@ -430,6 +440,8 @@ def _get_top_level_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_RECENT_ACTIVITY_WINDOW_HOURS": "recent_activity_window_hours",
         "PAR_CC_USAGE_CONFIG_RO": "config_ro",
         "PAR_CC_USAGE_MODEL_MULTIPLIERS": "model_multipliers",
+        "PAR_CC_USAGE_STATUSLINE_ENABLED": "statusline_enabled",
+        "PAR_CC_USAGE_STATUSLINE_USE_GRAND_TOTAL": "statusline_use_grand_total",
     }
 
 
@@ -611,6 +623,8 @@ def save_config(config: Config, config_file: Path) -> None:
             "cooldown_minutes": config.notifications.cooldown_minutes,
         },
         "config_ro": config.config_ro,
+        "statusline_enabled": config.statusline_enabled,
+        "statusline_use_grand_total": config.statusline_use_grand_total,
     }
 
     # Add projects_dirs if configured
