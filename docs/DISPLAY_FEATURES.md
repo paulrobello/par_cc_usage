@@ -2,6 +2,38 @@
 
 PAR CC Usage provides a comprehensive display system with multiple viewing modes, themes, and customization options.
 
+## Table of Contents
+- [Overview](#overview)
+- [Unified Block System](#unified-block-system)
+  - [Current Billing Block Identification](#current-billing-block-identification)
+  - [Manual Override](#manual-override)
+- [Compact Interface](#compact-interface)
+- [Theme System](#theme-system)
+  - [Available Themes](#available-themes)
+  - [Using Themes](#using-themes)
+  - [Theme Structure](#theme-structure)
+  - [Configuration Hierarchy](#configuration-hierarchy)
+- [Display Modes](#display-modes)
+  - [Normal Mode](#normal-mode)
+  - [Compact Mode](#compact-mode)
+  - [Session Display](#session-display)
+  - [Project Aggregation](#project-aggregation)
+- [Status Elements](#status-elements)
+  - [Header Information](#header-information)
+  - [Block Progress](#block-progress)
+  - [Token Usage](#token-usage)
+  - [Burn Rate Metrics](#burn-rate-metrics)
+  - [Tool Usage](#tool-usage)
+  - [Activity Tables](#activity-tables)
+- [Time Display](#time-display)
+- [Progress Bars](#progress-bars)
+- [Cost Display](#cost-display)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+The display system in PAR CC Usage is designed to provide clear, real-time information about Claude Code token usage while maintaining a stable, distraction-free interface. It supports multiple themes, display modes, and customization options to suit different preferences and use cases.
+
 ## Unified Block System
 
 When multiple Claude Code sessions are active simultaneously, they all share a single 5-hour billing block. The system intelligently determines which block timing to display based on your work patterns.
@@ -65,7 +97,7 @@ The monitor now supports compact mode for minimal, focused display:
   - **Total Usage**: Simple text display instead of progress bar
 - **Hidden Elements**: No block progress bar, tool usage information, or session details (even with `--show-sessions`)
 
-**Using Compact Mode**:
+### Using Compact Mode
 
 ```bash
 # Start directly in compact mode
@@ -434,3 +466,12 @@ Themes apply to all visual elements:
 - **Accessibility needs**: Use `accessibility` theme for high contrast
 - **Professional environments**: Use `minimal` theme for clean appearance
 - **Testing themes**: Use `--theme` flag to test before setting as default
+
+## Related Documentation
+
+- [Architecture Documentation](ARCHITECTURE.md) - System architecture and design decisions
+- [Configuration Guide](CONFIGURATION.md) - Detailed configuration options and settings
+- [Development Guide](DEVELOPMENT.md) - Development workflows and advanced features
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution
+- [Usage Guide](USAGE_GUIDE.md) - Common usage patterns and examples

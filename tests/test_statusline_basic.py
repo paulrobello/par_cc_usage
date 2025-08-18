@@ -144,7 +144,8 @@ class TestStatusLineBasic:
 
             result = manager.get_status_line_for_request({"sessionId": "any_session"})
             assert result == "grand_total_line"
-            mock_load.assert_called_once_with("grand_total")
+            # With a session ID, it first tries to load grand_total_any_session
+            mock_load.assert_any_call("grand_total_any_session")
 
     def test_get_status_line_for_request_session_mode(self):
         """Test session mode returns session-specific line."""

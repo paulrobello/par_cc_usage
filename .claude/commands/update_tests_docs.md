@@ -1,3 +1,0 @@
-- update tests and documentation.
-- do not mention or make references to ccusage or Claude-Code-Usage-Monitor.
-  - if there are references to ccusage or Claude-Code-Usage-Monitor remove them. you can exclude fix_block_time.md and update_tests_docs.md and *_analysis_report.md

@@ -2,6 +2,51 @@
 
 Comprehensive guide to using PAR CC Usage for monitoring Claude Code token usage.
 
+## Table of Contents
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Monitor Token Usage](#monitor-token-usage)
+  - [Monitor Display Features](#monitor-display-features)
+- [Claude Code Status Line Integration](#claude-code-status-line-integration)
+  - [Quick Setup](#quick-setup)
+  - [Manual Testing](#manual-testing)
+  - [Status Line Features](#status-line-features)
+- [List and Export Usage](#list-and-export-usage)
+  - [Table Display](#table-display)
+  - [Export Options](#export-options)
+  - [Filtering and Sorting](#filtering-and-sorting)
+- [Configuration Management](#configuration-management)
+  - [Initialize Configuration](#initialize-configuration)
+  - [Update Maximum Values](#update-maximum-values)
+  - [Environment Variables](#environment-variables)
+- [Advanced Commands](#advanced-commands)
+  - [Debug Commands](#debug-commands)
+  - [Cache Management](#cache-management)
+  - [Webhook Testing](#webhook-testing)
+- [Common Use Cases](#common-use-cases)
+- [Tips and Best Practices](#tips-and-best-practices)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+PAR CC Usage provides a comprehensive suite of commands for monitoring, analyzing, and managing Claude Code token usage. This guide covers all available commands and their common use cases.
+
+## Quick Start
+
+```bash
+# Install dependencies
+uv sync
+
+# Start monitoring (default settings)
+pccu monitor
+
+# Install Claude Code status line
+pccu install-statusline
+
+# List recent usage
+pccu list
+```
+
 ## Monitor Token Usage
 
 Monitor token usage in real-time with comprehensive options:
@@ -45,6 +90,9 @@ pccu monitor --theme minimal --compact  # Minimal theme with compact display
 ```
 
 ### Monitor Display Features
+
+The monitor display provides comprehensive real-time information:
+
 - **Real-time updates**: Live token consumption tracking
 - **Burn rate analytics**: Tokens/minute with ETA to limit (e.g., "1.2K/m ETA: 2.3h (10:45 PM)")
 - **Cost tracking**: Real-time cost calculations using LiteLLM pricing (when `--show-pricing` is enabled)
@@ -60,6 +108,9 @@ pccu monitor --theme minimal --compact  # Minimal theme with compact display
 Display real-time token usage directly in Claude Code's bottom status bar:
 
 ### Quick Setup
+
+The status line feature provides real-time token usage directly in Claude Code's interface:
+
 ```bash
 # Install status line with automatic configuration
 pccu install-statusline
@@ -75,18 +126,48 @@ pccu uninstall-statusline --force
 ```
 
 ### Manual Testing
+
+You can test the status line output manually for debugging purposes:
+
 ```bash
 # Test status line output (for debugging)
 echo '{"sessionId": "test-session"}' | pccu statusline
 ```
 
 ### Status Line Features
+
+**Display Format (v0.9.0+):**
+```
+[project-name] - 🪙 <tokens>/<limit> (<percentage>%) - 💬 <messages>/<limit> - 💰 <cost>/<limit> - ⏱️ <time_remaining>
+```
+
+**Examples:**
+- `[par-cc-usage] - 🪙 45.2K/500K (9%) - 💬 42/1000 - 💰 $1.23/$50.00 - ⏱️ 3h 45m`
+- `[my-project] - 🪙 123.5K/500K (25%) - 💬 156/1000 - 💰 $5.67/$50.00 - ⏱️ 1h 30m`
+
+### Status Line Features
 - **Real-time display**: Shows tokens, messages, and costs in Claude Code's status bar
+- **Project name display**: Shows current project name in square brackets at the beginning (v0.9.0+)
 - **Per-session tracking**: Default mode tracks your current Claude Code session
 - **Grand total mode**: Optional mode shows aggregated usage across all sessions
+- **Time remaining**: Displays time left in current 5-hour billing block
 - **Cost calculations**: Both modes include real-time cost tracking
 - **Automatic updates**: Refreshes when `pccu monitor` is running
-- **Format**: `🪙 <tokens>/<limit> (<percent>%) - 💬 <messages>/<limit> - 💰 <cost>/<limit>`
+- **Format**: `[project-name] - 🪙 <tokens>/<limit> (<percent>%) - 💬 <messages>/<limit> - 💰 <cost>/<limit> - ⏱️ <time>`
+
+### Status Line Examples
+
+**Session-specific mode (default):**
+```
+[parllama] - 🪙 38.7M/905.8M (4%) - 💬 75/1,990 - 💰 $12.92/$293.46 - ⏱️ 4h 46m
+```
+
+**Grand total mode:**
+```
+[my-project] - 🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m
+```
+
+The project name in square brackets provides immediate context about which project is being tracked, making it easier to manage multiple Claude Code projects.
 
 ### Configuration
 ```yaml
@@ -445,3 +526,12 @@ pccu monitor --no-cache --snapshot
 - Set environment variables for system-wide defaults
 - Use custom config files for different environments
 - Backup configuration files regularly
+
+## Related Documentation
+
+- [Architecture Documentation](ARCHITECTURE.md) - System architecture and design decisions
+- [Configuration Guide](CONFIGURATION.md) - Detailed configuration options and settings
+- [Development Guide](DEVELOPMENT.md) - Development workflows and advanced features
+- [Display Features](DISPLAY_FEATURES.md) - Display modes, themes, and customization
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution

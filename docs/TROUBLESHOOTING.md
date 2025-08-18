@@ -2,6 +2,40 @@
 
 This document provides comprehensive troubleshooting guidance for cache issues, debugging, and problem resolution in PAR CC Usage.
 
+## Table of Contents
+- [Overview](#overview)
+- [Cache System](#cache-system)
+  - [Cache System Overview](#cache-system-overview)
+  - [Cache Performance](#cache-performance)
+  - [Data Inconsistencies](#data-inconsistencies)
+  - [Cache Location and Manual Management](#cache-location-and-manual-management)
+- [Common Issues](#common-issues)
+  - [No Data Displayed](#no-data-displayed)
+  - [Incorrect Token Counts](#incorrect-token-counts)
+  - [Cost Display Issues](#cost-display-issues)
+  - [Tool Usage Not Showing](#tool-usage-not-showing)
+  - [Monitor Freezing](#monitor-freezing)
+- [Debug Commands](#debug-commands)
+  - [Block Calculation Debugging](#block-calculation-debugging)
+  - [Activity Analysis](#activity-analysis)
+  - [Session Analysis](#session-analysis)
+- [Performance Issues](#performance-issues)
+  - [Slow Startup](#slow-startup)
+  - [High Memory Usage](#high-memory-usage)
+  - [CPU Usage](#cpu-usage)
+- [Configuration Issues](#configuration-issues)
+  - [Config File Not Found](#config-file-not-found)
+  - [Invalid Configuration](#invalid-configuration)
+  - [Legacy Config Migration](#legacy-config-migration)
+- [Webhook Issues](#webhook-issues)
+  - [Discord Webhook Failures](#discord-webhook-failures)
+  - [Slack Webhook Failures](#slack-webhook-failures)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+This guide helps diagnose and resolve common issues with PAR CC Usage. Most problems can be resolved by clearing the cache or checking configuration settings. For persistent issues, the debug commands provide detailed information for troubleshooting.
+
 ## Cache System
 
 ### Cache System Overview
@@ -566,3 +600,12 @@ uv run pccu monitor --debug --snapshot 2>&1 | tail -50
 - Documentation: Refer to architecture and development guides
 - Debug commands: Use built-in debugging tools
 - Community: Share solutions and workarounds
+
+## Related Documentation
+
+- [Architecture Documentation](ARCHITECTURE.md) - System architecture and design decisions
+- [Configuration Guide](CONFIGURATION.md) - Detailed configuration options and settings
+- [Development Guide](DEVELOPMENT.md) - Development workflows and advanced features
+- [Display Features](DISPLAY_FEATURES.md) - Display modes, themes, and customization
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Usage Guide](USAGE_GUIDE.md) - Common usage patterns and examples

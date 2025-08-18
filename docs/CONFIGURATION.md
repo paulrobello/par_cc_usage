@@ -2,6 +2,47 @@
 
 PAR CC Usage supports configuration via YAML files and environment variables. Configuration files are stored in XDG Base Directory compliant locations.
 
+## Table of Contents
+- [Overview](#overview)
+- [Directory Structure](#directory-structure)
+- [Legacy Migration](#legacy-migration)
+- [Config File Example](#config-file-example)
+- [Claude Code Status Line Configuration](#claude-code-status-line-configuration)
+  - [Status Line Settings](#status-line-settings)
+  - [Status Line Display Format](#status-line-display-format)
+  - [Behavior Notes](#behavior-notes)
+- [Timezone Configuration](#timezone-configuration)
+  - [Automatic Detection](#automatic-detection-recommended)
+  - [Manual Configuration](#manual-configuration)
+  - [How It Works](#how-it-works)
+  - [Common IANA Timezone Examples](#common-iana-timezone-examples)
+- [Model Multipliers Configuration](#model-multipliers-configuration)
+  - [Default Configuration](#default-configuration)
+  - [Configuration Options](#configuration-options)
+  - [How Multipliers Work](#how-multipliers-work)
+  - [Validation](#validation)
+  - [Examples](#examples)
+- [Environment Variables](#environment-variables)
+- [File Locations](#file-locations)
+  - [XDG Base Directory Specification](#xdg-base-directory-specification)
+  - [Configuration Files](#configuration-files)
+  - [Legacy File Migration](#legacy-file-migration)
+  - [Environment Variable Override](#environment-variable-override)
+- [Read-Only Configuration Mode](#read-only-configuration-mode)
+  - [Features](#features)
+  - [Usage Examples](#usage-examples)
+  - [Use Cases](#use-cases)
+- [Configuration Management Commands](#configuration-management-commands)
+  - [Initialize Configuration](#initialize-configuration)
+  - [Set Limits](#set-limits)
+- [Cache Management](#cache-management)
+- [Theme Management](#theme-management)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+The configuration system provides flexible control over all aspects of PAR CC Usage, from display preferences to notification settings. Configuration follows the XDG Base Directory specification for proper system integration.
+
 ## Directory Structure
 
 - **Config**: `~/.config/par_cc_usage/config.yaml` (respects `XDG_CONFIG_HOME`)
@@ -60,6 +101,57 @@ notifications:
   cooldown_minutes: 5  # Minimum minutes between notifications
 config_ro: false  # Read-only mode: prevents automatic config updates (default: false)
 ```
+
+## Claude Code Status Line Configuration
+
+The status line feature integrates directly with Claude Code to display real-time usage statistics in the bottom status bar.
+
+### Status Line Settings
+
+```yaml
+statusline_enabled: true  # Enable/disable status line generation
+statusline_use_grand_total: false  # Show grand total vs per-session
+```
+
+### Status Line Display Format
+
+**Version 0.9.0 and later:**
+```
+[project-name] - 🪙 tokens/limit (%) - 💬 messages/limit - 💰 cost/limit - ⏱️ time_remaining
+```
+
+**Examples:**
+- Session mode: `[parllama] - 🪙 38.7M/905.8M (4%) - 💬 75/1,990 - 💰 $12.92/$293.46 - ⏱️ 4h 46m`
+- Grand total: `[my-project] - 🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m`
+
+### Status Line Components
+
+1. **Project Name** (v0.9.0+): Displays in square brackets for context
+2. **Token Usage**: Current/limit with percentage
+3. **Message Count**: Current/limit
+4. **Cost Tracking**: Current/limit in USD
+5. **Time Remaining**: Hours and minutes left in current 5-hour billing block
+
+### Installation
+
+```bash
+# Automatic installation
+pccu install-statusline
+
+# Manual configuration in ~/.claude/settings.json
+"statusLine": {
+  "type": "command",
+  "command": "pccu statusline"
+}
+```
+
+### Behavior Notes
+
+- **Auto-refresh**: Updates when `pccu monitor` is running
+- **Session tracking**: Default mode tracks current Claude Code session
+- **Grand total mode**: Optional aggregation across all sessions
+- **Project detection**: Automatically identifies current project from session ID
+- **Cache management**: Status lines cached in `~/.local/share/par_cc_usage/statuslines/`
 
 ## Timezone Configuration
 
@@ -375,3 +467,12 @@ pccu monitor --theme light  # Light theme for this session only
 pccu list --theme accessibility  # High contrast theme for this command
 pccu list-sessions --theme minimal  # Minimal theme for session list
 ```
+
+## Related Documentation
+
+- [Architecture Documentation](ARCHITECTURE.md) - System architecture and design decisions
+- [Development Guide](DEVELOPMENT.md) - Development workflows and advanced features
+- [Display Features](DISPLAY_FEATURES.md) - Display modes, themes, and customization
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution
+- [Usage Guide](USAGE_GUIDE.md) - Common usage patterns and examples

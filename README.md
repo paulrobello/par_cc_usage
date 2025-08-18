@@ -71,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.9.0 - Enhanced Status Line with Project Names](#v090---enhanced-status-line-with-project-names)
   - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
   - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
   - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
-  - [v0.3.0 - Test Suite Improvements & Infrastructure](#v030---test-suite-improvements--infrastructure)
   - [older...](#older)
 - [Development](#development)
 
@@ -263,13 +263,14 @@ If you prefer to configure manually, add this to your `~/.claude/settings.json`:
 
 ### Status Line Display
 
-The status line shows:
+The status line shows (v0.9.0+):
+- **Project name** in square brackets for context
 - 🪙 **Token count** with limit and percentage
 - 💬 **Message count** with limit  
 - 💰 **Cost tracking** with limit (calculated from token usage)
 - ⏱️ **Time remaining** in current 5-hour billing block
 
-Example: `🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m`
+Example: `[parllama] - 🪙 495.7M/510.7M (97%) - 💬 736/1,734 - 💰 $155.27/$166.80 - ⏱️ 2h 8m`
 
 **Status Line Behavior:**
 - By default, shows per-session usage (tracks your current Claude Code session)
@@ -1267,6 +1268,16 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.9.0 - Enhanced Status Line with Project Names
+**Improved Claude Code Status Line**: Project names now display in status line for better context:
+
+#### 🏷️ Project Name Display (New)
+- **Project Context**: Status line now shows project name in square brackets at the beginning
+- **Session Mode**: Displays project name when showing session-specific statistics
+- **Grand Total Mode**: Shows project name with grand total stats when valid session ID provided
+- **Format**: `[project-name] - 🪙 tokens - 💬 messages - 💰 cost - ⏱️ time`
+- **Example**: `[parllama] - 🪙 38.7M/905.8M (4%) - 💬 75/1,990 - 💰 $12.92/$293.46 - ⏱️ 4h 46m`
 
 ### v0.8.0 - Claude Code Status Line Integration
 **Complete Claude Code Integration**: Real-time usage display in Claude Code's status bar with automatic installation:

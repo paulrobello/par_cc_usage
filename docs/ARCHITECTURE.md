@@ -2,10 +2,44 @@
 
 This document provides detailed information about the system architecture, data models, and design decisions for PAR CC Usage.
 
+## Table of Contents
+- [Overview](#overview)
+- [System Architecture Diagram](#system-architecture-diagram)
+- [Core Components](#core-components)
+  - [Data Flow Pipeline](#data-flow-pipeline)
+  - [Unified Block System](#unified-block-system)
+  - [Enhanced Configuration System](#enhanced-configuration-system)
+  - [Comprehensive Command Structure](#comprehensive-command-structure)
+  - [Advanced Analytics](#advanced-analytics)
+  - [Monitor Display Stability](#monitor-display-stability)
+- [Key Architectural Decisions](#key-architectural-decisions)
+- [Data Model Relationships](#data-model-relationships)
+- [Pricing System Architecture](#pricing-system-architecture)
+  - [Core Components](#core-components-1)
+  - [Async Cost Calculation System](#async-cost-calculation-system)
+  - [Fallback Logic Hierarchy](#fallback-logic-hierarchy)
+  - [Integration Points](#integration-points)
+  - [Burn Rate Cost Estimation](#burn-rate-cost-estimation)
+- [Critical File Interactions](#critical-file-interactions)
+  - [Monitor Mode Data Flow](#monitor-mode-data-flow)
+  - [List Command Cost Flow](#list-command-cost-flow)
+  - [Unified Block Selection Algorithm](#unified-block-selection-algorithm)
+- [XDG Base Directory Implementation](#xdg-base-directory-implementation)
+  - [Directory Structure](#directory-structure)
+  - [XDG Module](#xdg-module-xdgdirspy)
+  - [Legacy Migration Process](#legacy-migration-process)
+  - [Environment Variable Support](#environment-variable-support)
+  - [Benefits](#benefits)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+PAR CC Usage is a sophisticated token usage monitoring system built to track and analyze Claude Code usage patterns. It employs a unified block system that accurately reflects Claude's 5-hour billing periods, providing real-time monitoring, cost tracking, and comprehensive analytics.
+
 ## System Architecture Diagram
 
 ```mermaid
-flowchart TB
+graph TB
     subgraph "Claude Code Projects"
         CP1["~/.claude/projects/project1/"]
         CP2["~/.claude/projects/project2/"]
@@ -112,18 +146,18 @@ flowchart TB
     WH --> DISCAPI
     WH --> SLACKAPI
 
-    %% Styling
-    style FM fill:#e1f5fe
-    style TC fill:#f3e5f5
-    style US fill:#e8f5e8
-    style CH fill:#fff3e0
-    style MD fill:#fce4ec
-    style LD fill:#f1f8e9
+    %% High-contrast styling for dark mode compatibility
+    style FM fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style TC fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style US fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
+    style CH fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style MD fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style LD fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 ## Core Components
 
-### 1. Data Flow Pipeline
+### Data Flow Pipeline
 
 - **`file_monitor.py`**: Watches Claude project directories for JSONL file changes using file position tracking
 - **`token_calculator.py`**: Parses JSONL lines and calculates token usage per 5-hour blocks with deduplication
@@ -131,7 +165,7 @@ flowchart TB
 - **`display.py`**: Rich-based terminal UI for real-time monitoring with burn rate analytics, cost tracking, emoji-enhanced formatting (🪙 tokens, 💬 messages, 💰 costs), and stable console output (no jumping or interruptions)
 - **`pricing.py`**: LiteLLM integration for accurate cost calculations across all Claude models
 
-### 2. Unified Block System
+### Unified Block System
 
 The unified billing block calculation uses an activity-based approach to identify the current billing period:
 
@@ -160,7 +194,7 @@ The `create_unified_blocks()` function implements an activity-based approach:
 
 **Key Architectural Decision**: This approach ensures accurate billing period representation by finding the actual active block with recent activity, providing precise billing block identification that matches real usage patterns rather than just current time.
 
-### 3. Enhanced Configuration System
+### Enhanced Configuration System
 
 - **`config.py`**: Pydantic-based configuration with structured environment variable parsing
 - **`xdg_dirs.py`**: XDG Base Directory specification compliance for proper file organization
@@ -173,7 +207,7 @@ The `create_unified_blocks()` function implements an activity-based approach:
 - **Timezone Support**: Full timezone handling with configurable display formats via `TimeFormat` enum
 - **Display Customization**: Type-safe configuration options with validation
 
-### 4. Comprehensive Command Structure
+### Comprehensive Command Structure
 
 - **`main.py`**: Typer CLI app with main commands (monitor, list, init, etc.)
 - **`commands.py`**: Debug and analysis commands (debug-blocks, debug-unified, debug-activity, etc.)
@@ -181,7 +215,7 @@ The `create_unified_blocks()` function implements an activity-based approach:
 - **Notification System**: Discord and Slack webhook integration for block completion alerts
 - **Pricing Integration**: Cost calculations available in both monitor and list modes with `--show-pricing` flag
 
-### 5. Advanced Analytics
+### Advanced Analytics
 
 - **Burn Rate Calculation**: Tokens per minute tracking with ETA estimation
 - **Block Progress Tracking**: Real-time 5-hour block progress with visual indicators
@@ -189,7 +223,7 @@ The `create_unified_blocks()` function implements an activity-based approach:
 - **Tool Usage Tracking**: Track and display Claude Code tool usage (Read, Edit, Bash, etc.) with counts (enabled by default)
 - **Activity Pattern Detection**: Historical usage analysis with configurable time windows
 
-### 6. Monitor Display Stability
+### Monitor Display Stability
 
 - **Clean Console Output**: Automatic suppression of disruptive messages during monitor mode
 - **Debug Mode Integration**: Debug logging uses `NullHandler` to prevent console jumping
@@ -228,7 +262,7 @@ The `create_unified_blocks()` function implements an activity-based approach:
 ## Data Model Relationships
 
 ```mermaid
-flowchart TD
+graph TD
     US[UsageSnapshot] --> P1[Project: par-cc-usage]
     US --> P2[Project: my-app]
     US --> P3[Project: ...]
@@ -259,14 +293,14 @@ flowchart TD
     US -.-> UBTM[unified_block_tokens_by_model\(\)]
     US -.-> UBST[unified_block_start_time]
 
-    style US fill:#e8f5e8
-    style TB1 fill:#fff3e0
-    style TB2 fill:#fff3e0
-    style TB3 fill:#fff3e0
-    style TU1 fill:#f3e5f5
-    style TU2 fill:#f3e5f5
-    style TU3 fill:#f3e5f5
-    style TU4 fill:#f3e5f5
+    style US fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
+    style TB1 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style TB2 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style TB3 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style TU1 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style TU2 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style TU3 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style TU4 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
 **Key Relationships**:
@@ -336,7 +370,7 @@ The burn rate cost estimation provides intelligent cost projection for 5-hour bi
 ### Monitor Mode Data Flow
 
 ```mermaid
-flowchart LR
+graph LR
     A[main.py:monitor\(\)] --> B[xdg_dirs.py:get_config_file_path\(\)]
     B --> C[config.py:load_config\(\)]
     C --> D[main.py:_apply_command_overrides\(\)]
@@ -350,17 +384,17 @@ flowchart LR
     G --> G1[UsageSnapshot Creation]
     H --> H1[Rich Terminal UI]
 
-    style A fill:#e1f5fe
-    style E fill:#fff3e0
-    style F fill:#f3e5f5
-    style G fill:#e8f5e8
-    style H fill:#fce4ec
+    style A fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style E fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style F fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style G fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
+    style H fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 ### List Command Cost Flow
 
 ```mermaid
-flowchart TD
+graph TD
     A[pccu list --show-pricing] --> B[list_command.py:display_usage_list\(\)]
     B --> C[ListDisplay.__init__\(show_pricing=True\)]
     C --> D[ListDisplay.display_table\(\) / export_json\(\) / export_csv\(\)]
@@ -381,18 +415,18 @@ flowchart TD
     L --> O
     N --> O
 
-    style A fill:#e1f5fe
-    style F fill:#fff3e0
-    style G fill:#f3e5f5
-    style H fill:#e8f5e8
-    style I fill:#e8f5e8
-    style J fill:#fce4ec
+    style A fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style F fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style G fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style H fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style I fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style J fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 ### Unified Block Selection Algorithm
 
 ```mermaid
-flowchart TD
+graph TD
     A[token_calculator.py:create_unified_blocks\(\)] --> B["Check if projects contain usage data"]
     B --> C{"Has data?"}
     C -->|Yes| D["Get current UTC time"]
@@ -404,10 +438,10 @@ flowchart TD
     G --> H["UsageSnapshot.unified_block_start_time property"]
     H --> I["Used by unified_block_tokens\(\) methods"]
 
-    style A fill:#e1f5fe
-    style D fill:#fff3e0
-    style F fill:#f3e5f5
-    style G fill:#e8f5e8
+    style A fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style D fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style F fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style G fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
 ```
 
 ## XDG Base Directory Implementation
@@ -423,7 +457,7 @@ PAR CC Usage implements the XDG Base Directory Specification for proper file org
 - **Data Directory**: `~/.local/share/par_cc_usage/` (respects `XDG_DATA_HOME`)
   - Reserved for future application data
 
-### XDG Module (`xdg_dirs.py`)
+### XDG Module (xdg_dirs.py)
 
 Provides utilities for XDG-compliant directory management:
 
@@ -467,3 +501,12 @@ Respects standard XDG environment variables:
 - **Backup Compatibility**: Standard locations are included in most backup solutions
 - **Multi-user Support**: Proper isolation of user-specific data
 - **Package Manager Friendly**: Standard locations for distribution packaging
+
+## Related Documentation
+
+- [Configuration Guide](CONFIGURATION.md) - Detailed configuration options and settings
+- [Development Guide](DEVELOPMENT.md) - Development workflows and advanced features
+- [Display Features](DISPLAY_FEATURES.md) - Display modes, themes, and customization
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution
+- [Usage Guide](USAGE_GUIDE.md) - Common usage patterns and examples

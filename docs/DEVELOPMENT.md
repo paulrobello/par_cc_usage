@@ -2,6 +2,34 @@
 
 This document provides detailed development workflows, advanced features, and implementation guidance for PAR CC Usage.
 
+## Table of Contents
+- [Overview](#overview)
+- [Development Workflows](#development-workflows)
+  - [Tool Usage Display](#tool-usage-display-default-enabled)
+  - [Tool Usage Testing](#tool-usage-testing)
+  - [Cost Analysis](#cost-analysis-default-enabled)
+  - [Debug Commands](#debug-commands)
+- [Advanced Features](#advanced-features)
+  - [List Command Pricing Integration](#list-command-pricing-integration)
+  - [Cost Calculation Future-Proofing](#cost-calculation-future-proofing)
+- [Implementation Details](#implementation-details)
+  - [Token Block Logic](#token-block-logic)
+  - [File Processing](#file-processing)
+  - [Display Formatting](#display-formatting)
+  - [Console Stability in Monitor Mode](#console-stability-in-monitor-mode)
+  - [Enhanced Display System](#enhanced-display-system)
+  - [Notification System](#notification-system)
+- [Code Quality Standards](#code-quality-standards)
+  - [Complexity Management](#complexity-management)
+  - [Recent Code Quality Improvements](#recent-code-quality-improvements-2025)
+  - [Key Refactored Components](#key-refactored-components)
+  - [Code Quality Metrics](#code-quality-metrics)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+PAR CC Usage is designed with developer productivity in mind, providing comprehensive debugging tools, testing capabilities, and advanced features for analyzing Claude Code usage patterns. This guide covers the development workflows, implementation details, and code quality standards that make PAR CC Usage a robust and maintainable solution.
+
 ## Development Workflows
 
 ### Tool Usage Display (Default Enabled)
@@ -464,3 +492,12 @@ Successfully reduced cyclomatic complexity across all core modules:
 - **Type Safety**: Full type annotations with pyright validation
 - **Code Formatting**: Consistent style with ruff formatting
 - **Documentation**: Comprehensive docstrings following Google style
+
+## Related Documentation
+
+- [Architecture Documentation](ARCHITECTURE.md) - System architecture and design decisions
+- [Configuration Guide](CONFIGURATION.md) - Detailed configuration options and settings
+- [Display Features](DISPLAY_FEATURES.md) - Display modes, themes, and customization
+- [Features](FEATURES.md) - Complete feature overview and capabilities
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Cache system, debugging, and problem resolution
+- [Usage Guide](USAGE_GUIDE.md) - Common usage patterns and examples

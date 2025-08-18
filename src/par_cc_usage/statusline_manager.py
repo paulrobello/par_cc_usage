@@ -87,6 +87,7 @@ class StatusLineManager:
         message_limit: int | None = None,
         cost_limit: float | None = None,
         time_remaining: str | None = None,
+        project_name: str | None = None,
     ) -> str:
         """Format a status line string.
 
@@ -98,11 +99,16 @@ class StatusLineManager:
             message_limit: Message limit (optional)
             cost_limit: Cost limit in USD (optional)
             time_remaining: Time remaining in block (optional)
+            project_name: Project name to display (optional)
 
         Returns:
             Formatted status line string
         """
         parts = []
+
+        # Project name part (if provided) - in square brackets
+        if project_name:
+            parts.append(f"[{project_name}]")
 
         # Tokens part
         if token_limit and token_limit > 0:
@@ -186,6 +192,7 @@ class StatusLineManager:
         session_messages = 0
         session_cost = 0.0
         time_remaining = None
+        project_name = None
 
         # Get the current unified block (most recent one)
         if usage_snapshot.unified_blocks:
@@ -202,6 +209,9 @@ class StatusLineManager:
                         session_tokens += entry.token_usage.total
                         session_messages += 1  # Each entry is a message
                         session_cost += entry.cost_usd  # Sum up costs from entries
+                        # Get project name from the first matching entry
+                        if project_name is None:
+                            project_name = entry.project_name
 
         # Get limits from config
         token_limit, message_limit, cost_limit = self._get_config_limits()
@@ -214,6 +224,7 @@ class StatusLineManager:
             message_limit=message_limit,
             cost_limit=cost_limit,
             time_remaining=time_remaining,
+            project_name=project_name,
         )
 
     def generate_grand_total_status_line(self, usage_snapshot: UsageSnapshot) -> str:
@@ -288,8 +299,98 @@ class StatusLineManager:
             time_remaining=time_remaining,
         )
 
+    def generate_grand_total_with_project_name(self, usage_snapshot: UsageSnapshot, session_id: str) -> str:
+        """Generate a grand total status line with project name from session.
+
+        Args:
+            usage_snapshot: Current usage snapshot
+            session_id: Session ID to extract project name from
+
+        Returns:
+            Formatted status line with grand total stats and project name
+        """
+        total_tokens = usage_snapshot.unified_block_tokens()
+        total_messages = usage_snapshot.unified_block_messages()
+        time_remaining = None
+        project_name = None
+
+        # Get time remaining from current block
+        if usage_snapshot.unified_blocks:
+            current_block = usage_snapshot.unified_blocks[-1]
+            if current_block.is_active:
+                time_remaining = self._calculate_time_remaining(current_block.end_time)
+
+            # Find project name for the session
+            if session_id in current_block.sessions:
+                for entry in current_block.entries:
+                    if entry.session_id == session_id:
+                        project_name = entry.project_name
+                        break
+
+        # Get limits from config
+        token_limit, message_limit, cost_limit = self._get_config_limits()
+
+        return self.format_status_line(
+            tokens=total_tokens,
+            messages=total_messages,
+            cost=0.0,  # Note: Cost calculation requires async
+            token_limit=token_limit,
+            message_limit=message_limit,
+            cost_limit=cost_limit,
+            time_remaining=time_remaining,
+            project_name=project_name,
+        )
+
+    async def generate_grand_total_with_project_name_async(self, usage_snapshot: UsageSnapshot, session_id: str) -> str:
+        """Generate a grand total status line with project name from session (async version with cost).
+
+        Args:
+            usage_snapshot: Current usage snapshot
+            session_id: Session ID to extract project name from
+
+        Returns:
+            Formatted status line with grand total stats, cost, and project name
+        """
+        total_tokens = usage_snapshot.unified_block_tokens()
+        total_messages = usage_snapshot.unified_block_messages()
+        time_remaining = None
+        project_name = None
+
+        # Get time remaining from current block
+        if usage_snapshot.unified_blocks:
+            current_block = usage_snapshot.unified_blocks[-1]
+            if current_block.is_active:
+                time_remaining = self._calculate_time_remaining(current_block.end_time)
+
+            # Find project name for the session
+            if session_id in current_block.sessions:
+                for entry in current_block.entries:
+                    if entry.session_id == session_id:
+                        project_name = entry.project_name
+                        break
+
+        # Calculate cost asynchronously
+        try:
+            total_cost = await usage_snapshot.get_unified_block_total_cost()
+        except Exception:
+            total_cost = 0.0
+
+        # Get limits from config
+        token_limit, message_limit, cost_limit = self._get_config_limits()
+
+        return self.format_status_line(
+            tokens=total_tokens,
+            messages=total_messages,
+            cost=total_cost,
+            token_limit=token_limit,
+            message_limit=message_limit,
+            cost_limit=cost_limit,
+            time_remaining=time_remaining,
+            project_name=project_name,
+        )
+
     def update_status_lines(self, usage_snapshot: UsageSnapshot) -> None:
-        """Update all status line cache files.
+        """Update all status lines based on current usage snapshot.
 
         Args:
             usage_snapshot: Current usage snapshot
@@ -297,16 +398,21 @@ class StatusLineManager:
         if not self.config.statusline_enabled:
             return
 
-        # Update grand total
+        # Always generate grand total
         grand_total_line = self.generate_grand_total_status_line(usage_snapshot)
         self.save_status_line("grand_total", grand_total_line)
 
-        # Update per-session status lines if we have unified block data
+        # Generate per-session status lines and grand total with project name for each session
         if usage_snapshot.unified_blocks:
-            current_block = usage_snapshot.unified_blocks[-1]  # Most recent block
+            current_block = usage_snapshot.unified_blocks[-1]
             for session_id in current_block.sessions:
+                # Generate session-specific status line
                 session_line = self.generate_session_status_line(usage_snapshot, session_id)
                 self.save_status_line(session_id, session_line)
+
+                # Generate grand total with project name for this session
+                grand_total_with_project = self.generate_grand_total_with_project_name(usage_snapshot, session_id)
+                self.save_status_line(f"grand_total_{session_id}", grand_total_with_project)
 
     async def _calculate_session_cost(self, entries, session_id: str) -> float:
         """Calculate cost for session entries.
@@ -356,6 +462,7 @@ class StatusLineManager:
         session_messages = 0
         session_cost = 0.0
         time_remaining = None
+        project_name = None
 
         # Get the current unified block (most recent one)
         if usage_snapshot.unified_blocks:
@@ -371,6 +478,9 @@ class StatusLineManager:
                     if entry.session_id == session_id:
                         session_tokens += entry.token_usage.total
                         session_messages += 1  # Each entry is a message
+                        # Get project name from the first matching entry
+                        if project_name is None:
+                            project_name = entry.project_name
 
                 # Calculate cost separately to reduce complexity
                 session_cost = await self._calculate_session_cost(current_block.entries, session_id)
@@ -386,10 +496,11 @@ class StatusLineManager:
             message_limit=message_limit,
             cost_limit=cost_limit,
             time_remaining=time_remaining,
+            project_name=project_name,
         )
 
     async def update_status_lines_async(self, usage_snapshot: UsageSnapshot) -> None:
-        """Update all status line cache files with cost calculation.
+        """Update all status lines asynchronously with cost calculations.
 
         Args:
             usage_snapshot: Current usage snapshot
@@ -397,17 +508,23 @@ class StatusLineManager:
         if not self.config.statusline_enabled:
             return
 
-        # Update grand total with cost
+        # Always generate grand total with cost
         grand_total_line = await self.generate_grand_total_status_line_async(usage_snapshot)
         self.save_status_line("grand_total", grand_total_line)
 
-        # Update per-session status lines with cost data from unified block
+        # Generate per-session status lines with cost and grand total with project name
         if usage_snapshot.unified_blocks:
-            current_block = usage_snapshot.unified_blocks[-1]  # Most recent block
+            current_block = usage_snapshot.unified_blocks[-1]
             for session_id in current_block.sessions:
-                # Use async version to ensure we have the cost data
+                # Generate session-specific status line with cost
                 session_line = await self.generate_session_status_line_async(usage_snapshot, session_id)
                 self.save_status_line(session_id, session_line)
+
+                # Generate grand total with project name and cost for this session
+                grand_total_with_project = await self.generate_grand_total_with_project_name_async(
+                    usage_snapshot, session_id
+                )
+                self.save_status_line(f"grand_total_{session_id}", grand_total_with_project)
 
     def get_status_line_for_request(self, session_json: dict[str, Any]) -> str:
         """Get the appropriate status line for a Claude Code request.
@@ -422,14 +539,22 @@ class StatusLineManager:
         if not self.config.statusline_enabled:
             return ""
 
-        # Check if we should always use grand total
-        if self.config.statusline_use_grand_total:
-            cached = self.load_status_line("grand_total")
-            return cached or "🪙 0 - 💬 0"
-
         # Try to extract session ID from the JSON
         session_id = session_json.get("sessionId") or session_json.get("session_id")
 
+        # Check if we should use grand total
+        if self.config.statusline_use_grand_total:
+            # If we have a valid session ID, try to get grand total with project name
+            if session_id:
+                # Try to load cached grand total with project name
+                cached = self.load_status_line(f"grand_total_{session_id}")
+                if cached:
+                    return cached
+            # Fall back to regular grand total
+            cached = self.load_status_line("grand_total")
+            return cached or "🪙 0 - 💬 0"
+
+        # Session-specific mode
         if session_id:
             # Try to load cached session status line
             cached = self.load_status_line(session_id)
