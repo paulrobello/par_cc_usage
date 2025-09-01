@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .config import Config
@@ -452,7 +453,7 @@ class StatusLineManager:
 
         return 0, 0, 0
 
-    def _get_git_info(self, project_path: "pathlib.Path | None" = None) -> tuple[str, str]:
+    def _get_git_info(self, project_path: Path | None = None) -> tuple[str, str]:
         """Get current git branch and status.
 
         Args:
