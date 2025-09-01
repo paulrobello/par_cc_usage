@@ -18,6 +18,7 @@ class TestStatusLineBasic:
     def test_format_status_line_tokens_only(self):
         """Test formatting with just tokens."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         result = manager.format_status_line(tokens=5000, messages=10)
@@ -29,6 +30,7 @@ class TestStatusLineBasic:
     def test_format_status_line_with_limits(self):
         """Test formatting with limits."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         result = manager.format_status_line(
@@ -43,6 +45,7 @@ class TestStatusLineBasic:
     def test_format_status_line_with_cost(self):
         """Test formatting with cost."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         result = manager.format_status_line(
@@ -56,6 +59,7 @@ class TestStatusLineBasic:
     def test_format_status_line_with_time(self):
         """Test formatting with time remaining."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         result = manager.format_status_line(
@@ -68,6 +72,7 @@ class TestStatusLineBasic:
     def test_calculate_time_remaining_future(self):
         """Test time remaining calculation for future time."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         now = datetime.now(timezone.utc)
@@ -81,6 +86,7 @@ class TestStatusLineBasic:
     def test_calculate_time_remaining_past(self):
         """Test time remaining calculation for past time."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         now = datetime.now(timezone.utc)
@@ -92,6 +98,7 @@ class TestStatusLineBasic:
     def test_calculate_time_remaining_minutes_only(self):
         """Test time remaining when less than an hour."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         now = datetime.now(timezone.utc)
@@ -105,6 +112,7 @@ class TestStatusLineBasic:
     def test_save_and_load_status_line(self, tmp_path):
         """Test saving and loading status lines to/from disk."""
         config = Mock()
+        config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
         # Mock the path functions
@@ -126,6 +134,7 @@ class TestStatusLineBasic:
     def test_get_status_line_for_request_disabled(self):
         """Test that disabled status line returns empty string."""
         config = Mock()
+        config.statusline_separator = " - "
         config.statusline_enabled = False
         manager = StatusLineManager(config)
 
@@ -135,6 +144,7 @@ class TestStatusLineBasic:
     def test_get_status_line_for_request_grand_total_mode(self):
         """Test grand total mode always returns grand total."""
         config = Mock()
+        config.statusline_separator = " - "
         config.statusline_enabled = True
         config.statusline_use_grand_total = True
         manager = StatusLineManager(config)
@@ -150,6 +160,7 @@ class TestStatusLineBasic:
     def test_get_status_line_for_request_session_mode(self):
         """Test session mode returns session-specific line."""
         config = Mock()
+        config.statusline_separator = " - "
         config.statusline_enabled = True
         config.statusline_use_grand_total = False
         manager = StatusLineManager(config)
@@ -163,12 +174,13 @@ class TestStatusLineBasic:
     def test_get_status_line_for_request_fallback(self):
         """Test fallback to grand total when session not found."""
         config = Mock()
+        config.statusline_separator = " - "
         config.statusline_enabled = True
         config.statusline_use_grand_total = False
         manager = StatusLineManager(config)
 
         with patch.object(manager, "load_status_line") as mock_load:
-            mock_load.side_effect = lambda x: "grand_total_line" if x == "grand_total" else None
+            mock_load.side_effect = lambda x, ignore_template_change=False: "grand_total_line" if x == "grand_total" else None
 
             result = manager.get_status_line_for_request({"sessionId": "unknown_session"})
             assert result == "grand_total_line"
@@ -176,6 +188,7 @@ class TestStatusLineBasic:
     def test_update_status_lines_disabled(self):
         """Test that update does nothing when disabled."""
         config = Mock()
+        config.statusline_separator = " - "
         config.statusline_enabled = False
         manager = StatusLineManager(config)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -179,6 +179,48 @@ class Config(BaseModel):
     statusline_use_grand_total: bool = Field(
         default=False,
         description="Always return grand total in status line regardless of session",
+    )
+    statusline_template: str = Field(
+        default="{project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{remaining_block_time}",
+        description="Template for status line format. Available variables: {project}, {tokens}, {messages}, {cost}, {remaining_block_time}, {sep}, {username}, {hostname}, {date}, {current_time}. Use \\n for multi-line.",
+    )
+    statusline_date_format: str = Field(
+        default="%Y-%m-%d",
+        description="Date format for {date} in status line (strftime format). Default: YYYY-MM-DD",
+    )
+    statusline_time_format: str = Field(
+        default="%I:%M %p",
+        description="Time format for {current_time} in status line (strftime format). Default: 12hr (HH:MM AM/PM)",
+    )
+    statusline_git_clean_indicator: str = Field(
+        default="✓",
+        description="Indicator for clean git status. Can be emoji (✓, ✅, 🟢) or text (clean, OK). Default: ✓",
+    )
+    statusline_git_dirty_indicator: str = Field(
+        default="*",
+        description="Indicator for dirty git status. Can be emoji (*, ⚠️, 🔴) or text (dirty, modified). Default: *",
+    )
+    statusline_progress_bar_length: int = Field(
+        default=10,
+        description="Length of progress bar in status line. Default: 10 characters",
+        ge=5,
+        le=50,
+    )
+    statusline_progress_bar_colorize: bool = Field(
+        default=False,
+        description="Colorize progress bar based on utilization (green < 50%, yellow < 80%, red >= 80%). Default: False",
+    )
+    statusline_progress_bar_style: Literal["basic", "rich"] = Field(
+        default="basic",
+        description="Progress bar style: 'basic' (simple Unicode blocks) or 'rich' (Rich library rendering). Default: basic",
+    )
+    statusline_progress_bar_show_percent: bool = Field(
+        default=False,
+        description="Show percentage in the center of the progress bar. Automatically adds 3 chars to bar length. Default: False",
+    )
+    statusline_separator: str = Field(
+        default=" - ",
+        description="Separator string for status line template {sep} variable. Default: ' - '",
     )
 
     @field_validator("model_multipliers")
@@ -442,6 +484,9 @@ def _get_top_level_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_MODEL_MULTIPLIERS": "model_multipliers",
         "PAR_CC_USAGE_STATUSLINE_ENABLED": "statusline_enabled",
         "PAR_CC_USAGE_STATUSLINE_USE_GRAND_TOTAL": "statusline_use_grand_total",
+        "PAR_CC_USAGE_STATUSLINE_TEMPLATE": "statusline_template",
+        "PAR_CC_USAGE_STATUSLINE_DATE_FORMAT": "statusline_date_format",
+        "PAR_CC_USAGE_STATUSLINE_TIME_FORMAT": "statusline_time_format",
     }
 
 
@@ -625,6 +670,9 @@ def save_config(config: Config, config_file: Path) -> None:
         "config_ro": config.config_ro,
         "statusline_enabled": config.statusline_enabled,
         "statusline_use_grand_total": config.statusline_use_grand_total,
+        "statusline_template": config.statusline_template,
+        "statusline_date_format": config.statusline_date_format,
+        "statusline_time_format": config.statusline_time_format,
     }
 
     # Add projects_dirs if configured

@@ -1172,12 +1172,31 @@ async def _monitor_async(  # noqa: C901
             # Update status lines for snapshot mode too
             if config.statusline_enabled:
                 try:
+                    from .config import load_config
                     from .statusline_manager import StatusLineManager
 
+                    # Reload config to get latest statusline template changes BEFORE creating StatusLineManager
+                    # This ensures template changes are picked up without restarting monitor
+                    # Use actual_config_file if available, otherwise let load_config find it
+                    fresh_config = load_config(actual_config_file if actual_config_file else config_file)
+                    # Copy over just the statusline-related settings
+                    config.statusline_template = fresh_config.statusline_template
+                    config.statusline_use_grand_total = fresh_config.statusline_use_grand_total
+                    config.statusline_date_format = fresh_config.statusline_date_format
+                    config.statusline_time_format = fresh_config.statusline_time_format
+                    config.display.time_format = fresh_config.display.time_format
+
+                    # Now create the StatusLineManager with the updated config
                     status_manager = StatusLineManager(config)
                     await status_manager.update_status_lines_async(usage_snapshot)
                 except Exception as e:
                     logger.debug(f"Error updating status lines: {e}")
+                    # Also print to console in snapshot mode for debugging
+                    if snapshot:
+                        import traceback
+
+                        console.print(f"[red]Error updating status lines: {e}[/red]")
+                        console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
         from .theme import get_color
 
@@ -1255,7 +1274,19 @@ async def _monitor_async(  # noqa: C901
                 # Update status lines if enabled
                 if config.statusline_enabled:
                     try:
+                        from .config import load_config
                         from .statusline_manager import StatusLineManager
+
+                        # Reload config to get latest statusline template changes
+                        # This ensures template changes are picked up without restarting monitor
+                        # Use actual_config_file if available, otherwise let load_config find it
+                        fresh_config = load_config(actual_config_file if actual_config_file else config_file)
+                        # Copy over just the statusline-related settings
+                        config.statusline_template = fresh_config.statusline_template
+                        config.statusline_use_grand_total = fresh_config.statusline_use_grand_total
+                        config.statusline_date_format = fresh_config.statusline_date_format
+                        config.statusline_time_format = fresh_config.statusline_time_format
+                        config.display.time_format = fresh_config.display.time_format
 
                         status_manager = StatusLineManager(config)
                         await status_manager.update_status_lines_async(usage_snapshot)
@@ -1687,6 +1718,152 @@ def uninstall_statusline(
         console.print(f"[red]Error updating settings.json: {e}[/red]")
         console.print(f"[yellow]Restoring backup from {backup_path}[/yellow]")
         shutil.copy2(backup_path, settings_path)
+
+
+@app.command("configure-statusline")
+def configure_statusline(
+    template: Annotated[str | None, typer.Argument(help="Template string or 'default' to reset")] = None,
+    preview: Annotated[bool, typer.Option("--preview", "-p", help="Preview template without saving")] = False,
+    list_templates: Annotated[bool, typer.Option("--list", "-l", help="List available template variables")] = False,
+    config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Configuration file path")] = None,
+) -> None:
+    """Configure the status line template format.
+
+    Examples:
+        pccu configure-statusline --list                                    # Show available variables
+        pccu configure-statusline "{tokens} - {messages}"                   # Simple template
+        pccu configure-statusline "{project}\\n{tokens} - {messages}"      # Multi-line template
+        pccu configure-statusline --preview "{tokens} | {messages}"        # Preview without saving
+        pccu configure-statusline default                                   # Reset to default
+    """
+    from .statusline_manager import StatusLineManager
+
+    # Load configuration
+    config = load_config(config_file)
+
+    if list_templates:
+        console.print("[bold cyan]Available template variables:[/bold cyan]")
+        console.print("  {project}             - Project name in square brackets (when available)")
+        console.print("  {tokens}              - Token count with limit and percentage")
+        console.print("  {messages}            - Message count with limit")
+        console.print("  {cost}                - Cost with limit (only shown if cost > 0)")
+        console.print("  {remaining_block_time} - Time remaining in current 5-hour block")
+        console.print("  {sep}                 - Separator (configurable via statusline_separator)")
+        console.print("  {model}               - Current Claude model name (e.g., Opus, Sonnet)")
+        console.print("  {username}            - Current username")
+        console.print("  {hostname}            - System hostname")
+        console.print("  {date}                - Current date (format controlled by statusline_date_format)")
+        console.print("  {current_time}        - Current time (format controlled by statusline_time_format)")
+        console.print("  {git_branch}          - Current git branch name (empty if not in git repo)")
+        console.print(
+            "  {git_status}          - Git status indicator (configurable via statusline_git_clean_indicator and"
+        )
+        console.print("                          statusline_git_dirty_indicator in config. Default: ✓=clean, *=dirty)")
+        console.print()
+        console.print("[bold cyan]Session token variables (when session_id available):[/bold cyan]")
+        console.print("  {session_tokens}              - Current session token usage (e.g., 🪙 45K)")
+        console.print("  {session_tokens_total}        - Max tokens for session (e.g., 200K)")
+        console.print("  {session_tokens_remaining}    - Remaining tokens in session (e.g., 155K)")
+        console.print("  {session_tokens_percent}      - Percentage of tokens used (e.g., 23%)")
+        console.print("  {session_tokens_progress_bar} - Visual progress bar (length: statusline_progress_bar_length)")
+        console.print()
+        console.print("[bold cyan]Special characters:[/bold cyan]")
+        console.print("  \\n             - Newline for multi-line status")
+        console.print()
+        console.print("[bold cyan]Format settings:[/bold cyan]")
+        console.print(f"  Date format: {config.statusline_date_format} (strftime format)")
+        console.print(f"  Time format: {config.statusline_time_format} (strftime format)")
+        console.print(f"  Git clean indicator: {config.statusline_git_clean_indicator}")
+        console.print(f"  Git dirty indicator: {config.statusline_git_dirty_indicator}")
+        console.print(f"  Progress bar length: {config.statusline_progress_bar_length} characters")
+        console.print(f"  Progress bar style: {config.statusline_progress_bar_style}")
+        console.print(f"  Progress bar colorize: {config.statusline_progress_bar_colorize}")
+        console.print(f"  Progress bar show percent: {config.statusline_progress_bar_show_percent}")
+        console.print(f"  Separator: '{config.statusline_separator}'")
+        console.print()
+        console.print("[bold cyan]Current template:[/bold cyan]")
+        console.print(f"  {config.statusline_template}")
+        console.print()
+        console.print("[bold cyan]Default template:[/bold cyan]")
+        console.print("  {project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{remaining_block_time}")
+        console.print()
+        console.print("[bold cyan]Customizing separator:[/bold cyan]")
+        console.print("  Add to your config.yaml:")
+        console.print("    statusline_separator: ' | '  # or ' :: ', ' • ', etc.")
+        console.print()
+        console.print("[bold cyan]Customizing git indicators:[/bold cyan]")
+        console.print("  Add to your config.yaml:")
+        console.print("    statusline_git_clean_indicator: '✅'  # or 'clean', 'OK', '🟢'")
+        console.print("    statusline_git_dirty_indicator: '⚠️'   # or 'dirty', 'modified', '🔴'")
+        console.print()
+        console.print("[bold cyan]Customizing progress bar:[/bold cyan]")
+        console.print("  Add to your config.yaml:")
+        console.print("    statusline_progress_bar_length: 10      # Length: 5-50 characters (default: 10)")
+        console.print("    statusline_progress_bar_style: 'rich'   # Style: 'basic' or 'rich' (default: basic)")
+        console.print("                                             # basic: Simple Unicode blocks (████░░)")
+        console.print("                                             # rich: Rich library rendering (━━━╺╺╺)")
+        console.print("    statusline_progress_bar_show_percent: true  # Show percent in center of bar")
+        console.print("                                                  # Automatically adds 3 chars to length")
+        console.print("                                                  # Example: [██ 45%██░░░]")
+        console.print("    statusline_progress_bar_colorize: true  # Color based on usage:")
+        console.print("                                             # Green: < 50%")
+        console.print("                                             # Yellow: 50-79%")
+        console.print("                                             # Red: >= 80%")
+        return
+
+    if template is None:
+        # Show current template
+        console.print(f"[cyan]Current template:[/cyan] {config.statusline_template}")
+        console.print()
+        console.print("Use --list to see available variables")
+        console.print("Use --preview to test a template")
+        return
+
+    # Handle 'default' keyword
+    if template.lower() == "default":
+        template = "{project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{time}"
+        console.print("[green]Resetting to default template[/green]")
+
+    # Create status line manager for preview
+    manager = StatusLineManager(config)
+
+    # Generate sample data for preview
+    sample_status = manager.format_status_line_from_template(
+        tokens=150000,
+        messages=25,
+        cost=0.75,
+        token_limit=500000,
+        message_limit=50,
+        cost_limit=5.00,
+        time_remaining="2h 34m",
+        project_name="my-project",
+        template=template,
+    )
+
+    console.print()
+    console.print("[bold cyan]Preview:[/bold cyan]")
+
+    # Display multi-line preview properly
+    for line in sample_status.split("\n"):
+        console.print(f"  {line}")
+
+    if preview:
+        console.print()
+        console.print("[yellow]Preview mode - template not saved[/yellow]")
+        return
+
+    # Save the template to config
+    config.statusline_template = template
+
+    # Determine config file path
+    if config_file is None:
+        config_file = get_config_file_path()
+
+    save_config(config, config_file)
+
+    console.print()
+    console.print(f"[green]✓ Template saved to {config_file}[/green]")
+    console.print("[yellow]Note: The new template will be used on the next status line update.[/yellow]")
 
 
 def main() -> None:

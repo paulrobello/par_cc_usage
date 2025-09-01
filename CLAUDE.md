@@ -71,6 +71,16 @@ The status line displays real-time token usage in Claude Code's interface:
 - Displays remaining time in current 5-hour billing block (e.g., "2h 8m" or "45m")
 - Configurable via `statusline_enabled` and `statusline_use_grand_total` in config.yaml
 
+**New in v0.10.0 - Advanced Progress Bar Features:**
+- **Colorized Progress Bars**: Dynamic colors based on usage (green < 50%, yellow 50-79%, red ≥ 80%)
+- **Rich Style Option**: Clean line-based bars (━╺) or traditional blocks (█░)
+- **Centered Percentage**: Optional percentage display in progress bar center
+- **Session Token Tracking**: Dedicated progress bars for session-specific token usage
+- **Model Template Variable**: Display current Claude model name with `{model}` variable
+- **Performance Optimized**: Conditional data fetching - only retrieves data when needed in template
+- **Bright ANSI Colors**: Uses bright color variants for better terminal visibility
+- **Customizable Length**: Configure progress bar width (default: 15 characters)
+
 ### Monitor Mode
 ```bash
 # Default behavior - tool usage and pricing displayed automatically

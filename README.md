@@ -71,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.10.0 - Advanced Status Line Progress Bars & Performance](#v0100---advanced-status-line-progress-bars--performance)
   - [v0.9.0 - Enhanced Status Line with Project Names](#v090---enhanced-status-line-with-project-names)
   - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
   - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
   - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
-  - [v0.4.0 - Automatic Timezone Detection](#v040---automatic-timezone-detection)
   - [older...](#older)
 - [Development](#development)
 
@@ -306,7 +306,24 @@ statusline_enabled: true
 
 # Always show grand total instead of per-session (default: false)
 statusline_use_grand_total: false
+
+# Progress bar customization (v0.10.0+)
+statusline_progress_bar_colorize: true  # Colorize progress bars based on usage (green/yellow/red)
+statusline_progress_bar_style: rich     # Style: 'basic' (blocks █░) or 'rich' (lines ━╺)
+statusline_progress_bar_length: 15      # Length of progress bar (default: 15)
+statusline_progress_bar_show_percent: true  # Show percentage in center of bar
+
+# Custom status line template (advanced)
+statusline_template: '{project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{remaining_block_time}{sep} SES:{session_tokens}/{session_tokens_total}{sep}{session_tokens_progress_bar}'
 ```
+
+#### Progress Bar Features (v0.10.0+)
+- **Colorization**: Progress bars change color based on usage (green < 50%, yellow 50-79%, red ≥ 80%)
+- **Rich Style**: Cleaner line-based progress bars (━╺) instead of blocks (█░)
+- **Percentage Display**: Optional percentage shown in center of progress bar
+- **Session Token Tracking**: Display session-specific token usage with progress bars
+- **Model Display**: Show current Claude model name (Opus, Sonnet) with `{model}` template variable
+- **Performance Optimized**: Conditional data fetching - only retrieves git status, session tokens, etc. when needed in template
 
 The status line automatically updates whenever you run `pccu monitor`, providing real-time usage feedback directly in your Claude Code interface.
 
@@ -1268,6 +1285,31 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.10.0 - Advanced Status Line Progress Bars & Performance
+**Enhanced Progress Bars & Optimized Performance**: Rich progress bar styles with colorization and intelligent conditional data fetching:
+
+#### 🎨 Progress Bar Enhancements (New)
+- **Colorized Progress Bars**: Dynamic color coding based on usage levels (green < 50%, yellow 50-79%, red ≥ 80%)
+- **Rich Style Option**: Clean line-based progress bars (━╺) as alternative to block style (█░)
+- **Centered Percentage Display**: Optional percentage shown in center of progress bar with automatic width adjustment
+- **Bright ANSI Colors**: Uses bright/light color variants for better visibility in terminals
+- **Configurable Bar Length**: Customizable progress bar width (default: 15 characters)
+- **Model Template Variable**: Display current Claude model name with `{model}` in status line templates
+
+#### ⚡ Performance Optimizations (New)
+- **Conditional Data Fetching**: Only fetches git status, session tokens, date/time when actually used in template
+- **Reduced Overhead**: Eliminates unnecessary subprocess calls and file operations
+- **Smart Template Processing**: Analyzes template to determine which data sources are needed
+- **Optimized Session Token Extraction**: Skips expensive JSONL parsing when session tokens aren't displayed
+
+#### 🔧 Configuration Options (New)
+```yaml
+statusline_progress_bar_colorize: true     # Enable color-coded progress bars
+statusline_progress_bar_style: rich        # 'basic' or 'rich' style
+statusline_progress_bar_length: 15         # Progress bar width
+statusline_progress_bar_show_percent: true # Show percentage in bar
+```
 
 ### v0.9.0 - Enhanced Status Line with Project Names
 **Improved Claude Code Status Line**: Project names now display in status line for better context:
