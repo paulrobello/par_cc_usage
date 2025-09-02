@@ -359,12 +359,16 @@ class StatusLineManager:
         claude_projects = Path.home() / ".claude" / "projects"
 
         # First, try to find the file by searching through project directories
-        if claude_projects.exists():
-            for project_dir in claude_projects.iterdir():
-                if project_dir.is_dir():
-                    potential_file = project_dir / f"{session_id}.jsonl"
-                    if potential_file.exists():
-                        return potential_file
+        if claude_projects.exists() and claude_projects.is_dir():
+            try:
+                for project_dir in claude_projects.iterdir():
+                    if project_dir.is_dir():
+                        potential_file = project_dir / f"{session_id}.jsonl"
+                        if potential_file.exists():
+                            return potential_file
+            except (FileNotFoundError, PermissionError):
+                # Directory might not exist or we lack permissions
+                pass
 
         # Try the expected path based on current directory
         cwd = Path.cwd()
