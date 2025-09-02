@@ -181,8 +181,8 @@ class Config(BaseModel):
         description="Always return grand total in status line regardless of session",
     )
     statusline_template: str = Field(
-        default="{project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{remaining_block_time}",
-        description="Template for status line format. Available variables: {project}, {tokens}, {messages}, {cost}, {remaining_block_time}, {sep}, {username}, {hostname}, {date}, {current_time}. Use \\n for multi-line.",
+        default="{project}{sep}{tokens}{sep}{cost}{sep}{remaining_block_time}{sep} SES:{model}{sep}{session_tokens}/{session_tokens_total}",
+        description="Template for status line format. Available variables: {project}, {tokens}, {messages}, {cost}, {remaining_block_time}, {sep}, {username}, {hostname}, {date}, {current_time}, {model}, {session_tokens}, {session_tokens_total}. Use \\n for multi-line.",
     )
     statusline_date_format: str = Field(
         default="%Y-%m-%d",
@@ -201,22 +201,22 @@ class Config(BaseModel):
         description="Indicator for dirty git status. Can be emoji (*, ⚠️, 🔴) or text (dirty, modified). Default: *",
     )
     statusline_progress_bar_length: int = Field(
-        default=10,
-        description="Length of progress bar in status line. Default: 10 characters",
+        default=15,
+        description="Length of progress bar in status line. Default: 15 characters",
         ge=5,
         le=50,
     )
     statusline_progress_bar_colorize: bool = Field(
-        default=False,
-        description="Colorize progress bar based on utilization (green < 50%, yellow < 80%, red >= 80%). Default: False",
+        default=True,
+        description="Colorize progress bar based on utilization (green < 50%, yellow < 80%, red >= 80%). Default: True",
     )
     statusline_progress_bar_style: Literal["basic", "rich"] = Field(
-        default="basic",
-        description="Progress bar style: 'basic' (simple Unicode blocks) or 'rich' (Rich library rendering). Default: basic",
+        default="rich",
+        description="Progress bar style: 'basic' (simple Unicode blocks) or 'rich' (Rich library rendering). Default: rich",
     )
     statusline_progress_bar_show_percent: bool = Field(
-        default=False,
-        description="Show percentage in the center of the progress bar. Automatically adds 3 chars to bar length. Default: False",
+        default=True,
+        description="Show percentage in the center of the progress bar. Automatically adds 3 chars to bar length. Default: True",
     )
     statusline_separator: str = Field(
         default=" - ",
