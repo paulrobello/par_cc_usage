@@ -189,6 +189,8 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 
 Using [uv](https://docs.astral.sh/uv/) (fastest):
 ```bash
+uvx --from par-cc-usage pccu monitor
+# or installing into the $PATH
 uv tool install par-cc-usage
 ```
 
