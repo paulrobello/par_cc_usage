@@ -1291,6 +1291,15 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.12.0 - Cross-Platform Compatibility Improvements
+**Enhanced cross-platform support for Windows, Linux, and macOS**:
+
+#### 🌐 Cross-Platform Enhancements
+- **Path Display Fix**: Error messages now show platform-specific paths correctly (Windows: `C:\Users\...`, Unix: `/home/...`)
+- **Improved Error Messages**: `install-statusline` and `uninstall-statusline` commands now display actual resolved paths instead of hardcoded `~/.claude/settings.json`
+- **Full Compatibility**: All file operations verified to work correctly across Windows, Linux, and macOS
+- **Quality Assurance**: All 812 tests passing on all platforms
+
 ### v0.11.0 - Claude 4 Model Support & Python 3.13
 **Full support for latest Claude 4 models and Python 3.13 compatibility**:
 

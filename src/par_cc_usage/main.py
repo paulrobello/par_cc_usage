@@ -1617,7 +1617,7 @@ def install_statusline(
 
     # Check if settings file exists
     if not settings_path.exists():
-        console.print("[red]Claude Code settings.json not found at ~/.claude/settings.json[/red]")
+        console.print(f"[red]Claude Code settings.json not found at {settings_path}[/red]")
         console.print("[yellow]Please ensure Claude Code is installed and has been run at least once.[/yellow]")
         return
 
@@ -1667,7 +1667,7 @@ def uninstall_statusline(
 
     # Check if settings file exists
     if not settings_path.exists():
-        console.print("[red]Claude Code settings.json not found at ~/.claude/settings.json[/red]")
+        console.print(f"[red]Claude Code settings.json not found at {settings_path}[/red]")
         return
 
     # Create backup
