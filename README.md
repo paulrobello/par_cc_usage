@@ -1288,6 +1288,14 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.11.0 - Dependency Updates & Python 3.13 Support
+**Updated dependencies and verified compatibility with Python 3.13**:
+
+#### 📦 Updates
+- **Dependency Updates**: Updated all package dependencies to latest versions
+- **Python 3.13**: Verified full compatibility with Python 3.13
+- **Test Suite**: All 812 tests passing on Python 3.13
+
 ### v0.10.0 - Advanced Status Line Progress Bars & Performance
 **Enhanced Progress Bars & Optimized Performance**: Rich progress bar styles with colorization and intelligent conditional data fetching:
 
