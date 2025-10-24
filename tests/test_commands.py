@@ -2,10 +2,7 @@
 Simple tests for the commands module.
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, patch
 
-import pytest
 
 from par_cc_usage.commands import (
     debug_blocks,

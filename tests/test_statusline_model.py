@@ -1,10 +1,6 @@
 """Test model template variable in status line."""
 
-import json
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.statusline_manager import StatusLineManager
 

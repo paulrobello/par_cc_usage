@@ -1,10 +1,6 @@
 """Test conditional data fetching in status line based on template."""
 
-import subprocess
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.statusline_manager import StatusLineManager
 
@@ -88,7 +84,7 @@ def test_session_tokens_not_fetched_when_not_in_template():
         with patch("pathlib.Path.exists") as mock_exists:
             mock_exists.return_value = True
 
-            result = manager.format_status_line_from_template(
+            manager.format_status_line_from_template(
                 tokens=100000,
                 messages=25,
                 session_id="test-session-id",
@@ -146,7 +142,7 @@ def test_date_time_not_fetched_when_not_in_template():
         mock_now = Mock()
         mock_datetime.now = Mock(return_value=mock_now)
 
-        result = manager.format_status_line_from_template(
+        manager.format_status_line_from_template(
             tokens=100000,
             messages=25,
         )
@@ -190,7 +186,7 @@ def test_hostname_not_fetched_when_not_in_template():
 
     # Mock socket.gethostname
     with patch("socket.gethostname") as mock_gethostname:
-        result = manager.format_status_line_from_template(
+        manager.format_status_line_from_template(
             tokens=100000,
             messages=25,
         )
@@ -229,7 +225,7 @@ def test_username_not_fetched_when_not_in_template():
 
     # Mock os.getenv
     with patch("os.getenv") as mock_getenv:
-        result = manager.format_status_line_from_template(
+        manager.format_status_line_from_template(
             tokens=100000,
             messages=25,
         )
@@ -279,7 +275,7 @@ def test_multiple_conditional_fetches():
                         mock_exists.return_value = True
                         mock_run.return_value = Mock(returncode=0, stdout="150000\n")
 
-                        result = manager.format_status_line_from_template(
+                        manager.format_status_line_from_template(
                             tokens=100000,
                             messages=25,
                             session_id="test-session-id",

@@ -484,7 +484,7 @@ class TestXDGConfigIntegration:
         """Test that Config model_post_init creates XDG cache directory."""
         cache_dir = temp_dir / "custom_cache" / "par_cc_usage"
 
-        config = Config(cache_dir=cache_dir)
+        Config(cache_dir=cache_dir)
 
         # Verify directory was created
         assert cache_dir.exists()

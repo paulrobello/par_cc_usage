@@ -3,10 +3,7 @@ Simplified tests for main.py to improve coverage.
 """
 
 import json
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.file_monitor import FileState
 from par_cc_usage.main import (

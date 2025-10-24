@@ -2,9 +2,7 @@
 Additional tests for token_calculator.py to improve coverage.
 """
 
-import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, patch
 
 import pytest
 

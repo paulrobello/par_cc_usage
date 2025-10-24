@@ -1,9 +1,10 @@
 """Tests for auto-scaling functionality."""
 
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import tempfile
+from unittest.mock import patch
+
 import pytest
 
 from par_cc_usage.config import Config, update_max_encountered_values, update_max_encountered_values_async

@@ -3,7 +3,6 @@ Tests for the file_monitor module.
 """
 
 import json
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -387,7 +386,7 @@ class TestJSONLReader:
                 nonlocal call_count
                 call_count += 1
                 if call_count == 2:
-                    raise IOError("Simulated read error")
+                    raise OSError("Simulated read error")
                 return original_readline()
 
             reader._file_handle.readline = mock_readline
@@ -723,7 +722,7 @@ class TestPollFiles:
     @patch('par_cc_usage.file_monitor.time.sleep')
     def test_poll_files_basic(self, mock_sleep, temp_dir):
         """Test basic poll_files functionality."""
-        from par_cc_usage.file_monitor import poll_files, FileMonitor, FileState
+        from par_cc_usage.file_monitor import FileMonitor, poll_files
 
         cache_dir = temp_dir / "cache"
         cache_dir.mkdir()
@@ -752,7 +751,7 @@ class TestPollFiles:
     @patch('par_cc_usage.file_monitor.time.sleep')
     def test_poll_files_save_state(self, mock_sleep, temp_dir):
         """Test that poll_files saves state."""
-        from par_cc_usage.file_monitor import poll_files, FileMonitor
+        from par_cc_usage.file_monitor import FileMonitor, poll_files
 
         cache_dir = temp_dir / "cache"
         cache_dir.mkdir()

@@ -2,14 +2,12 @@
 Tests for the xdg_dirs module.
 """
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from par_cc_usage.xdg_dirs import (
+    ensure_xdg_directories,
     get_cache_dir,
     get_cache_file_path,
     get_config_dir,
@@ -18,7 +16,6 @@ from par_cc_usage.xdg_dirs import (
     get_data_file_path,
     get_legacy_config_paths,
     migrate_legacy_config,
-    ensure_xdg_directories,
 )
 
 

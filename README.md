@@ -878,11 +878,14 @@ model_multipliers:
 
 ### Model Display Names
 Model identifiers are simplified for better readability:
-- `claude-opus-*` → **Opus**
-- `claude-sonnet-*` → **Sonnet**
+- `claude-opus-*` → **Opus** (including Opus 4.1)
+- `claude-sonnet-*` → **Sonnet** (including Sonnet 4, Sonnet 4.5)
+- `claude-haiku-*` → **Haiku** (including Haiku 4.5)
 - Unknown/other models → **Unknown**
 
-**Note**: Claude Code primarily uses Opus and Sonnet models. Any other model names (including Haiku) are normalized to "Unknown".
+**Supported Models**:
+- **Claude 4.x**: Sonnet 4.5, Opus 4.1, Haiku 4.5, Sonnet 4
+- **Claude 3.x**: Sonnet 3.5, Opus 3, Haiku 3, Haiku 3.5
 
 ### Time Format Options
 Configure time display format through `display.time_format` setting:
@@ -1288,8 +1291,15 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
-### v0.11.0 - Dependency Updates & Python 3.13 Support
-**Updated dependencies and verified compatibility with Python 3.13**:
+### v0.11.0 - Claude 4 Model Support & Python 3.13
+**Full support for latest Claude 4 models and Python 3.13 compatibility**:
+
+#### 🤖 Claude 4 Model Support (New)
+- **Claude Sonnet 4.5**: Full support for `claude-sonnet-4-5` (released Sep 29, 2025)
+- **Claude Opus 4.1**: Full support for `claude-opus-4-1` (released May 22, 2025)
+- **Claude Haiku 4.5**: Full support for `claude-haiku-4-5` (released Oct 15, 2025)
+- **Automatic Detection**: Recognizes both hyphenated and dotted model name formats
+- **Pricing Integration**: Automatic pricing fallback to correct model families for cost calculations
 
 #### 📦 Updates
 - **Dependency Updates**: Updated all package dependencies to latest versions

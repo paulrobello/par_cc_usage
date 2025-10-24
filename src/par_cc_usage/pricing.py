@@ -133,12 +133,25 @@ class PricingCache:
 
         # Common Claude model patterns and their fallbacks
         claude_fallbacks = [
-            # Try common Claude model names as fallbacks
-            ("opus", ["claude-3-opus-20240229", "anthropic/claude-3-opus-20240229"]),
+            # Claude 4.x models (most specific patterns first)
+            (
+                "sonnet-4-5",
+                ["claude-sonnet-4-5-20250929", "claude-sonnet-4-5", "anthropic/claude-sonnet-4-5-20250929"],
+            ),
+            (
+                "opus-4-1",
+                ["claude-opus-4-1-20250805", "claude-opus-4-1", "anthropic/claude-opus-4-1-20250805"],
+            ),
+            (
+                "haiku-4-5",
+                ["claude-haiku-4-5-20251001", "claude-haiku-4-5", "anthropic/claude-haiku-4-5-20251001"],
+            ),
             (
                 "sonnet-4",
-                ["claude-3-5-sonnet-20241022", "anthropic/claude-3-5-sonnet-20241022", "claude-3-sonnet-20240229"],
+                ["claude-sonnet-4-20250514", "claude-sonnet-4-0", "anthropic/claude-sonnet-4-20250514"],
             ),
+            # Claude 3.x models
+            ("opus", ["claude-3-opus-20240229", "anthropic/claude-3-opus-20240229"]),
             (
                 "sonnet",
                 ["claude-3-5-sonnet-20241022", "claude-3-sonnet-20240229", "anthropic/claude-3-5-sonnet-20241022"],

@@ -3,12 +3,10 @@ Tests for the utils module.
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
-
-import pytest
 
 from par_cc_usage.token_calculator import format_token_count
 from par_cc_usage.utils import (
@@ -183,23 +181,23 @@ class TestFormatTime:
 
     def test_format_12h(self):
         """Test 12-hour format."""
-        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         assert format_time(dt, time_format="12h") == "02:30 PM"
 
-        dt2 = datetime(2025, 1, 9, 0, 0, 0, tzinfo=timezone.utc)
+        dt2 = datetime(2025, 1, 9, 0, 0, 0, tzinfo=UTC)
         assert format_time(dt2, time_format="12h") == "12:00 AM"
 
     def test_format_24h(self):
         """Test 24-hour format."""
-        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         assert format_time(dt, time_format="24h") == "14:30"
 
-        dt2 = datetime(2025, 1, 9, 0, 0, 0, tzinfo=timezone.utc)
+        dt2 = datetime(2025, 1, 9, 0, 0, 0, tzinfo=UTC)
         assert format_time(dt2, time_format="24h") == "00:00"
 
     def test_format_default(self):
         """Test default format (24h)."""
-        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         assert format_time(dt) == "14:30"
 
 
@@ -208,7 +206,7 @@ class TestFormatDatetime:
 
     def test_format_datetime_12h(self):
         """Test datetime formatting with 12-hour time."""
-        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         result = format_datetime(dt, time_format="12h")
 
         assert "2025-01-09" in result
@@ -216,7 +214,7 @@ class TestFormatDatetime:
 
     def test_format_datetime_24h(self):
         """Test datetime formatting with 24-hour time."""
-        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         result = format_datetime(dt, time_format="24h")
 
         assert "2025-01-09" in result
@@ -236,8 +234,8 @@ class TestFormatTimeRange:
 
     def test_format_time_range_12h(self):
         """Test formatting time range with 12h format."""
-        start = datetime(2025, 1, 9, 9, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 1, 9, 17, 30, 0, tzinfo=timezone.utc)
+        start = datetime(2025, 1, 9, 9, 0, 0, tzinfo=UTC)
+        end = datetime(2025, 1, 9, 17, 30, 0, tzinfo=UTC)
 
         result = format_time_range(start, end, time_format="12h")
         assert "09:00 AM" in result
@@ -246,8 +244,8 @@ class TestFormatTimeRange:
 
     def test_format_time_range_24h(self):
         """Test formatting time range with 24h format."""
-        start = datetime(2025, 1, 9, 9, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 1, 9, 17, 30, 0, tzinfo=timezone.utc)
+        start = datetime(2025, 1, 9, 9, 0, 0, tzinfo=UTC)
+        end = datetime(2025, 1, 9, 17, 30, 0, tzinfo=UTC)
 
         result = format_time_range(start, end, time_format="24h")
         assert "09:00" in result
@@ -400,7 +398,7 @@ class TestDetectSystemTimezone:
             with patch("par_cc_usage.utils.datetime") as mock_datetime:
                 # Mock timezone object with tzname method
                 mock_tz = type('MockTZ', (), {})()
-                mock_tz.tzname = lambda dt: abbrev
+                mock_tz.tzname = lambda dt, _abbrev=abbrev: _abbrev
 
                 mock_dt = type('MockDT', (), {})()
                 mock_dt.tzinfo = mock_tz

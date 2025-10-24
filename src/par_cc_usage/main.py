@@ -2518,7 +2518,7 @@ async def _usage_summary_async(
         )
 
     # Scan all projects and collect unified entries
-    projects, unified_entries = scan_all_projects(config, use_cache=False)
+    _projects, unified_entries = scan_all_projects(config, use_cache=False)
 
     if not unified_entries:
         if output_format == OutputFormat.TABLE:

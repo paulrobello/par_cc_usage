@@ -3,14 +3,12 @@ Focused tests for display.py to improve coverage.
 """
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 from par_cc_usage.config import Config, DisplayConfig
 from par_cc_usage.display import (
-    MonitorDisplay,
     DisplayManager,
+    MonitorDisplay,
     create_error_display,
     create_info_display,
 )
@@ -72,7 +70,7 @@ class TestMonitorDisplayBasic:
             time_format="12h"
         )
         assert display is not None
-        assert display.show_sessions == True
+        assert display.show_sessions
         assert display.time_format == "12h"
 
     def test_monitor_display_initialization_minimal(self):
@@ -221,14 +219,14 @@ class TestDisplayConfigIntegration:
         config = Config()
         config.display.show_active_sessions = True
         display = MonitorDisplay(config=config, show_sessions=True)
-        assert display.show_sessions == True
+        assert display.show_sessions
 
     def test_display_with_sessions_disabled(self):
         """Test display with sessions disabled."""
         config = Config()
         config.display.show_active_sessions = False
         display = MonitorDisplay(config=config, show_sessions=False)
-        assert display.show_sessions == False
+        assert not display.show_sessions
 
 
 class TestDisplayErrorHandling:

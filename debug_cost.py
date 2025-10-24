@@ -9,9 +9,9 @@ from pathlib import Path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-from par_cc_usage.config import load_config
-from par_cc_usage.token_calculator import build_usage_snapshot
-from par_cc_usage.pricing import debug_model_pricing, calculate_token_cost
+from par_cc_usage.config import load_config  # noqa: E402
+from par_cc_usage.pricing import calculate_token_cost, debug_model_pricing  # noqa: E402
+from par_cc_usage.token_calculator import build_usage_snapshot  # noqa: E402
 
 
 async def main():
@@ -37,7 +37,7 @@ async def main():
     print(f"Models used: {current_block.full_model_names}")
 
     # Check a few sample entries
-    print(f"\n=== Sample entries (first 5) ===")
+    print("\n=== Sample entries (first 5) ===")
     total_manual_cost = 0.0
 
     for i, entry in enumerate(current_block.entries[:5]):
@@ -66,7 +66,7 @@ async def main():
 
     # Debug pricing for the most common model
     if current_block.full_model_names:
-        most_common_model = list(current_block.full_model_names)[0]
+        most_common_model = next(iter(current_block.full_model_names))
         print(f"\n=== Pricing debug for {most_common_model} ===")
         pricing_debug = await debug_model_pricing(most_common_model)
         for key, value in pricing_debug.items():

@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.statusline_manager import StatusLineManager
 
@@ -75,7 +71,7 @@ class TestStatusLineBasic:
         config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         future = now + timedelta(hours=2, minutes=30)
 
         result = manager._calculate_time_remaining(future)
@@ -89,7 +85,7 @@ class TestStatusLineBasic:
         config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         past = now - timedelta(hours=1)
 
         result = manager._calculate_time_remaining(past)
@@ -101,7 +97,7 @@ class TestStatusLineBasic:
         config.statusline_separator = " - "
         manager = StatusLineManager(config)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         future = now + timedelta(minutes=45)
 
         result = manager._calculate_time_remaining(future)

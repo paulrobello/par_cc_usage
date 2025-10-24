@@ -277,7 +277,7 @@ class TestGlobalThemeManager:
     def test_apply_temporary_theme(self):
         """Test applying temporary theme."""
         # Get initial theme
-        initial_theme = get_theme_manager().get_current_theme_type()
+        get_theme_manager().get_current_theme_type()
 
         # Apply temporary theme
         apply_temporary_theme(ThemeType.LIGHT)

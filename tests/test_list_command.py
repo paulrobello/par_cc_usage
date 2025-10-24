@@ -2,20 +2,20 @@
 Tests for the list_command module.
 """
 
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import Mock, mock_open, patch
-import tempfile
-import json
-import csv
 import asyncio
+import csv
+import json
+import tempfile
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 from rich.console import Console
 
 from par_cc_usage.enums import OutputFormat, SortBy, TimeFormat
 from par_cc_usage.list_command import ListDisplay, display_usage_list
-from par_cc_usage.models import UsageSnapshot, Project, Session, TokenBlock, TokenUsage
+from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage, UsageSnapshot
 
 
 class TestListCommand:
@@ -25,7 +25,7 @@ class TestListCommand:
         """Test display with no data."""
         # Create empty snapshot
         snapshot = UsageSnapshot(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             projects={},
             total_limit=None,
         )
@@ -107,7 +107,7 @@ class TestListDisplay:
     @pytest.fixture
     def sample_data(self):
         """Create sample data for testing."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Create token usage
         token_usage1 = TokenUsage(
@@ -189,7 +189,7 @@ class TestListDisplay:
 
     def test_get_all_blocks(self, list_display, sample_data):
         """Test getting all blocks from snapshot."""
-        snapshot, expected_blocks = sample_data
+        snapshot, _expected_blocks = sample_data
         blocks = list_display.get_all_blocks(snapshot)
 
         assert len(blocks) == 2
@@ -198,7 +198,7 @@ class TestListDisplay:
     def test_get_all_blocks_empty_snapshot(self, list_display):
         """Test getting blocks from empty snapshot."""
         snapshot = UsageSnapshot(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             projects={}
         )
         blocks = list_display.get_all_blocks(snapshot)
@@ -278,7 +278,7 @@ class TestListDisplay:
     def test_display_table_empty_data(self):
         """Test table display with empty data."""
         snapshot = UsageSnapshot(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             projects={}
         )
         console = Console(file=Mock())
@@ -304,7 +304,7 @@ class TestListDisplay:
 
             # Verify file was created and contains valid JSON
             assert output_file.exists()
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, encoding='utf-8') as f:
                 data = json.load(f)
 
             assert 'timestamp' in data
@@ -329,7 +329,7 @@ class TestListDisplay:
 
             # Verify file was created and contains valid CSV
             assert output_file.exists()
-            with open(output_file, 'r', newline='', encoding='utf-8') as f:
+            with open(output_file, newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 rows = list(reader)
 
@@ -348,7 +348,7 @@ class TestDisplayUsageListFunction:
     @pytest.fixture
     def sample_snapshot(self):
         """Create a simple snapshot for testing."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         token_usage = TokenUsage(
             input_tokens=100,
@@ -503,8 +503,8 @@ class TestCostCalculationHierarchy:
 
         # Create token block
         block = TokenBlock(
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc) + timedelta(hours=5),
+            start_time=datetime.now(UTC),
+            end_time=datetime.now(UTC) + timedelta(hours=5),
             session_id="test-session",
             project_name="test-project",
             model="claude-3-sonnet-20240229",
@@ -519,20 +519,20 @@ class TestCostCalculationHierarchy:
         display = ListDisplay(show_pricing=True)
 
         # Valid costs should return True
-        assert display._validate_native_cost(0.01) == True
-        assert display._validate_native_cost(1.0) == True
-        assert display._validate_native_cost(10.5) == True
-        assert display._validate_native_cost(999.99) == True
+        assert display._validate_native_cost(0.01)
+        assert display._validate_native_cost(1.0)
+        assert display._validate_native_cost(10.5)
+        assert display._validate_native_cost(999.99)
 
     def test_validate_native_cost_invalid_values(self):
         """Test that invalid native cost values are rejected."""
         display = ListDisplay(show_pricing=True)
 
         # Invalid costs should return False
-        assert display._validate_native_cost(None) == False
-        assert display._validate_native_cost(0.0) == False
-        assert display._validate_native_cost(-1.0) == False
-        assert display._validate_native_cost(1500.0) == False  # Suspiciously high
+        assert not display._validate_native_cost(None)
+        assert not display._validate_native_cost(0.0)
+        assert not display._validate_native_cost(-1.0)
+        assert not display._validate_native_cost(1500.0)  # Suspiciously high
 
     def test_get_cost_source_block_native(self):
         """Test cost source detection for block native cost."""

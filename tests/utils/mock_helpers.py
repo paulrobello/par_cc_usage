@@ -4,30 +4,30 @@ Mock helpers for testing.
 This module provides standardized mock utilities for testing PAR CC Usage components.
 """
 
-from unittest.mock import Mock, AsyncMock, MagicMock
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
+from par_cc_usage.config import Config, DisplayConfig, NotificationConfig
 from par_cc_usage.models import (
-    TokenUsage,
-    TokenBlock,
-    Session,
     Project,
+    Session,
+    TokenBlock,
+    TokenUsage,
     UsageSnapshot,
 )
-from par_cc_usage.config import Config, DisplayConfig, NotificationConfig
 
 
 class MockFileMonitor:
     """Mock FileMonitor for testing."""
 
-    def __init__(self, claude_paths: List[str], cache_dir: str, use_cache: bool = True):
+    def __init__(self, claude_paths: list[str], cache_dir: str, use_cache: bool = True):
         self.claude_paths = claude_paths
         self.cache_dir = cache_dir
         self.use_cache = use_cache
         self._file_states = {}
 
-    def get_new_lines(self, file_path: str) -> List[str]:
+    def get_new_lines(self, file_path: str) -> list[str]:
         """Mock getting new lines from a file."""
         # Return empty list by default
         return []
@@ -57,7 +57,7 @@ class MockPricingCache:
         self._cache = {}
         self.api_calls = []
 
-    async def get_pricing(self, model_name: str) -> Optional[Dict[str, Any]]:
+    async def get_pricing(self, model_name: str) -> dict[str, Any] | None:
         """Mock getting pricing data."""
         self.api_calls.append(model_name)
 
@@ -98,7 +98,7 @@ class MockDisplay:
         self.show_pricing = show_pricing
         self.updates = []
 
-    def update(self, snapshot: Optional[UsageSnapshot]):
+    def update(self, snapshot: UsageSnapshot | None):
         """Mock display update."""
         self.updates.append(snapshot)
 
@@ -107,8 +107,8 @@ def create_mock_config(
     token_limit: int = 1000000,
     timezone: str = "UTC",
     polling_interval: float = 1.0,
-    projects_dir: Optional[str] = None,
-    cache_dir: Optional[str] = None,
+    projects_dir: str | None = None,
+    cache_dir: str | None = None,
     **kwargs
 ) -> Config:
     """Create a mock configuration for testing."""
@@ -137,19 +137,19 @@ def create_mock_config(
 
 
 def create_mock_usage(
-    timestamp: Optional[datetime] = None,
+    timestamp: datetime | None = None,
     model: str = "claude-3-5-sonnet-latest",
     input_tokens: int = 1000,
     output_tokens: int = 500,
     project_name: str = "mock_project",
     session_id: str = "mock_session",
-    message_id: Optional[str] = None,
-    request_id: Optional[str] = None,
-    cost_usd: Optional[float] = None,
+    message_id: str | None = None,
+    request_id: str | None = None,
+    cost_usd: float | None = None,
 ) -> TokenUsage:
     """Create a mock TokenUsage instance."""
     if timestamp is None:
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
     return TokenUsage(
         input_tokens=input_tokens,
@@ -168,17 +168,17 @@ def create_mock_usage(
 
 
 def create_mock_block(
-    start_time: Optional[datetime] = None,
+    start_time: datetime | None = None,
     session_id: str = "mock_session",
     project_name: str = "mock_project",
     model: str = "claude-3-5-sonnet-latest",
     token_count: int = 1500,
     duration_hours: float = 5.0,
-    cost_usd: Optional[float] = None,
+    cost_usd: float | None = None,
 ) -> TokenBlock:
     """Create a mock TokenBlock instance."""
     if start_time is None:
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
     end_time = start_time + timedelta(hours=duration_hours)
 
@@ -220,11 +220,11 @@ def create_mock_session(
     project_name: str = "mock_project",
     model: str = "claude-3-5-sonnet-latest",
     num_blocks: int = 3,
-    start_time: Optional[datetime] = None,
+    start_time: datetime | None = None,
 ) -> Session:
     """Create a mock Session instance."""
     if start_time is None:
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
     blocks = []
     for i in range(num_blocks):
@@ -252,11 +252,11 @@ def create_mock_session(
 def create_mock_project(
     name: str = "mock_project",
     num_sessions: int = 2,
-    start_time: Optional[datetime] = None,
+    start_time: datetime | None = None,
 ) -> Project:
     """Create a mock Project instance."""
     if start_time is None:
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
     sessions = {}
     for i in range(num_sessions):
@@ -274,12 +274,12 @@ def create_mock_project(
 def create_mock_snapshot(
     num_projects: int = 2,
     total_limit: int = 1000000,
-    timestamp: Optional[datetime] = None,
-    block_start_override: Optional[datetime] = None,
+    timestamp: datetime | None = None,
+    block_start_override: datetime | None = None,
 ) -> UsageSnapshot:
     """Create a mock UsageSnapshot instance."""
     if timestamp is None:
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
     projects = {}
     for i in range(num_projects):
@@ -314,8 +314,8 @@ class MockAsyncContext:
 def create_mock_aiohttp_response(
     status: int = 200,
     text: str = "",
-    json_data: Optional[Dict[str, Any]] = None,
-    headers: Optional[Dict[str, str]] = None,
+    json_data: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> Mock:
     """Create a mock aiohttp response."""
     response = Mock()
@@ -331,11 +331,11 @@ def create_mock_aiohttp_response(
     return response
 
 
-def create_mock_file_system(temp_dir_path: str) -> Dict[str, Any]:
+def create_mock_file_system(temp_dir_path: str) -> dict[str, Any]:
     """Create a mock file system structure for testing."""
     from pathlib import Path
 
-    base_path = Path(temp_dir_path)
+    Path(temp_dir_path)
 
     # Create directory structure
     structure = {

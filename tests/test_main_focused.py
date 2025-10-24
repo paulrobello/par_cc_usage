@@ -4,7 +4,6 @@ Focused tests for main.py to improve coverage significantly.
 
 import json
 import tempfile
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -20,14 +19,10 @@ from par_cc_usage.main import (
     _validate_limit_type,
     _validate_limit_value,
     app,
-    clear_cache,
-    debug_sessions,
-    list_sessions,
-    monitor,
     scan_all_projects,
     set_limit,
 )
-from par_cc_usage.models import DeduplicationState, Project, Session, TokenBlock, TokenUsage
+from par_cc_usage.models import DeduplicationState
 
 
 class TestMainAppCommands:

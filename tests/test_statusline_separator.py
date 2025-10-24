@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
-
 from par_cc_usage.statusline_manager import StatusLineManager
 
 

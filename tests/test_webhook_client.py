@@ -2,7 +2,7 @@
 Tests for the webhook_client module.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -105,7 +105,7 @@ class TestWebhookClient:
         """Test Discord payload building."""
         webhook = WebhookClient("https://discord.com/api/webhooks/123/abc", WebhookType.DISCORD)
 
-        start_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        start_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         end_time = start_time + timedelta(hours=5)
 
         payload = webhook._build_discord_payload(
@@ -132,7 +132,7 @@ class TestWebhookClient:
         """Test Slack payload building."""
         webhook = WebhookClient("https://hooks.slack.com/services/123/abc", WebhookType.SLACK)
 
-        start_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        start_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         end_time = start_time + timedelta(hours=5)
 
         payload = webhook._build_slack_payload(
@@ -180,7 +180,7 @@ class TestWebhookClient:
         )
 
         # Ensure the sample project has blocks by checking
-        session = list(sample_project.sessions.values())[0]
+        session = next(iter(sample_project.sessions.values()))
         assert len(session.blocks) > 0
 
         start_time, block = webhook._find_most_recent_block(snapshot)
@@ -193,7 +193,7 @@ class TestWebhookClient:
         """Test that unified block tokens are used for notifications."""
         from par_cc_usage.models import UsageSnapshot
 
-        webhook = WebhookClient("https://discord.com/api/webhooks/123/abc")
+        WebhookClient("https://discord.com/api/webhooks/123/abc")
         snapshot = UsageSnapshot(
             timestamp=sample_timestamp,
             projects={"test_project": sample_project},
@@ -219,7 +219,7 @@ class TestWebhookClient:
         )
 
         # Set a unified block start time to match the sample block
-        sample_block = list(sample_project.sessions.values())[0].blocks[0]
+        sample_block = next(iter(sample_project.sessions.values())).blocks[0]
         snapshot.block_start_override = sample_block.start_time
 
         # Debug: check if we have tokens
@@ -287,7 +287,7 @@ class TestWebhookClient:
         """Test Discord embed building includes all required fields."""
         webhook = WebhookClient("https://discord.com/api/webhooks/123/abc", WebhookType.DISCORD)
 
-        start_time = datetime(2024, 1, 1, 14, 30, 0, tzinfo=timezone.utc)
+        start_time = datetime(2024, 1, 1, 14, 30, 0, tzinfo=UTC)
         end_time = start_time + timedelta(hours=5)
 
         payload = webhook._build_discord_payload(
@@ -322,7 +322,7 @@ class TestWebhookClient:
         """Test token calculation with empty snapshot."""
         from par_cc_usage.models import UsageSnapshot
 
-        webhook = WebhookClient("https://discord.com/api/webhooks/123/abc")
+        WebhookClient("https://discord.com/api/webhooks/123/abc")
         snapshot = UsageSnapshot(
             timestamp=sample_timestamp,
             projects={},
@@ -362,12 +362,12 @@ class TestWebhookEdgeCases:
 
     def test_find_most_recent_block_multiple_projects(self):
         """Test finding most recent block across multiple projects."""
-        from par_cc_usage.models import UsageSnapshot, Project, Session, TokenBlock
+        from par_cc_usage.models import Project, Session, TokenBlock, UsageSnapshot
 
         webhook = WebhookClient("https://discord.com/api/webhooks/123/abc")
 
         # Create test data with multiple projects
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Make sure times are in the past so blocks will be active
         earlier = now - timedelta(hours=3)
         later = now - timedelta(hours=1)
@@ -428,12 +428,12 @@ class TestWebhookEdgeCases:
 
     def test_collect_blocks_multiple_matches(self):
         """Test collecting blocks with multiple matching start times."""
-        from par_cc_usage.models import UsageSnapshot, Project, Session, TokenBlock
+        from par_cc_usage.models import Project, Session, TokenBlock, UsageSnapshot
 
-        webhook = WebhookClient("https://discord.com/api/webhooks/123/abc")
+        WebhookClient("https://discord.com/api/webhooks/123/abc")
 
         # Create test data with same start time
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         start_time = now.replace(hour=14, minute=0, second=0, microsecond=0)
 
         # Multiple blocks with same start time
@@ -521,7 +521,7 @@ class TestWebhookEdgeCases:
         webhook = WebhookClient("https://discord.com/api/webhooks/123/abc")
 
         snapshot = UsageSnapshot(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             projects={}
         )
 

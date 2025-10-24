@@ -1,10 +1,7 @@
 """Test session token tracking in status line."""
 
 import subprocess
-from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.statusline_manager import StatusLineManager
 

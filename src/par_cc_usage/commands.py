@@ -724,7 +724,7 @@ async def update_maximums(
     else:
         # Analyze historical data
         console.print("[cyan]Analyzing all historical data for maximums...[/cyan]")
-        projects, unified_entries = scan_all_projects(config, use_cache=False)
+        _projects, unified_entries = scan_all_projects(config, use_cache=False)
         unified_blocks = create_unified_blocks(unified_entries)
 
         # Calculate all values

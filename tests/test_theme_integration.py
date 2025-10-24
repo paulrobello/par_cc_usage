@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from typer.testing import CliRunner
 
 from par_cc_usage.enums import ThemeType
 from par_cc_usage.main import app
-from par_cc_usage.theme import get_theme_manager, apply_temporary_theme
+from par_cc_usage.theme import apply_temporary_theme, get_theme_manager
 
 
 class TestThemeFlagIntegration:
@@ -79,7 +80,7 @@ class TestThemeFlagIntegration:
         for theme_type in ThemeType:
             # This would normally fail due to missing config, but the important thing
             # is that the theme parameter is accepted by typer
-            result = self.runner.invoke(app, ["list", "--theme", theme_type.value], catch_exceptions=False)
+            self.runner.invoke(app, ["list", "--theme", theme_type.value], catch_exceptions=False)
             # The command will fail due to missing config, but not due to invalid theme
             # We mainly want to ensure typer accepts the theme values
 

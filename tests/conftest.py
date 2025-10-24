@@ -5,13 +5,12 @@ Pytest configuration and shared fixtures for PAR CC Usage tests.
 import json
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 from unittest.mock import Mock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from par_cc_usage.config import Config, DisplayConfig, NotificationConfig
 from par_cc_usage.models import (
@@ -60,7 +59,7 @@ def mock_config(temp_dir):
 @pytest.fixture
 def sample_timestamp():
     """Provide a consistent timestamp for testing."""
-    return datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+    return datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
 
 
 @pytest.fixture

@@ -1,6 +1,5 @@
 """Test the status line template functionality."""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from par_cc_usage.statusline_manager import StatusLineManager

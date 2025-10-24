@@ -2,13 +2,9 @@
 Tests for the notification_manager module.
 """
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
-import pytest
-
-from par_cc_usage.config import Config, NotificationConfig
 from par_cc_usage.notification_manager import NotificationManager
 
 
@@ -95,7 +91,7 @@ class TestNotificationManager:
         # Create a mock snapshot (without previous snapshot, so should_notify will be False)
         from par_cc_usage.models import UsageSnapshot
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime.now(timezone.utc)
+        snapshot.unified_block_start_time = datetime.now(UTC)
 
         # Should not send notification
         manager.check_and_send_notifications(snapshot)
@@ -123,13 +119,13 @@ class TestNotificationManager:
 
         # Create previous snapshot
         prev_snapshot = Mock(spec=UsageSnapshot)
-        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot.active_tokens = 1000
         manager.state.previous_snapshot = prev_snapshot
 
         # Create current snapshot with new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should send notification
         manager.check_and_send_notifications(snapshot)
@@ -169,13 +165,13 @@ class TestNotificationManager:
 
         # Create previous snapshot
         prev_snapshot = Mock(spec=UsageSnapshot)
-        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot.active_tokens = 1000
         manager.state.previous_snapshot = prev_snapshot
 
         # Create current snapshot with new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should handle error gracefully
         manager.check_and_send_notifications(snapshot)
@@ -259,21 +255,22 @@ class TestNotificationManager:
 
     def test_notification_state_should_notify(self):
         """Test notification state tracking."""
-        from par_cc_usage.notification_manager import NotificationState
+        from datetime import datetime
+
         from par_cc_usage.models import UsageSnapshot
-        from datetime import datetime, timezone
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous snapshot with a different block start time
         prev_snapshot = Mock(spec=UsageSnapshot)
-        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot.active_tokens = 1000
         state.previous_snapshot = prev_snapshot
 
         # Create current snapshot with new block start time
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should notify for block change
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -281,13 +278,13 @@ class TestNotificationManager:
 
     def test_notification_state_cooldown(self):
         """Test notification cooldown - should not notify if within cooldown."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous snapshot
-        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot = Mock(spec=UsageSnapshot)
         prev_snapshot.unified_block_start_time = prev_block_start
         prev_snapshot.active_tokens = 1000
@@ -299,7 +296,7 @@ class TestNotificationManager:
 
         # Create current snapshot with new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should NOT notify due to cooldown (60 minutes)
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -307,8 +304,8 @@ class TestNotificationManager:
 
     def test_notification_state_no_unified_block(self):
         """Test notification state when no unified block start time."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
@@ -322,14 +319,14 @@ class TestNotificationManager:
 
     def test_notification_state_no_previous_snapshot(self):
         """Test notification state when no previous snapshot."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create snapshot with unified block (but no previous snapshot)
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should not notify when no previous snapshot
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -337,13 +334,13 @@ class TestNotificationManager:
 
     def test_notification_state_same_block(self):
         """Test notification state when block hasn't changed."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous and current snapshots with same block start time
-        block_start = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        block_start = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         prev_snapshot = Mock(spec=UsageSnapshot)
         prev_snapshot.unified_block_start_time = block_start
@@ -359,13 +356,13 @@ class TestNotificationManager:
 
     def test_notification_state_already_notified(self):
         """Test notification state when already notified for this block."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Set up previous block
-        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot = Mock(spec=UsageSnapshot)
         prev_snapshot.unified_block_start_time = prev_block_start
         prev_snapshot.active_tokens = 1000
@@ -376,7 +373,7 @@ class TestNotificationManager:
 
         # Create new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should not notify - already notified for this block
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -384,20 +381,20 @@ class TestNotificationManager:
 
     def test_notification_state_no_activity(self):
         """Test notification state when previous block had no activity."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous snapshot with no tokens
         prev_snapshot = Mock(spec=UsageSnapshot)
-        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_snapshot.unified_block_start_time = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot.active_tokens = 0  # No activity
         state.previous_snapshot = prev_snapshot
 
         # Create current snapshot with new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should not notify when previous block had no activity
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -405,13 +402,13 @@ class TestNotificationManager:
 
     def test_notification_state_cooldown_expired(self):
         """Test notification state when cooldown has expired."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous snapshot
-        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot = Mock(spec=UsageSnapshot)
         prev_snapshot.unified_block_start_time = prev_block_start
         prev_snapshot.active_tokens = 1000
@@ -422,7 +419,7 @@ class TestNotificationManager:
 
         # Create current snapshot with new block
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Should notify - cooldown expired
         should_notify = state.should_notify(snapshot, cooldown_minutes=60)
@@ -430,20 +427,20 @@ class TestNotificationManager:
 
     def test_notification_state_mark_notified(self):
         """Test marking notification as sent."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create previous snapshot
-        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=timezone.utc)
+        prev_block_start = datetime(2025, 1, 9, 5, 0, 0, tzinfo=UTC)
         prev_snapshot = Mock(spec=UsageSnapshot)
         prev_snapshot.unified_block_start_time = prev_block_start
         state.previous_snapshot = prev_snapshot
 
         # Create current snapshot
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Mark as notified
         state.mark_notified(snapshot)
@@ -453,14 +450,14 @@ class TestNotificationManager:
 
     def test_notification_state_mark_notified_no_previous(self):
         """Test marking notification when no previous snapshot."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create current snapshot
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Mark as notified (should handle gracefully)
         state.mark_notified(snapshot)
@@ -470,14 +467,14 @@ class TestNotificationManager:
 
     def test_notification_state_update_previous_snapshot(self):
         """Test updating previous snapshot."""
-        from par_cc_usage.notification_manager import NotificationState
         from par_cc_usage.models import UsageSnapshot
+        from par_cc_usage.notification_manager import NotificationState
 
         state = NotificationState()
 
         # Create snapshot
         snapshot = Mock(spec=UsageSnapshot)
-        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=timezone.utc)
+        snapshot.unified_block_start_time = datetime(2025, 1, 9, 10, 0, 0, tzinfo=UTC)
 
         # Update previous snapshot
         state.update_previous_snapshot(snapshot)

@@ -87,7 +87,7 @@ class TestPricingCache:
             ("custom-opus-variant", "opus"),
         ]
 
-        for model_name, expected_pattern in test_cases:
+        for model_name, _expected_pattern in test_cases:
             pricing = cache._get_fallback_pricing(model_name)
             assert pricing is not None, f"Expected fallback pricing for {model_name}"
             assert pricing.input_cost_per_token > 0, f"Expected non-zero cost for {model_name}"

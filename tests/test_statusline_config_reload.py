@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
-
-import pytest
+from unittest.mock import Mock, patch
 
 from par_cc_usage.config import Config
 from par_cc_usage.statusline_manager import StatusLineManager
@@ -59,7 +57,7 @@ class TestConfigReload:
 
         # Verify the config was updated
         assert old_config.statusline_template == "{tokens} NEW {messages}"
-        assert old_config.statusline_use_grand_total == True
+        assert old_config.statusline_use_grand_total
         assert old_config.statusline_date_format == "%Y-%m-%d"
         assert old_config.statusline_time_format == "%H:%M"
         assert old_config.display.time_format == "24h"

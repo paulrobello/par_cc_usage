@@ -195,7 +195,7 @@ class UsageSummaryCalculator:
             return bucket
 
         # Group entries by session and collect basic stats
-        session_groups, projects, models, tools = self._group_entries_by_session(entries)
+        session_groups, projects, _models, _tools = self._group_entries_by_session(entries)
 
         # Calculate session-level statistics
         session_stats = await self._calculate_session_statistics(session_groups)

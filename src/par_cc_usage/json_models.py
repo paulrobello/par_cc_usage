@@ -66,9 +66,9 @@ class MessageData(BaseModel):
 
         model_lower = v.lower().strip()
 
-        # Check for Claude 4 models first
-        if cls._is_claude_4_model(model_lower):
-            return ModelType.CLAUDE_SONNET_4
+        # Check for Claude 4 models first (including 4.5 variants)
+        if claude_4_type := cls._get_claude_4_model(model_lower):
+            return claude_4_type
 
         # Check for Claude 3.5 models
         if claude_3_5_type := cls._get_claude_3_5_model(model_lower):
@@ -88,9 +88,22 @@ class MessageData(BaseModel):
         return ModelType.UNKNOWN
 
     @staticmethod
-    def _is_claude_4_model(model_lower: str) -> bool:
-        """Check if model is Claude 4."""
-        return "sonnet-4" in model_lower or "claude-sonnet-4" in model_lower
+    def _get_claude_4_model(model_lower: str) -> str | None:
+        """Get Claude 4 model type (including 4.5 variants)."""
+        # Check for specific Claude 4.x models first (most specific patterns first)
+        if "sonnet-4-5" in model_lower or "sonnet-4.5" in model_lower:
+            return ModelType.CLAUDE_SONNET_4_5
+        if "opus-4-1" in model_lower or "opus-4.1" in model_lower:
+            return ModelType.CLAUDE_OPUS_4_1
+        if "haiku-4-5" in model_lower or "haiku-4.5" in model_lower:
+            return ModelType.CLAUDE_HAIKU_4_5
+        # Fallback to generic sonnet-4 for older Claude 4 models
+        if "sonnet-4" in model_lower or "claude-sonnet-4" in model_lower:
+            return ModelType.CLAUDE_SONNET_4
+        # Generic opus-4 pattern
+        if "opus-4" in model_lower:
+            return ModelType.OPUS
+        return None
 
     @staticmethod
     def _get_claude_3_5_model(model_lower: str) -> str | None:

@@ -15,10 +15,13 @@ from par_cc_usage.display import MonitorDisplay
 from par_cc_usage.enums import DisplayMode
 
 
+from par_cc_usage.config import DisplayConfig
+from par_cc_usage.models import Project, Session, TokenBlock, TokenUsage, UsageSnapshot
+
+
 def create_mock_config(display_mode=DisplayMode.COMPACT):
     """Create a mock config with all required fields for P90 functionality."""
     config = Mock()
-    from par_cc_usage.config import DisplayConfig
     config.display = DisplayConfig(display_mode=display_mode)
     config.max_cost_encountered = 0.0
     config.max_tokens_encountered = 0
@@ -57,7 +60,6 @@ class TestMonitorDisplay:
 
     def test_initialization_with_compact_mode(self):
         """Test MonitorDisplay initialization with compact mode."""
-        from par_cc_usage.config import DisplayConfig
 
         # Create config with compact mode
         config = create_mock_config(DisplayMode.COMPACT)
@@ -68,7 +70,6 @@ class TestMonitorDisplay:
 
     def test_initialization_with_normal_mode(self):
         """Test MonitorDisplay initialization with normal mode."""
-        from par_cc_usage.config import DisplayConfig
 
         # Create config with normal mode
         config = create_mock_config(DisplayMode.NORMAL)
@@ -102,7 +103,6 @@ class TestMonitorDisplay:
 
     def test_setup_layout_compact_mode(self):
         """Test layout setup in compact mode."""
-        from par_cc_usage.config import DisplayConfig
 
         # Create config with compact mode
         config = create_mock_config(DisplayMode.COMPACT)
@@ -115,7 +115,6 @@ class TestMonitorDisplay:
 
     def test_setup_layout_compact_mode_without_sessions(self):
         """Test layout setup in compact mode without sessions."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config, show_sessions=False)
@@ -176,7 +175,6 @@ class TestMonitorDisplay:
     @pytest.mark.asyncio
     async def test_create_progress_bars_compact_mode(self, sample_usage_snapshot):
         """Test progress bars creation in compact mode."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
@@ -189,7 +187,6 @@ class TestMonitorDisplay:
 
     def test_create_model_displays_compact_mode(self):
         """Test model displays in compact mode."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
@@ -204,7 +201,6 @@ class TestMonitorDisplay:
 
     def test_create_model_displays_normal_mode(self):
         """Test model displays in normal mode."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.NORMAL)
         display = MonitorDisplay(config=config)
@@ -254,7 +250,6 @@ class TestMonitorDisplay:
 
     def test_update_with_compact_mode(self, sample_usage_snapshot):
         """Test update method in compact mode only updates essential elements."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)  # Add max_cost_encountered attribute
 
@@ -300,7 +295,6 @@ class TestMonitorDisplay:
 
     def test_compact_mode_hides_sessions_even_when_requested(self):
         """Test that compact mode hides sessions even when show_sessions=True."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)
         # Request sessions to be shown, but compact mode should override
@@ -313,7 +307,6 @@ class TestMonitorDisplay:
     @pytest.mark.asyncio
     async def test_compact_mode_burn_rate_calculation(self, sample_usage_snapshot):
         """Test burn rate calculation and display in compact mode."""
-        from par_cc_usage.config import DisplayConfig
 
         config = create_mock_config(DisplayMode.COMPACT)
         display = MonitorDisplay(config=config)
@@ -369,15 +362,15 @@ class TestMonitorDisplay:
         display = MonitorDisplay()
 
         # Test different usage levels - use percentage as 0-100 range
-        bar_color, text_color = display._get_progress_colors(30, 30000, 100000)
+        bar_color, _text_color = display._get_progress_colors(30, 30000, 100000)
         # Should be green for low usage (30%)
         assert "00FF00" in bar_color
 
-        bar_color, text_color = display._get_progress_colors(80, 80000, 100000)
+        bar_color, _text_color = display._get_progress_colors(80, 80000, 100000)
         # Should be orange for medium usage (80%)
         assert "FFA500" in bar_color
 
-        bar_color, text_color = display._get_progress_colors(95, 95000, 100000)
+        bar_color, _text_color = display._get_progress_colors(95, 95000, 100000)
         # Should be red for high usage (95%)
         assert "FF0000" in bar_color
 
@@ -659,7 +652,7 @@ class TestMonitorDisplay:
         table = Table()
 
         # Mock the project methods
-        project = list(sample_usage_snapshot.projects.values())[0]
+        project = next(iter(sample_usage_snapshot.projects.values()))
         project.get_unified_block_tokens = Mock(return_value=5000)
         project.get_unified_block_models = Mock(return_value={"claude-3-5-sonnet-latest", "claude-3-opus-latest"})
         project.get_unified_block_latest_activity = Mock(return_value=datetime.now(UTC))
@@ -702,8 +695,8 @@ class TestMonitorDisplay:
         display = MonitorDisplay(config=mock_config)
 
         # Get a session from the snapshot
-        project = list(sample_usage_snapshot.projects.values())[0]
-        session = list(project.sessions.values())[0]
+        project = next(iter(sample_usage_snapshot.projects.values()))
+        session = next(iter(project.sessions.values()))
 
         # Call the method - now returns 5 values
         session_tokens, session_models, session_latest_activity, session_tools, session_tool_calls = display._calculate_session_data(session, None)
@@ -1025,7 +1018,7 @@ class TestMonitorDisplayEdgeCases:
         )
 
         # Test with zero burn rate
-        eta_display, eta_before_block_end = display._calculate_eta_display(snapshot, 1000, 5000, 0.0)
+        eta_display, _eta_before_block_end = display._calculate_eta_display(snapshot, 1000, 5000, 0.0)
 
         # Should show "N/A" for infinite time
         assert eta_display == "N/A"
@@ -1040,7 +1033,7 @@ class TestMonitorDisplayEdgeCases:
 
         burn_rate = 100.0  # tokens per minute
 
-        eta_display, eta_before_block_end = display._calculate_eta_display(snapshot, 1000, 5000, burn_rate)
+        eta_display, _eta_before_block_end = display._calculate_eta_display(snapshot, 1000, 5000, burn_rate)
 
         # Should return a string
         assert isinstance(eta_display, str)

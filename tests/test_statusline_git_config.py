@@ -1,10 +1,7 @@
 """Test git configuration for status line."""
 
-import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 from par_cc_usage.statusline_manager import StatusLineManager
 
@@ -78,7 +75,7 @@ def test_git_emoji_indicators():
                 Mock(returncode=0, stdout="A new_file.txt\n"),  # added file
             ]
 
-            branch, status = manager._get_git_info(Path("/fake/repo"))
+            _branch, status = manager._get_git_info(Path("/fake/repo"))
             assert status == "🔴"
 
 

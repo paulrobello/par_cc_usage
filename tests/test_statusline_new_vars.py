@@ -1,10 +1,8 @@
 """Test the new status line template variables."""
 
 import os
-import socket
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock, patch
 
 from par_cc_usage.statusline_manager import StatusLineManager
 

@@ -7,9 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 import typer.testing
-from rich.console import Console
 
 from par_cc_usage.commands import (
     _collect_active_blocks,

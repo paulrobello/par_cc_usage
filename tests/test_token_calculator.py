@@ -2,13 +2,8 @@
 Tests for the token_calculator module.
 """
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
-import pytest
-
-from par_cc_usage.models import Project
 from par_cc_usage.token_calculator import (
     calculate_block_start,
     create_unified_blocks,
@@ -34,7 +29,7 @@ class TestParseTimestamp:
         assert result.hour == 14
         assert result.minute == 30
         assert result.second == 45
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_parse_iso_format_with_timezone(self):
         """Test parsing ISO format with timezone offset."""
@@ -43,7 +38,7 @@ class TestParseTimestamp:
 
         assert result.year == 2025
         assert result.hour == 14
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
 
 class TestCalculateBlockStart:
@@ -51,7 +46,7 @@ class TestCalculateBlockStart:
 
     def test_calculate_block_start_at_hour(self):
         """Test block start when timestamp is exactly on the hour."""
-        timestamp = datetime(2025, 1, 9, 14, 0, 0, tzinfo=timezone.utc)
+        timestamp = datetime(2025, 1, 9, 14, 0, 0, tzinfo=UTC)
         result = calculate_block_start(timestamp)
 
         # Should round down to the hour
@@ -61,7 +56,7 @@ class TestCalculateBlockStart:
 
     def test_calculate_block_start_past_hour(self):
         """Test block start when timestamp is past the hour."""
-        timestamp = datetime(2025, 1, 9, 14, 30, 45, tzinfo=timezone.utc)
+        timestamp = datetime(2025, 1, 9, 14, 30, 45, tzinfo=UTC)
         result = calculate_block_start(timestamp)
 
         assert result.hour == 14
@@ -170,11 +165,12 @@ class TestCreateUnifiedBlocks:
 
     def test_create_unified_blocks_single_active_block(self):
         """Test create_unified_blocks with single entry."""
-        from par_cc_usage.models import UnifiedEntry, TokenUsage
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from par_cc_usage.models import TokenUsage, UnifiedEntry
 
         # Create a single unified entry
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = UnifiedEntry(
             timestamp=now,
             project_name="test_project",

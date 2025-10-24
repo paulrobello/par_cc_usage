@@ -6,10 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from par_cc_usage.config import load_config
-from par_cc_usage.xdg_dirs import get_config_file_path, migrate_legacy_config
 
 
 class TestConfigMigrationIntegration:
@@ -181,7 +178,7 @@ notifications:
 """)
 
             # Set up XDG directories
-            xdg_config_dir = temp_path / ".config" / "par_cc_usage"
+            temp_path / ".config" / "par_cc_usage"
 
             with patch("par_cc_usage.xdg_dirs.xdg_config_home", return_value=temp_path / ".config"):
                 with patch("par_cc_usage.config.get_legacy_config_paths", return_value=[legacy_config]):
