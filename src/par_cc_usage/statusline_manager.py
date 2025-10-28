@@ -491,10 +491,12 @@ class StatusLineManager:
         import subprocess
 
         try:
+            # Increased from tail -20 to tail -100 to handle cases where many lines
+            # (tool calls, user messages, etc.) don't have usage data
             cmd = [
                 "sh",
                 "-c",
-                f"tail -20 '{session_file}' | jq -r 'select(.message.usage) | .message.usage | ((.input_tokens // 0) + (.cache_read_input_tokens // 0))' 2>/dev/null | tail -1",
+                f"tail -100 '{session_file}' | jq -r 'select(.message.usage) | .message.usage | ((.input_tokens // 0) + (.cache_read_input_tokens // 0))' 2>/dev/null | tail -1",
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1)

@@ -1291,6 +1291,16 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.12.2 - Session Token Tracking Stability Fix
+**Improved session token extraction reliability**:
+
+#### 🐛 Bug Fix
+- **Session Token Stability**: Fixed session token count jumping backwards in status line
+  - Previous: Token count would occasionally drop to 0 and then recover, showing incorrect progress
+  - Root cause: Only examined last 20 lines of JSONL file, missing usage data when many tool calls/user messages appeared consecutively
+  - Solution: Increased search window to last 100 lines, significantly improving reliability
+  - Impact: Session token tracking in status line now remains stable during heavy tool usage
+
 ### v0.12.1 - Windows Path Fix & Dynamic Context Windows
 **Critical Windows fix and intelligent model context detection**:
 
