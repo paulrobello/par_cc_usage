@@ -17,6 +17,31 @@ from .xdg_dirs import (
     get_statusline_file_path,
 )
 
+# Model context window sizes (in tokens)
+MODEL_CONTEXT_WINDOWS = {
+    # Claude 4.5 models
+    "sonnet-4-5": 1_000_000,
+    "sonnet-4.5": 1_000_000,
+    "claude-sonnet-4-5": 1_000_000,
+    "claude-sonnet-4.5": 1_000_000,
+    # Claude 3.5 models
+    "sonnet": 200_000,
+    "sonnet-3-5": 200_000,
+    "sonnet-3.5": 200_000,
+    "opus": 200_000,
+    "opus-3": 200_000,
+    "haiku": 200_000,
+    "haiku-3-5": 200_000,
+    "haiku-3.5": 200_000,
+    # Claude 3 models
+    "sonnet-3": 200_000,
+    "opus-3-0": 200_000,
+    "haiku-3": 200_000,
+}
+
+# Default context window for unknown models
+DEFAULT_CONTEXT_WINDOW = 200_000
+
 
 class StatusLineManager:
     """Manages status line generation and caching for Claude Code."""
@@ -29,6 +54,61 @@ class StatusLineManager:
         """
         self.config = config
         ensure_xdg_directories()
+
+    def _get_model_context_window(self, model_name: str | None) -> int:
+        """Get context window size for a model.
+
+        Args:
+            model_name: Model name (can be partial, e.g., "sonnet", "opus")
+
+        Returns:
+            Context window size in tokens
+        """
+        if not model_name:
+            return DEFAULT_CONTEXT_WINDOW
+
+        # Normalize model name for matching (lowercase, replace spaces/underscores with hyphens)
+        model_lower = model_name.lower().replace("_", "-").replace(" ", "-")
+
+        # Try exact match first
+        if model_lower in MODEL_CONTEXT_WINDOWS:
+            return MODEL_CONTEXT_WINDOWS[model_lower]
+
+        # Try partial matching
+        for key, context_size in MODEL_CONTEXT_WINDOWS.items():
+            if key in model_lower or model_lower in key:
+                return context_size
+
+        # Default fallback
+        return DEFAULT_CONTEXT_WINDOW
+
+    def _detect_model_from_session_file(self, session_file: Path) -> str | None:
+        """Detect model name from session JSONL file.
+
+        Args:
+            session_file: Path to the session file
+
+        Returns:
+            Model name or None if not detected
+        """
+        import subprocess
+
+        try:
+            # Try to extract model from recent messages
+            cmd = [
+                "sh",
+                "-c",
+                f"tail -50 '{session_file}' | grep -o '\"model\":\"[^\"]*\"' | head -1 | cut -d'\"' -f4 2>/dev/null",
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1)
+
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
+            pass
+
+        return None
 
     def _get_config_limits(self) -> tuple[int | None, int | None, float | None]:
         """Get token, message, and cost limits from config.
@@ -171,12 +251,17 @@ class StatusLineManager:
         bar_length = length
         center_pos = (bar_length - percent_len) // 2
 
-        filled_total = int(bar_length * percentage / 100)
+        # Calculate filled segments based on VISIBLE bar length (excluding text)
+        # This ensures the visual percentage matches the actual percentage
+        visible_bar_length = bar_length - percent_len
+        filled_total = round(visible_bar_length * percentage / 100)
+
         before_percent_len = center_pos
         after_percent_len = bar_length - center_pos - percent_len
 
+        # Distribute filled segments before and after the text
         filled_before = min(filled_total, before_percent_len)
-        filled_after = max(0, min(filled_total - filled_before, after_percent_len))
+        filled_after = max(0, filled_total - filled_before)
         empty_before = before_percent_len - filled_before
         empty_after = after_percent_len - filled_after
 
@@ -268,12 +353,17 @@ class StatusLineManager:
         bar_length = length
         center_pos = (bar_length - percent_len) // 2
 
-        filled_total = int(bar_length * percentage / 100)
+        # Calculate filled segments based on VISIBLE bar length (excluding text)
+        # This ensures the visual percentage matches the actual percentage
+        visible_bar_length = bar_length - percent_len
+        filled_total = round(visible_bar_length * percentage / 100)
+
         before_percent_len = center_pos
         after_percent_len = bar_length - center_pos - percent_len
 
+        # Distribute filled segments before and after the text
         filled_before = min(filled_total, before_percent_len)
-        filled_after = max(0, min(filled_total - filled_before, after_percent_len))
+        filled_after = max(0, filled_total - filled_before)
         empty_before = before_percent_len - filled_before
         empty_after = after_percent_len - filled_after
 
@@ -373,7 +463,13 @@ class StatusLineManager:
         # Try the expected path based on current directory
         cwd = Path.cwd()
         project_name = cwd.name.replace("_", "-")
-        parent_path = str(cwd.parent).replace(str(Path.home()), "").lstrip("/").replace("/", "-")
+        # Use Path methods for cross-platform compatibility (Windows uses backslashes)
+        try:
+            relative_parent = cwd.parent.relative_to(Path.home())
+            parent_path = str(relative_parent).replace("\\", "-").replace("/", "-")
+        except ValueError:
+            # Path is not relative to home directory
+            parent_path = ""
 
         if parent_path:
             project_dir = f"-{parent_path}-{project_name}"
@@ -430,8 +526,9 @@ class StatusLineManager:
         if tokens_used == 0:
             return 0, 0, 0
 
-        # Determine max context based on model (default to 200K)
-        max_tokens = 200000
+        # Detect model from session file and get appropriate context window
+        model_name = self._detect_model_from_session_file(session_file)
+        max_tokens = self._get_model_context_window(model_name)
         tokens_remaining = max(0, max_tokens - tokens_used)
 
         return tokens_used, max_tokens, tokens_remaining

@@ -1291,6 +1291,31 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.12.1 - Windows Path Fix & Dynamic Context Windows
+**Critical Windows fix and intelligent model context detection**:
+
+#### 🐛 Bug Fixes
+- **Windows Path Compatibility**: Fixed session token tracking on Windows by properly handling backslashes in file paths
+  - Previous: Status line showed `[unknown_var: session_tokens]` on Windows
+  - Now: Session tokens correctly detected and displayed on all platforms
+  - Root cause: Hardcoded forward slash handling in path normalization
+  - Solution: Uses `Path.relative_to()` for proper cross-platform path handling
+
+#### 🎯 Progress Bar Improvements
+- **Visual Accuracy**: Progress bars now correctly account for percentage text as segments
+  - Previous: Visual fill didn't match actual percentage (e.g., 51% showed as 63%)
+  - Now: Visual representation accurately reflects the percentage value
+  - Affects both basic (█░) and rich (━╺) progress bar styles
+
+#### 🤖 Dynamic Context Windows
+- **Intelligent Model Detection**: Automatically detects model context limits from session files
+  - **Claude Sonnet 4.5**: 1M token context window
+  - **Claude 3.x models**: 200K token context window
+  - Supports various model name formats (hyphens, dots, spaces)
+- **Accurate Session Progress**: Session token progress bars now use correct context limits per model
+  - Status line template: `{session_tokens}/{session_tokens_total}` shows accurate limits
+  - Example: Sonnet 4.5 shows `50K/1M` instead of `50K/200K`
+
 ### v0.12.0 - Cross-Platform Compatibility Improvements
 **Enhanced cross-platform support for Windows, Linux, and macOS**:
 
