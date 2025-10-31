@@ -34,8 +34,16 @@ class DisplayConfig(BaseModel):
         description="Time format: '12h' for 12-hour format, '24h' for 24-hour format",
     )
     project_name_prefixes: list[str] = Field(
-        default_factory=lambda: ["-Users-", "-home-"],
-        description="List of prefixes to strip from project names for cleaner display",
+        default_factory=lambda: [
+            # Windows paths (C:/, D:/, etc.)
+            "C--Users-",
+            "D--Users-",
+            "E--Users-",
+            # Unix/Linux paths
+            "-Users-",
+            "-home-",
+        ],
+        description="List of prefixes to strip from project names for cleaner display. Windows paths use drive letters (C--, D--), Unix paths use dashes (-)",
     )
     aggregate_by_project: bool = Field(
         default=True,
@@ -193,8 +201,8 @@ class Config(BaseModel):
         description="Time format for {current_time} in status line (strftime format). Default: 12hr (HH:MM AM/PM)",
     )
     statusline_git_clean_indicator: str = Field(
-        default="✓",
-        description="Indicator for clean git status. Can be emoji (✓, ✅, 🟢) or text (clean, OK). Default: ✓",
+        default="*",
+        description="Indicator for clean git status. Can be emoji (✅, 🟢) or text (clean, OK, *). Default: *",
     )
     statusline_git_dirty_indicator: str = Field(
         default="*",
