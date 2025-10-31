@@ -297,6 +297,9 @@ pccu uninstall-statusline
 
 # Remove with force (skip confirmation prompts)
 pccu uninstall-statusline --force
+
+# Configure status line template
+pccu configure-statusline
 ```
 
 ### Configuration
@@ -600,6 +603,11 @@ pccu debug-activity                  # Recent activity patterns (last 6 hours)
 pccu debug-activity --hours 12      # Extended activity analysis (12 hours)
 pccu debug-activity -e 18 --hours 8 # Validate expected start time with custom window
 
+# Session Analysis
+pccu debug-sessions                  # Debug session activity and filtering logic
+pccu debug-session-table             # Analyze why session table might be empty
+pccu filter-sessions                 # Filter and display sessions by various criteria
+
 # Advanced Debugging Scenarios
 pccu debug-blocks --show-inactive | grep "2025-07-08"  # Filter by specific date
 pccu debug-unified --config debug.yaml -e 13           # Use debug configuration with validation
@@ -658,7 +666,8 @@ display:
   refresh_interval: 1
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
-  show_pricing: false  # Enable cost calculations and display (default: false)
+  show_tool_usage: true  # Display tool usage information in monitoring and lists (default: true)
+  show_pricing: true  # Enable cost calculations and display (default: true)
   use_p90_limit: true  # Use P90 values instead of absolute maximum for progress bar limits (default: true)
   theme: default  # Theme: 'default', 'dark', 'light', 'accessibility', or 'minimal'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
@@ -1287,6 +1296,22 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.13.0 - Configuration & Testing Improvements (In Development)
+**Enhanced Configuration Defaults**: Updated default configuration values and improved test coverage:
+
+#### 🔧 Configuration Updates
+- **Pricing Display**: Changed default `show_pricing` to `true` for better cost visibility out of the box
+- **Tool Usage Display**: Added `show_tool_usage` configuration option (default: `true`)
+- **Git Status Indicators**: Enhanced status line git indicators with configurable clean/dirty markers
+
+#### 📝 Documentation
+- **Command Coverage**: Added documentation for `configure-statusline`, `filter-sessions`, and `debug-session-table` commands
+- **Configuration Guide**: Updated config examples to reflect actual defaults
+
+#### ✅ Testing
+- **Windows Compatibility**: Fixed test suite path assumptions for cross-platform compatibility
+- **Config Tests**: Improved configuration testing for Windows path scenarios
 
 ### v0.12.2 - Session Token Tracking Improvements
 **Enhanced Reliability**: Improved session token extraction for more stable status line display during heavy tool usage:
