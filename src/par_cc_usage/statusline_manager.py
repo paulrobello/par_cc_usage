@@ -445,8 +445,8 @@ class StatusLineManager:
 
         if project_path is None:
             try:
-                script_path = Path(__file__).resolve()
-                check_path = script_path.parent
+                # Use current working directory instead of script location
+                check_path = Path.cwd().resolve()
 
                 while check_path != check_path.parent:
                     if (check_path / ".git").exists():
@@ -456,7 +456,16 @@ class StatusLineManager:
                 pass
             return None
 
-        return project_path if (project_path / ".git").exists() else None
+        # When project_path is provided, also check parent directories
+        try:
+            check_path = project_path.resolve()
+            while check_path != check_path.parent:
+                if (check_path / ".git").exists():
+                    return check_path
+                check_path = check_path.parent
+        except Exception:
+            pass
+        return None
 
     def _get_git_branch(self, check_path: Path) -> str:
         """Get the current git branch name.
