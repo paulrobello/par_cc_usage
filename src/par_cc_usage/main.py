@@ -196,7 +196,7 @@ def scan_all_projects(
 def _initialize_config(config_file: Path | None) -> tuple[Config, Path | None]:
     """Initialize configuration and show loading information."""
     console.print("\n[bold cyan]Starting PAR Claude Code Usage Monitor[/bold cyan]")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # Show which config file is being used
     config_file_to_load = config_file if config_file else get_config_file_path()
@@ -1072,7 +1072,7 @@ async def _monitor_async(  # noqa: C901
     # Print config info after all overrides are applied
     _print_config_info(config, theme)
 
-    console.print("[dim]" + "─" * 50 + "[/dim]\n")
+    console.print("[dim]" + "-" * 50 + "[/dim]\n")
 
     # Set up signal handler for graceful shutdown
     stop_monitoring = False
@@ -1571,12 +1571,24 @@ def statusline(
 
     from .statusline_manager import StatusLineManager
 
+    def safe_print(text: str) -> None:
+        """Print text with proper encoding handling for Windows."""
+        try:
+            # Try to print with UTF-8 encoding
+            sys.stdout.buffer.write(text.encode("utf-8"))
+            sys.stdout.buffer.write(b"\n")
+            sys.stdout.buffer.flush()
+        except (UnicodeEncodeError, AttributeError):
+            # Fallback to ASCII-safe output
+            sys.stdout.write("Tokens: 0 - Messages: 0\n")
+            sys.stdout.flush()
+
     # Load configuration
     config = load_config(config_file)
 
     # Check if statusline is enabled
     if not config.statusline_enabled:
-        print("")
+        safe_print("")
         return
 
     # Initialize status line manager
@@ -1589,7 +1601,7 @@ def statusline(
         if not input_data:
             # No input, return grand total
             cached = manager.load_status_line("grand_total")
-            print(cached or "🪙 0 - 💬 0")
+            safe_print(cached or "Tokens: 0 - Messages: 0")
             return
 
         # Parse JSON
@@ -1597,12 +1609,12 @@ def statusline(
 
         # Get appropriate status line
         status_line = manager.get_status_line_for_request(session_json)
-        print(status_line)
+        safe_print(status_line)
 
     except (json.JSONDecodeError, OSError):
         # On error, return grand total as fallback
         cached = manager.load_status_line("grand_total")
-        print(cached or "🪙 0 - 💬 0")
+        safe_print(cached or "Tokens: 0 - Messages: 0")
 
 
 @app.command("install-statusline")
@@ -1615,22 +1627,36 @@ def install_statusline(
 
     settings_path = Path.home() / ".claude" / "settings.json"
 
-    # Check if settings file exists
-    if not settings_path.exists():
-        console.print(f"[red]Claude Code settings.json not found at {settings_path}[/red]")
+    # Check if .claude directory exists
+    claude_dir = Path.home() / ".claude"
+    if not claude_dir.exists():
+        console.print("[red]Claude Code directory not found at ~/.claude/[/red]")
         console.print("[yellow]Please ensure Claude Code is installed and has been run at least once.[/yellow]")
         return
 
-    # Create backup
-    backup_path = settings_path.with_suffix(".json.backup")
-    shutil.copy2(settings_path, backup_path)
-    console.print(f"[green]Created backup: {backup_path}[/green]")
+    # If settings.json doesn't exist, create it
+    if not settings_path.exists():
+        console.print("[yellow]settings.json not found, creating new file...[/yellow]")
+        try:
+            settings = {}
+        except Exception as e:
+            console.print(f"[red]Error creating settings.json: {e}[/red]")
+            return
+    else:
+        # Create backup if file exists
+        backup_path = settings_path.with_suffix(".json.backup")
+        shutil.copy2(settings_path, backup_path)
+        console.print(f"[green]Created backup: {backup_path}[/green]")
+
+        try:
+            # Read existing settings
+            with open(settings_path, encoding="utf-8") as f:
+                settings = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            console.print(f"[red]Error reading settings.json: {e}[/red]")
+            return
 
     try:
-        # Read existing settings
-        with open(settings_path, encoding="utf-8") as f:
-            settings = json.load(f)
-
         # Check if statusLine already exists
         if "statusLine" in settings and not force:
             console.print("[yellow]Status line configuration already exists in settings.json[/yellow]")
@@ -1645,14 +1671,18 @@ def install_statusline(
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
 
-        console.print("[green]✓ Successfully installed PAR CC Usage status line![/green]")
+        console.print("[green]Successfully installed PAR CC Usage status line![/green]")
         console.print(f"[cyan]Status line command: {settings['statusLine']['command']}[/cyan]")
+        console.print(f"[cyan]Settings file: {settings_path}[/cyan]")
         console.print("\n[yellow]Note: Restart Claude Code for the changes to take effect.[/yellow]")
 
     except (json.JSONDecodeError, OSError) as e:
         console.print(f"[red]Error updating settings.json: {e}[/red]")
-        console.print(f"[yellow]Restoring backup from {backup_path}[/yellow]")
-        shutil.copy2(backup_path, settings_path)
+        if settings_path.exists():
+            backup_path = settings_path.with_suffix(".json.backup")
+            if backup_path.exists():
+                console.print(f"[yellow]Restoring backup from {backup_path}[/yellow]")
+                shutil.copy2(backup_path, settings_path)
 
 
 @app.command("uninstall-statusline")
@@ -1667,7 +1697,8 @@ def uninstall_statusline(
 
     # Check if settings file exists
     if not settings_path.exists():
-        console.print(f"[red]Claude Code settings.json not found at {settings_path}[/red]")
+        console.print("[yellow]Claude Code settings.json not found at ~/.claude/settings.json[/yellow]")
+        console.print("[cyan]Nothing to uninstall.[/cyan]")
         return
 
     # Create backup
@@ -1711,7 +1742,7 @@ def uninstall_statusline(
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
 
-        console.print("[green]✓ Successfully removed PAR CC Usage status line![/green]")
+        console.print("[green]Successfully removed PAR CC Usage status line![/green]")
         console.print("\n[yellow]Note: Restart Claude Code for the changes to take effect.[/yellow]")
 
     except (json.JSONDecodeError, OSError) as e:
@@ -1862,7 +1893,7 @@ def configure_statusline(
     save_config(config, config_file)
 
     console.print()
-    console.print(f"[green]✓ Template saved to {config_file}[/green]")
+    console.print(f"[green]Template saved to {config_file}[/green]")
     console.print("[yellow]Note: The new template will be used on the next status line update.[/yellow]")
 
 
@@ -1947,7 +1978,7 @@ def test_webhook(
         console.print("[yellow]No snapshot data available - sending test notification...[/yellow]")
 
     if notification_manager.test_webhook(snapshot):
-        console.print("[green]✓ Webhook test successful![/green]")
+        console.print("[green]Webhook test successful![/green]")
         if snapshot and snapshot.unified_block_start_time:
             console.print("[green]Sent real block notification with current usage data[/green]")
     else:
@@ -1974,7 +2005,9 @@ def _scan_projects_for_sessions(config) -> dict[str, Project]:
     for file_path in file_monitor.scan_files():
         with JSONLReader(file_path) as reader:
             for data, _position in reader.read_lines():
-                session_id, project_path = parse_session_from_path(file_path, config.projects_dir)
+                session_id, project_path = parse_session_from_path(
+                    file_path, config.projects_dir, config.display.project_name_prefixes
+                )
                 process_jsonl_line(
                     data,
                     project_path,
@@ -2134,7 +2167,7 @@ def list_sessions(
 def _print_debug_header(config, snapshot):
     """Print debug header information."""
     console.print("[bold blue]Debug: Session Activity Analysis[/]")
-    console.print("─" * 50)
+    console.print("-" * 50)
     console.print(f"Current Time (UTC): {datetime.now(UTC)}")
     console.print(f"Configured Timezone: {config.timezone} -> {config.get_effective_timezone()}")
     console.print(f"Snapshot Timestamp: {snapshot.timestamp}")

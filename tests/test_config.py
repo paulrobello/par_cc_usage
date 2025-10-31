@@ -23,7 +23,8 @@ class TestDisplayConfig:
         assert config.update_in_place is True
         assert config.refresh_interval == 5
         assert config.time_format == TimeFormat.TWENTY_FOUR_HOUR
-        assert config.project_name_prefixes == ["-Users-", "-home-"]
+        # Default includes Windows paths (C--, D--, E--) and Unix paths
+        assert config.project_name_prefixes == ["C--Users-", "D--Users-", "E--Users-", "-Users-", "-home-"]
         assert config.aggregate_by_project is True
         assert config.show_tool_usage is True
         assert config.show_pricing is True

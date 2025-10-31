@@ -71,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.10.1 - Windows Compatibility Fixes](#v0101---windows-compatibility-fixes)
   - [v0.10.0 - Advanced Status Line Progress Bars & Performance](#v0100---advanced-status-line-progress-bars--performance)
   - [v0.9.0 - Enhanced Status Line with Project Names](#v090---enhanced-status-line-with-project-names)
   - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
   - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
-  - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [older...](#older)
 - [Development](#development)
 
@@ -297,6 +297,9 @@ pccu uninstall-statusline
 
 # Remove with force (skip confirmation prompts)
 pccu uninstall-statusline --force
+
+# Configure status line template
+pccu configure-statusline
 ```
 
 ### Configuration
@@ -600,6 +603,11 @@ pccu debug-activity                  # Recent activity patterns (last 6 hours)
 pccu debug-activity --hours 12      # Extended activity analysis (12 hours)
 pccu debug-activity -e 18 --hours 8 # Validate expected start time with custom window
 
+# Session Analysis
+pccu debug-sessions                  # Debug session activity and filtering logic
+pccu debug-session-table             # Analyze why session table might be empty
+pccu filter-sessions                 # Filter and display sessions by various criteria
+
 # Advanced Debugging Scenarios
 pccu debug-blocks --show-inactive | grep "2025-07-08"  # Filter by specific date
 pccu debug-unified --config debug.yaml -e 13           # Use debug configuration with validation
@@ -658,7 +666,8 @@ display:
   refresh_interval: 1
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
-  show_pricing: false  # Enable cost calculations and display (default: false)
+  show_tool_usage: true  # Display tool usage information in monitoring and lists (default: true)
+  show_pricing: true  # Enable cost calculations and display (default: true)
   use_p90_limit: true  # Use P90 values instead of absolute maximum for progress bar limits (default: true)
   theme: default  # Theme: 'default', 'dark', 'light', 'accessibility', or 'minimal'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
@@ -878,14 +887,11 @@ model_multipliers:
 
 ### Model Display Names
 Model identifiers are simplified for better readability:
-- `claude-opus-*` → **Opus** (including Opus 4.1)
-- `claude-sonnet-*` → **Sonnet** (including Sonnet 4, Sonnet 4.5)
-- `claude-haiku-*` → **Haiku** (including Haiku 4.5)
+- `claude-opus-*` → **Opus**
+- `claude-sonnet-*` → **Sonnet**
 - Unknown/other models → **Unknown**
 
-**Supported Models**:
-- **Claude 4.x**: Sonnet 4.5, Opus 4.1, Haiku 4.5, Sonnet 4
-- **Claude 3.x**: Sonnet 3.5, Opus 3, Haiku 3, Haiku 3.5
+**Note**: Claude Code primarily uses Opus and Sonnet models. Any other model names (including Haiku) are normalized to "Unknown".
 
 ### Time Format Options
 Configure time display format through `display.time_format` setting:
@@ -1291,64 +1297,92 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
-### v0.12.2 - Session Token Tracking Stability Fix
-**Improved session token extraction reliability**:
+### v0.13.0 - Configuration & Testing Improvements (In Development)
+**Enhanced Configuration Defaults**: Updated default configuration values and improved test coverage:
 
-#### 🐛 Bug Fix
-- **Session Token Stability**: Fixed session token count jumping backwards in status line
-  - Previous: Token count would occasionally drop to 0 and then recover, showing incorrect progress
-  - Root cause: Only examined last 20 lines of JSONL file, missing usage data when many tool calls/user messages appeared consecutively
-  - Solution: Increased search window to last 100 lines, significantly improving reliability
-  - Impact: Session token tracking in status line now remains stable during heavy tool usage
+#### 🔧 Configuration Updates
+- **Pricing Display**: Changed default `show_pricing` to `true` for better cost visibility out of the box
+- **Tool Usage Display**: Added `show_tool_usage` configuration option (default: `true`)
+- **Git Status Indicators**: Enhanced status line git indicators with configurable clean/dirty markers
 
-### v0.12.1 - Windows Path Fix & Dynamic Context Windows
-**Critical Windows fix and intelligent model context detection**:
+#### 📝 Documentation
+- **Command Coverage**: Added documentation for `configure-statusline`, `filter-sessions`, and `debug-session-table` commands
+- **Configuration Guide**: Updated config examples to reflect actual defaults
+
+#### ✅ Testing
+- **Windows Compatibility**: Fixed test suite path assumptions for cross-platform compatibility
+- **Config Tests**: Improved configuration testing for Windows path scenarios
+
+### v0.12.2 - Session Token Tracking Improvements
+**Enhanced Reliability**: Improved session token extraction for more stable status line display during heavy tool usage:
+
+#### 🔧 Bug Fixes
+- **Session Token Stability**: Increased JSONL search window from 20 to 100 lines to prevent token count from jumping backwards
+- **Tool Usage Handling**: Fixed issue where session tokens would show 0 during periods with many consecutive non-usage entries (tool calls, user messages)
+- **Display Consistency**: Eliminated display jumps in status line during heavy tool usage periods
+
+### v0.12.1 - Critical Windows Path Fix
+**Windows Session Tracking**: Fixed critical bug preventing session token tracking on Windows systems:
 
 #### 🐛 Bug Fixes
-- **Windows Path Compatibility**: Fixed session token tracking on Windows by properly handling backslashes in file paths
-  - Previous: Status line showed `[unknown_var: session_tokens]` on Windows
-  - Now: Session tokens correctly detected and displayed on all platforms
-  - Root cause: Hardcoded forward slash handling in path normalization
-  - Solution: Uses `Path.relative_to()` for proper cross-platform path handling
+- **Windows Path Handling**: Fixed session token tracking by using `Path.relative_to()` instead of string operations
+- **Progress Bar Accuracy**: Fixed progress bar visual rendering to correctly account for percentage text width
+- **Model-Specific Context Windows**: Added dynamic context window detection (1M tokens for Sonnet 4.5, 200K for other models)
 
-#### 🎯 Progress Bar Improvements
-- **Visual Accuracy**: Progress bars now correctly account for percentage text as segments
-  - Previous: Visual fill didn't match actual percentage (e.g., 51% showed as 63%)
-  - Now: Visual representation accurately reflects the percentage value
-  - Affects both basic (█░) and rich (━╺) progress bar styles
+#### ✅ Testing
+- Added comprehensive Windows path testing suite with 197 new test cases
+- Verified session token extraction across all Windows path formats (C:\, D:\, network paths)
 
-#### 🤖 Dynamic Context Windows
-- **Intelligent Model Detection**: Automatically detects model context limits from session files
-  - **Claude Sonnet 4.5**: 1M token context window
-  - **Claude 3.x models**: 200K token context window
-  - Supports various model name formats (hyphens, dots, spaces)
-- **Accurate Session Progress**: Session token progress bars now use correct context limits per model
-  - Status line template: `{session_tokens}/{session_tokens_total}` shows accurate limits
-  - Example: Sonnet 4.5 shows `50K/1M` instead of `50K/200K`
+### v0.12.0 - Cross-Platform Path Improvements
+**Enhanced Path Display**: Better cross-platform path handling and user feedback:
 
-### v0.12.0 - Cross-Platform Compatibility Improvements
-**Enhanced cross-platform support for Windows, Linux, and macOS**:
+#### 🔧 Improvements
+- **Platform-Specific Paths**: Fixed hardcoded path strings in error messages to display correct platform-specific paths
+- **Installation Feedback**: Updated `install-statusline` and `uninstall-statusline` commands to show resolved paths
+- **Path Verification**: Verified all file operations work correctly across Windows, Linux, and macOS
 
-#### 🌐 Cross-Platform Enhancements
-- **Path Display Fix**: Error messages now show platform-specific paths correctly (Windows: `C:\Users\...`, Unix: `/home/...`)
-- **Improved Error Messages**: `install-statusline` and `uninstall-statusline` commands now display actual resolved paths instead of hardcoded `~/.claude/settings.json`
-- **Full Compatibility**: All file operations verified to work correctly across Windows, Linux, and macOS
-- **Quality Assurance**: All 812 tests passing on all platforms
+### v0.11.0 - Claude 4 Model Support
+**Latest Model Support**: Full support for Claude 4 model family with comprehensive pricing and detection:
 
-### v0.11.0 - Claude 4 Model Support & Python 3.13
-**Full support for latest Claude 4 models and Python 3.13 compatibility**:
+#### 🎯 New Features
+- **Claude 4 Models**: Added support for Sonnet 4.5, Opus 4.1, and Haiku 4.5
+- **Model Detection**: Updated normalization to detect both hyphenated and dotted model name formats
+- **Pricing Fallbacks**: Added pricing fallbacks for all Claude 4.x models with proper date stamps
+- **Model Documentation**: Updated README with complete list of supported Claude models
 
-#### 🤖 Claude 4 Model Support (New)
-- **Claude Sonnet 4.5**: Full support for `claude-sonnet-4-5` (released Sep 29, 2025)
-- **Claude Opus 4.1**: Full support for `claude-opus-4-1` (released May 22, 2025)
-- **Claude Haiku 4.5**: Full support for `claude-haiku-4-5` (released Oct 15, 2025)
-- **Automatic Detection**: Recognizes both hyphenated and dotted model name formats
-- **Pricing Integration**: Automatic pricing fallback to correct model families for cost calculations
+#### 🔧 Technical Updates
+- Enhanced `ModelType` enum with CLAUDE_SONNET_4_5, CLAUDE_OPUS_4_1, CLAUDE_HAIKU_4_5
+- Improved model name normalization for better compatibility
+- Updated pricing system with Claude 4 pricing data
+- All 812 tests passing with zero lint/type errors
 
-#### 📦 Updates
-- **Dependency Updates**: Updated all package dependencies to latest versions
-- **Python 3.13**: Verified full compatibility with Python 3.13
-- **Test Suite**: All 812 tests passing on Python 3.13
+### v0.10.1 - Windows Compatibility Fixes
+**Enhanced Windows Support**: Fixed encoding issues, improved Windows terminal compatibility, and resolved monitor display issues:
+
+#### 🪟 Windows Compatibility (Fixed)
+- **Status Line Encoding**: Fixed `UnicodeEncodeError` in `pccu statusline` command on Windows
+- **UTF-8 Output Handling**: Added safe UTF-8 output with fallback for Windows cp1252 encoding
+- **Settings File Creation**: `install-statusline` now creates `settings.json` if it doesn't exist
+- **Unicode Symbol Replacement**: Replaced problematic Unicode symbols (✓, ✗) with ASCII alternatives
+- **Emoji Preservation**: Kept all emojis (🪙💬💰⏱️) - they work correctly via Rich library in Windows Terminal
+- **Path Compatibility**: Verified all path operations use `pathlib.Path` for cross-platform support
+- **Default Windows Prefixes**: Added `C--Users-`, `D--Users-`, `E--Users-` to default config for path stripping
+
+#### 🐛 Monitor Display Fixes
+- **Sessions Panel Empty Issue**: Fixed sessions panel showing empty by replacing `ZoneInfo("UTC")` with `datetime.UTC`
+- **Git Bash Emoji Fallback**: Added automatic detection of Git Bash/MSYS2 environments with text-based model icons ([S], [O], [H])
+- **Model Icon Compatibility**: Model emojis (⚡, 🚀, 💨) automatically fall back to text labels in Git Bash
+
+#### 🔧 Bug Fixes
+- Fixed `install-statusline` failing when Claude Code `settings.json` doesn't exist
+- Replaced Unicode check marks with "OK", "PASS", and "ERROR" text for better compatibility
+- Updated default git status indicators to use asterisk (*) instead of checkmarks
+- Added comprehensive error handling in `emoji_config.py` test utility
+- Fixed status line project name stripping to work correctly with Windows paths
+- Removed `tzdata` dependency by using `datetime.UTC` instead of `ZoneInfo`
+
+#### 💡 Usage Note
+For best results on Windows, use **Windows Terminal** instead of Git Bash. Windows Terminal provides full UTF-8 and emoji support, ensuring all display features work correctly.
 
 ### v0.10.0 - Advanced Status Line Progress Bars & Performance
 **Enhanced Progress Bars & Optimized Performance**: Rich progress bar styles with colorization and intelligent conditional data fetching:

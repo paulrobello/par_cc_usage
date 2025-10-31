@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import Config
+from .file_monitor import _strip_project_name_prefixes
 from .models import UsageSnapshot
 from .pricing import format_cost
 from .token_calculator import format_token_count
@@ -548,8 +549,8 @@ class StatusLineManager:
 
         if project_path is None:
             try:
-                script_path = Path(__file__).resolve()
-                check_path = script_path.parent
+                # Use current working directory instead of script location
+                check_path = Path.cwd().resolve()
 
                 while check_path != check_path.parent:
                     if (check_path / ".git").exists():
@@ -559,7 +560,16 @@ class StatusLineManager:
                 pass
             return None
 
-        return project_path if (project_path / ".git").exists() else None
+        # When project_path is provided, also check parent directories
+        try:
+            check_path = project_path.resolve()
+            while check_path != check_path.parent:
+                if (check_path / ".git").exists():
+                    return check_path
+                check_path = check_path.parent
+        except Exception:
+            pass
+        return None
 
     def _get_git_branch(self, check_path: Path) -> str:
         """Get the current git branch name.
@@ -612,7 +622,7 @@ class StatusLineManager:
             if status_result.stdout.strip():
                 return str(getattr(self.config, "statusline_git_dirty_indicator", "*"))
             else:
-                return str(getattr(self.config, "statusline_git_clean_indicator", "✓"))
+                return str(getattr(self.config, "statusline_git_clean_indicator", "*"))
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             return ""
 
@@ -626,7 +636,7 @@ class StatusLineManager:
         Returns:
             Tuple of (branch_name, status_indicator)
             branch_name: Current branch name or empty string if not in a git repo
-            status_indicator: Clean (✓), dirty (*), or empty string
+            status_indicator: Clean (*), dirty (*), or empty string
         """
         check_path = self._find_git_root(project_path)
         if not check_path:
@@ -1155,7 +1165,11 @@ class StatusLineManager:
                         session_cost += entry.cost_usd  # Sum up costs from entries
                         # Get project name from the first matching entry
                         if project_name is None:
-                            project_name = entry.project_name
+                            raw_project_name = entry.project_name
+                            # Strip configured prefixes for cleaner display
+                            project_name = _strip_project_name_prefixes(
+                                raw_project_name, self.config.display.project_name_prefixes
+                            )
 
         # Get limits from config
         token_limit, message_limit, cost_limit = self._get_config_limits()
@@ -1269,7 +1283,11 @@ class StatusLineManager:
             if session_id in current_block.sessions:
                 for entry in current_block.entries:
                     if entry.session_id == session_id:
-                        project_name = entry.project_name
+                        raw_project_name = entry.project_name
+                        # Strip configured prefixes for cleaner display
+                        project_name = _strip_project_name_prefixes(
+                            raw_project_name, self.config.display.project_name_prefixes
+                        )
                         break
 
         # Get limits from config
@@ -1311,7 +1329,11 @@ class StatusLineManager:
             if session_id in current_block.sessions:
                 for entry in current_block.entries:
                     if entry.session_id == session_id:
-                        project_name = entry.project_name
+                        raw_project_name = entry.project_name
+                        # Strip configured prefixes for cleaner display
+                        project_name = _strip_project_name_prefixes(
+                            raw_project_name, self.config.display.project_name_prefixes
+                        )
                         break
 
         # Calculate cost asynchronously
@@ -1453,7 +1475,11 @@ class StatusLineManager:
                         session_messages += 1  # Each entry is a message
                         # Get project name from the first matching entry
                         if project_name is None:
-                            project_name = entry.project_name
+                            raw_project_name = entry.project_name
+                            # Strip configured prefixes for cleaner display
+                            project_name = _strip_project_name_prefixes(
+                                raw_project_name, self.config.display.project_name_prefixes
+                            )
 
                 # Calculate cost separately to reduce complexity
                 session_cost = await self._calculate_session_cost(current_block.entries, session_id)

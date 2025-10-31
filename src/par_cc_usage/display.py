@@ -170,9 +170,9 @@ class MonitorDisplay:
 
         header_text = Text()
         header_text.append(f"Active Projects: {active_projects}", style=get_style("success", bold=True))
-        header_text.append("  │  ", style="dim")
+        header_text.append("  |  ", style="dim")
         header_text.append(f"Active Sessions: {active_sessions}", style=get_style("secondary", bold=True))
-        header_text.append("  │  ", style="dim")
+        header_text.append("  |  ", style="dim")
         header_text.append(f"Current Time: {current_time}", style="bold #FF8800")
 
         return Panel(
@@ -239,28 +239,36 @@ class MonitorDisplay:
         )
 
     def _get_model_emoji(self, model: str) -> str:
-        """Get emoji for model type.
+        """Get emoji for model type (or text fallback for Git Bash compatibility).
 
         Args:
             model: Model name
 
         Returns:
-            Emoji string
+            Emoji string or text label
         """
-        if "opus" in model.lower():
-            return "🚀"
-        elif "sonnet" in model.lower():
-            return "⚡"
-        elif "haiku" in model.lower():
-            return "💨"
-        elif "claude" in model.lower():
-            return "🤖"
-        elif "gpt" in model.lower():
-            return "🧠"
-        elif "llama" in model.lower():
-            return "🦙"
-        else:
-            return "❓"
+        import os
+
+        # Detect Git Bash / MSYS2 environment (all variants: MINGW*, CLANG*, UCRT*, MSYS)
+        msystem = os.environ.get("MSYSTEM", "")
+        is_mingw = bool(msystem)  # Any MSYSTEM value indicates Git Bash/MSYS2
+
+        # Model icon mappings
+        emoji_map = {
+            "opus": ("🚀", "[O]"),
+            "sonnet": ("⚡", "[S]"),
+            "haiku": ("💨", "[H]"),
+            "claude": ("🤖", "[C]"),
+            "gpt": ("🧠", "[G]"),
+            "llama": ("🦙", "[L]"),
+        }
+
+        model_lower = model.lower()
+        for key, (emoji, text) in emoji_map.items():
+            if key in model_lower:
+                return text if is_mingw else emoji
+
+        return "[?]" if is_mingw else "❓"
 
     def _create_model_displays(
         self,
@@ -1113,11 +1121,9 @@ class MonitorDisplay:
             )
 
         # Sort projects by latest activity time (newest first)
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+        from datetime import UTC, datetime
 
-        utc = ZoneInfo("UTC")
-        active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+        active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=UTC), reverse=True)
 
         return active_projects
 
@@ -1286,11 +1292,9 @@ class MonitorDisplay:
 
     def _sort_sessions_by_activity(self, active_sessions: list):
         """Sort sessions by latest activity time (newest first)."""
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+        from datetime import UTC, datetime
 
-        utc = ZoneInfo("UTC")
-        active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+        active_sessions.sort(key=lambda x: x[4] if x[4] is not None else datetime.min.replace(tzinfo=UTC), reverse=True)
         return active_sessions
 
     def _add_session_table_row(
@@ -1560,11 +1564,9 @@ class MonitorDisplay:
                 )
 
         # Sort projects by latest activity time (newest first)
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+        from datetime import UTC, datetime
 
-        utc = ZoneInfo("UTC")
-        active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=utc), reverse=True)
+        active_projects.sort(key=lambda x: x[3] if x[3] is not None else datetime.min.replace(tzinfo=UTC), reverse=True)
 
         # Add rows for sorted projects
         for project, project_tokens, project_models, _, project_tools, project_tool_calls in active_projects:
