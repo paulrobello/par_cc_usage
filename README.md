@@ -71,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
+  - [v0.10.1 - Windows Compatibility Fixes](#v0101---windows-compatibility-fixes)
   - [v0.10.0 - Advanced Status Line Progress Bars & Performance](#v0100---advanced-status-line-progress-bars--performance)
   - [v0.9.0 - Enhanced Status Line with Project Names](#v090---enhanced-status-line-with-project-names)
   - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
   - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
   - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
-  - [v0.5.0 - Claude Sonnet 4 Support & Monitor Mode Stability](#v050---claude-sonnet-4-support--monitor-mode-stability)
   - [older...](#older)
 - [Development](#development)
 
@@ -1287,6 +1287,34 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.10.1 - Windows Compatibility Fixes
+**Enhanced Windows Support**: Fixed encoding issues, improved Windows terminal compatibility, and resolved monitor display issues:
+
+#### 🪟 Windows Compatibility (Fixed)
+- **Status Line Encoding**: Fixed `UnicodeEncodeError` in `pccu statusline` command on Windows
+- **UTF-8 Output Handling**: Added safe UTF-8 output with fallback for Windows cp1252 encoding
+- **Settings File Creation**: `install-statusline` now creates `settings.json` if it doesn't exist
+- **Unicode Symbol Replacement**: Replaced problematic Unicode symbols (✓, ✗) with ASCII alternatives
+- **Emoji Preservation**: Kept all emojis (🪙💬💰⏱️) - they work correctly via Rich library in Windows Terminal
+- **Path Compatibility**: Verified all path operations use `pathlib.Path` for cross-platform support
+- **Default Windows Prefixes**: Added `C--Users-`, `D--Users-`, `E--Users-` to default config for path stripping
+
+#### 🐛 Monitor Display Fixes
+- **Sessions Panel Empty Issue**: Fixed sessions panel showing empty by replacing `ZoneInfo("UTC")` with `datetime.UTC`
+- **Git Bash Emoji Fallback**: Added automatic detection of Git Bash/MSYS2 environments with text-based model icons ([S], [O], [H])
+- **Model Icon Compatibility**: Model emojis (⚡, 🚀, 💨) automatically fall back to text labels in Git Bash
+
+#### 🔧 Bug Fixes
+- Fixed `install-statusline` failing when Claude Code `settings.json` doesn't exist
+- Replaced Unicode check marks with "OK", "PASS", and "ERROR" text for better compatibility
+- Updated default git status indicators to use asterisk (*) instead of checkmarks
+- Added comprehensive error handling in `emoji_config.py` test utility
+- Fixed status line project name stripping to work correctly with Windows paths
+- Removed `tzdata` dependency by using `datetime.UTC` instead of `ZoneInfo`
+
+#### 💡 Usage Note
+For best results on Windows, use **Windows Terminal** instead of Git Bash. Windows Terminal provides full UTF-8 and emoji support, ensuring all display features work correctly.
 
 ### v0.10.0 - Advanced Status Line Progress Bars & Performance
 **Enhanced Progress Bars & Optimized Performance**: Rich progress bar styles with colorization and intelligent conditional data fetching:

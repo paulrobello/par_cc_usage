@@ -213,7 +213,7 @@ class ListDisplay:
             if self.show_pricing:
                 row_data.append(f"${cost:.4f}")
 
-            row_data.append("✓" if is_active else "")
+            row_data.append("Yes" if is_active else "")
 
             table.add_row(
                 *row_data,

@@ -44,7 +44,7 @@ def debug_blocks(
 ) -> None:
     """Debug command to show detailed block information."""
     console.print("\n[bold cyan]Debug: Block Analysis[/bold cyan]")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # Load configuration
     config = load_config(config_file)
@@ -193,12 +193,12 @@ def _validate_expected_time(
             # Show both 24h and 12h formats for clarity
             expected_display = datetime.now().replace(hour=expected_hour, minute=0).strftime("%I:%M %p")
             console.print(
-                f"  [bold green]✓ {context} at {expected_hour:02d}:00 ({expected_display}) as expected[/bold green]"
+                f"  [bold green]OK {context} at {expected_hour:02d}:00 ({expected_display}) as expected[/bold green]"
             )
         else:
             expected_display = datetime.now().replace(hour=expected_hour, minute=0).strftime("%I:%M %p")
             console.print(
-                f"  [bold red]✗ {context} does NOT start at {expected_hour:02d}:00 ({expected_display})![/bold red]"
+                f"  [bold red]ERROR {context} does NOT start at {expected_hour:02d}:00 ({expected_display})![/bold red]"
             )
             console.print(
                 f"  [bold red]  Expected: {expected_hour:02d}:00 ({expected_display}), Got: {actual_time.strftime('%H:%M')} ({actual_time.strftime('%I:%M %p')})[/bold red]"
@@ -233,7 +233,7 @@ def debug_unified_block(
     Optionally validates against expected hour (minute is always 0 for block starts).
     """
     console.print("\n[bold cyan]Debug: Unified Block Calculation[/bold cyan]")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # Load configuration
     config = load_config(config_file)
@@ -328,7 +328,7 @@ def debug_unified_block(
         console.print("  [red]No unified block start time calculated[/red]")
         if expected_hour is not None:
             console.print(
-                f"  [bold red]✗ Expected block at {expected_hour:02d}:00 but no unified block found![/bold red]"
+                f"  [bold red]ERROR Expected block at {expected_hour:02d}:00 but no unified block found![/bold red]"
             )
 
 
@@ -347,7 +347,7 @@ def debug_recent_activity(
     Optionally validates against expected hour (minute is always 0 for block starts).
     """
     console.print("\n[bold cyan]Debug: Recent Activity Analysis[/bold cyan]")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # Load configuration
     config = load_config(config_file)
@@ -497,7 +497,7 @@ def _print_recent_activity_analysis(
         if expected_hour is not None:
             if block_start_local.hour == expected_hour and block_start_local.minute == 0:
                 console.print(
-                    f"  [bold green]✓ Most recent active session started at {expected_hour:02d}:00 as expected[/bold green]"
+                    f"  [bold green]OK Most recent active session started at {expected_hour:02d}:00 as expected[/bold green]"
                 )
             else:
                 console.print(
@@ -533,7 +533,7 @@ def _debug_block_overlap(block, unified_start, unified_end, now):
     console.print(f"      - is_active: {block.is_active}")
 
     if not block.is_active:
-        console.print("      [red]✗ Block is not active[/red]")
+        console.print("      [red]ERROR Block is not active[/red]")
         return False, False
 
     # Check overlap with unified block
@@ -549,12 +549,12 @@ def _debug_block_overlap(block, unified_start, unified_end, now):
         console.print(f"      - tokens: {block.adjusted_tokens}")
         has_tokens = block.adjusted_tokens > 0
         if has_tokens:
-            console.print("      [green]✓ Block would be included in session table[/green]")
+            console.print("      [green]OK Block would be included in session table[/green]")
         else:
             console.print("      [yellow]⚠ Block has 0 tokens[/yellow]")
         return True, has_tokens
     else:
-        console.print("      [red]✗ Block does not overlap with unified window[/red]")
+        console.print("      [red]ERROR Block does not overlap with unified window[/red]")
         return False, False
 
 
@@ -616,7 +616,7 @@ def debug_session_table(
 ) -> None:
     """Debug command to analyze why the session table might be empty."""
     console.print("\n[bold cyan]Debug: Session Table Analysis[/bold cyan]")
-    console.print("[dim]" + "─" * 50 + "[/dim]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # Load configuration
     config = load_config(config_file)
@@ -724,7 +724,7 @@ async def update_maximums(
     else:
         # Analyze historical data
         console.print("[cyan]Analyzing all historical data for maximums...[/cyan]")
-        projects, unified_entries = scan_all_projects(config, use_cache=False)
+        _projects, unified_entries = scan_all_projects(config, use_cache=False)
         unified_blocks = create_unified_blocks(unified_entries)
 
         # Calculate all values
@@ -752,8 +752,8 @@ async def update_maximums(
     _apply_config_updates(config, max_values, p90_values)
     save_config(config, config_file_to_use)
 
-    console.print("\n[green]✓ Configuration updated successfully![/green]")
-    console.print("[green]✓ Read-only mode enabled[/green]")
+    console.print("\n[green]Configuration updated successfully![/green]")
+    console.print("[green]Read-only mode enabled[/green]")
     console.print(f"[dim]Configuration saved to: {config_file_to_use}[/dim]")
 
 
