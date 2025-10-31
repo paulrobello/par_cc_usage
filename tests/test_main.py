@@ -633,7 +633,7 @@ class TestTestWebhookCommand:
                 result = runner.invoke(app, ["test-webhook"])
 
                 assert result.exit_code == 0
-                assert "✓ Webhook test successful!" in result.output
+                assert "Webhook test successful!" in result.output
 
 
 class TestHelperFunctions:
