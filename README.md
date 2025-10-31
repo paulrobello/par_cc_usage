@@ -1288,6 +1288,49 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.12.2 - Session Token Tracking Improvements
+**Enhanced Reliability**: Improved session token extraction for more stable status line display during heavy tool usage:
+
+#### 🔧 Bug Fixes
+- **Session Token Stability**: Increased JSONL search window from 20 to 100 lines to prevent token count from jumping backwards
+- **Tool Usage Handling**: Fixed issue where session tokens would show 0 during periods with many consecutive non-usage entries (tool calls, user messages)
+- **Display Consistency**: Eliminated display jumps in status line during heavy tool usage periods
+
+### v0.12.1 - Critical Windows Path Fix
+**Windows Session Tracking**: Fixed critical bug preventing session token tracking on Windows systems:
+
+#### 🐛 Bug Fixes
+- **Windows Path Handling**: Fixed session token tracking by using `Path.relative_to()` instead of string operations
+- **Progress Bar Accuracy**: Fixed progress bar visual rendering to correctly account for percentage text width
+- **Model-Specific Context Windows**: Added dynamic context window detection (1M tokens for Sonnet 4.5, 200K for other models)
+
+#### ✅ Testing
+- Added comprehensive Windows path testing suite with 197 new test cases
+- Verified session token extraction across all Windows path formats (C:\, D:\, network paths)
+
+### v0.12.0 - Cross-Platform Path Improvements
+**Enhanced Path Display**: Better cross-platform path handling and user feedback:
+
+#### 🔧 Improvements
+- **Platform-Specific Paths**: Fixed hardcoded path strings in error messages to display correct platform-specific paths
+- **Installation Feedback**: Updated `install-statusline` and `uninstall-statusline` commands to show resolved paths
+- **Path Verification**: Verified all file operations work correctly across Windows, Linux, and macOS
+
+### v0.11.0 - Claude 4 Model Support
+**Latest Model Support**: Full support for Claude 4 model family with comprehensive pricing and detection:
+
+#### 🎯 New Features
+- **Claude 4 Models**: Added support for Sonnet 4.5, Opus 4.1, and Haiku 4.5
+- **Model Detection**: Updated normalization to detect both hyphenated and dotted model name formats
+- **Pricing Fallbacks**: Added pricing fallbacks for all Claude 4.x models with proper date stamps
+- **Model Documentation**: Updated README with complete list of supported Claude models
+
+#### 🔧 Technical Updates
+- Enhanced `ModelType` enum with CLAUDE_SONNET_4_5, CLAUDE_OPUS_4_1, CLAUDE_HAIKU_4_5
+- Improved model name normalization for better compatibility
+- Updated pricing system with Claude 4 pricing data
+- All 812 tests passing with zero lint/type errors
+
 ### v0.10.1 - Windows Compatibility Fixes
 **Enhanced Windows Support**: Fixed encoding issues, improved Windows terminal compatibility, and resolved monitor display issues:
 
