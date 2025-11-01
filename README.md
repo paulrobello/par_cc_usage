@@ -1297,7 +1297,10 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
-### v0.13.0 - Configuration & Testing Improvements (In Development)
+### v0.14.0 - Development Version
+**In Development**: Future improvements and features will be documented here.
+
+### v0.13.0 - Configuration & Testing Improvements
 **Enhanced Configuration Defaults**: Updated default configuration values and improved test coverage:
 
 #### 🔧 Configuration Updates
