@@ -771,11 +771,17 @@ def _process_message_data(
         "isApiErrorMessage": validated_data.is_api_error_message,
     }
 
+    # Handle content being either string or list
+    if isinstance(message_data.content, str):
+        legacy_content = message_data.content
+    else:
+        legacy_content = [content.model_dump() for content in message_data.content]
+
     legacy_message = {
         "id": message_data.id,
         "model": message_data.model,
         "usage": message_data.usage.model_dump() if message_data.usage else None,
-        "content": [content.model_dump() for content in message_data.content],
+        "content": legacy_content,
     }
 
     # Process token usage using existing logic

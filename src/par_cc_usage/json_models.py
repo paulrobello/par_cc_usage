@@ -53,7 +53,7 @@ class MessageData(BaseModel):
     role: str | None = None
     model: str | None = None
     usage: UsageData | None = None
-    content: list[MessageContent] = Field(default_factory=list)
+    content: str | list[MessageContent] = Field(default_factory=list)
     stop_reason: str | None = None
     stop_sequence: str | None = None
 
