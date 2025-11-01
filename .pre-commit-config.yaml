@@ -25,9 +25,8 @@ repos:
     - id: checkall
       name: checkall
       entry: make
-      language: python
+      language: system
       pass_filenames: false
       args:
         [checkall]
       exclude: tests(/\w*)*/functional/|tests/input|tests(/\w*)*data/|doc/|output/.*
-      additional_dependencies: [uv]
