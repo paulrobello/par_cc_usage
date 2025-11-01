@@ -773,6 +773,77 @@ class StatusLineManager:
 
         return components
 
+    def _decode_claude_project_path(self, claude_project_dir: Path) -> Path | None:
+        """Decode a Claude Code project directory name back to the actual project path.
+
+        Claude encodes project paths as: -parent-with-slashes-as-dashes-project_name
+        For example: /Users/probello/Repos/par_cc_usage becomes
+                     -Users-probello-Repos-par_cc_usage
+
+        Args:
+            claude_project_dir: Path to Claude Code project directory
+                               (e.g., ~/.claude/projects/-Users-probello-Repos-par_cc_usage)
+
+        Returns:
+            Decoded actual project path or None if cannot decode
+        """
+        try:
+            # Get the directory name (e.g., "-Users-probello-Repos-par_cc_usage")
+            dir_name = claude_project_dir.name
+
+            # Remove leading dash
+            if not dir_name.startswith("-"):
+                return None
+            dir_name = dir_name[1:]
+
+            # Split by dash to get path components
+            parts = dir_name.split("-")
+            if not parts:
+                return None
+
+            # Reconstruct the path by joining with os separator
+            # Replace underscores back to dashes in project name (last part)
+            parts[-1] = parts[-1].replace("_", "-")  # Project name may have had _ → -
+
+            # Try as path under home first
+            reconstructed = Path.home() / "/".join(parts)
+            if reconstructed.exists():
+                return reconstructed
+
+            # If not found, it might just be the project name without parent path
+            # Try just the last part as a direct child of home or current directory
+            project_only = Path.home() / parts[-1]
+            if project_only.exists():
+                return project_only
+
+        except Exception:
+            pass
+
+        return None
+
+    def _get_project_path_from_session(self, session_id: str | None) -> Path | None:
+        """Get the project directory path from a session ID.
+
+        Args:
+            session_id: Session ID to find project for
+
+        Returns:
+            Path to actual project directory or None if not found
+        """
+        if not session_id:
+            return None
+
+        session_file = self._find_session_file(session_id)
+        if not session_file:
+            return None
+
+        # Session file is in: ~/.claude/projects/<encoded-project-dir>/<session-id>.jsonl
+        # Decode the project directory name back to actual path
+        claude_project_dir = session_file.parent
+        actual_project_path = self._decode_claude_project_path(claude_project_dir)
+
+        return actual_project_path
+
     def _prepare_template_components(
         self,
         tokens: int,
@@ -784,6 +855,7 @@ class StatusLineManager:
         time_remaining: str | None,
         project_name: str | None,
         template: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, str]:
         """Prepare individual components for template formatting.
 
@@ -797,6 +869,7 @@ class StatusLineManager:
             time_remaining: Time remaining
             project_name: Project name
             template: Template string to check what components are needed
+            session_id: Session ID for finding project path (optional)
 
         Returns:
             Dictionary of template components
@@ -817,7 +890,9 @@ class StatusLineManager:
 
         # Add git info if needed
         if "{git_branch}" in template or "{git_status}" in template:
-            branch, status = self._get_git_info()
+            # Get project path from session if available
+            project_path = self._get_project_path_from_session(session_id)
+            branch, status = self._get_git_info(project_path)
             components["git_branch"] = branch
             components["git_status"] = status
         else:
@@ -1047,9 +1122,18 @@ class StatusLineManager:
         if not template:
             template = "{project}{sep}{tokens}{sep}{messages}{sep}{cost}{sep}{remaining_block_time}"
 
-        # Prepare basic components
+        # Prepare basic components (pass session_id for project path resolution)
         components = self._prepare_template_components(
-            tokens, messages, cost, token_limit, message_limit, cost_limit, time_remaining, project_name, template
+            tokens,
+            messages,
+            cost,
+            token_limit,
+            message_limit,
+            cost_limit,
+            time_remaining,
+            project_name,
+            template,
+            session_id,
         )
 
         # Add session components if needed

@@ -1297,6 +1297,14 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.14.1 - Status Line Git Status Fix
+**Bug Fix**: Fixed git status template variables to use Claude Code project folder instead of par_cc_usage repository:
+
+#### 🐛 Bug Fixes
+- **Git Status Variables**: `{git_branch}` and `{git_status}` now correctly check git status of the Claude Code project being worked on
+- **Project Path Resolution**: Added logic to decode Claude Code project directory names back to actual project paths
+- **Session-Based Detection**: Git status is now determined from the session ID's project location
+
 ### v0.14.0 - Model Context Window Corrections
 **Bug Fixes & Improvements**: Corrected model context window sizes and improved model detection:
 
