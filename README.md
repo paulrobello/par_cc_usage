@@ -1297,8 +1297,15 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
-### v0.14.0 - Development Version
-**In Development**: Future improvements and features will be documented here.
+### v0.14.0 - Model Context Window Corrections
+**Bug Fixes & Improvements**: Corrected model context window sizes and improved model detection:
+
+#### 🐛 Bug Fixes
+- **Context Window Correction**: Fixed Claude Sonnet 4.5 context window from 1M to 200K tokens (1M is beta feature via API parameter, not default)
+- **Model Detection**: Improved partial matching logic by sorting keys longest-first for proper model precedence
+
+#### 🎯 New Features
+- **Additional Models**: Added Haiku 4.5 and Sonnet 4 to context window mapping (200K tokens)
 
 ### v0.13.0 - Configuration & Testing Improvements
 **Enhanced Configuration Defaults**: Updated default configuration values and improved test coverage:

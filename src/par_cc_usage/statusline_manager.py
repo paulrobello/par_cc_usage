@@ -19,12 +19,19 @@ from .xdg_dirs import (
 )
 
 # Model context window sizes (in tokens)
+# Note: Claude Sonnet 4/4.5 default is 200K. The 1M context is a beta feature
+# accessed via API parameter (context-1m-2025-08-07), not a separate model.
 MODEL_CONTEXT_WINDOWS = {
-    # Claude 4.5 models
-    "sonnet-4-5": 1_000_000,
-    "sonnet-4.5": 1_000_000,
-    "claude-sonnet-4-5": 1_000_000,
-    "claude-sonnet-4.5": 1_000_000,
+    # Claude 4.5 models - 200K default context
+    "sonnet-4-5": 200_000,
+    "sonnet-4.5": 200_000,
+    "claude-sonnet-4-5": 200_000,
+    "claude-sonnet-4.5": 200_000,
+    "haiku-4-5": 200_000,
+    "haiku-4.5": 200_000,
+    # Claude 4 models - 200K default context
+    "sonnet-4": 200_000,
+    "claude-sonnet-4": 200_000,
     # Claude 3.5 models
     "sonnet": 200_000,
     "sonnet-3-5": 200_000,
@@ -75,10 +82,12 @@ class StatusLineManager:
         if model_lower in MODEL_CONTEXT_WINDOWS:
             return MODEL_CONTEXT_WINDOWS[model_lower]
 
-        # Try partial matching
-        for key, context_size in MODEL_CONTEXT_WINDOWS.items():
-            if key in model_lower or model_lower in key:
-                return context_size
+        # Try partial matching - sort by key length (longest first) for proper precedence
+        # This ensures "sonnet-4-5" is checked before "sonnet"
+        sorted_keys = sorted(MODEL_CONTEXT_WINDOWS.keys(), key=len, reverse=True)
+        for key in sorted_keys:
+            if key in model_lower:
+                return MODEL_CONTEXT_WINDOWS[key]
 
         # Default fallback
         return DEFAULT_CONTEXT_WINDOW
