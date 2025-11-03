@@ -23,6 +23,8 @@ def create_mock_config():
 
 def test_session_tokens_extraction():
     """Test extraction of session tokens from JSONL file."""
+    from pathlib import Path
+
     config = create_mock_config()
     manager = StatusLineManager(config)
 
@@ -33,14 +35,16 @@ def test_session_tokens_extraction():
             stdout="150000\n",  # 150K tokens used
         )
 
-        with patch("pathlib.Path.exists") as mock_exists:
-            mock_exists.return_value = True
+        # Mock _find_session_file to return a valid path
+        with patch.object(manager, "_find_session_file", return_value=Path("/tmp/test-session-id.jsonl")):
+            with patch("pathlib.Path.exists") as mock_exists:
+                mock_exists.return_value = True
 
-            tokens_used, max_tokens, tokens_remaining = manager._get_session_tokens("test-session-id")
+                tokens_used, max_tokens, tokens_remaining = manager._get_session_tokens("test-session-id")
 
-            assert tokens_used == 150000
-            assert max_tokens == 200000  # Default max
-            assert tokens_remaining == 50000
+                assert tokens_used == 150000
+                assert max_tokens == 200000  # Default max
+                assert tokens_remaining == 50000
 
 
 def test_session_tokens_no_session():

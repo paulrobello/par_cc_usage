@@ -107,6 +107,8 @@ def test_session_tokens_not_fetched_when_not_in_template():
 
 def test_session_tokens_fetched_when_in_template():
     """Test that session tokens are fetched when in the template."""
+    from pathlib import Path
+
     config = create_mock_config()
     config.statusline_template = "{tokens} - {session_tokens}/{session_tokens_total}"
     manager = StatusLineManager(config)
@@ -118,24 +120,26 @@ def test_session_tokens_fetched_when_in_template():
             stdout="150000\n",
         )
 
-        with patch("pathlib.Path.exists") as mock_exists:
-            mock_exists.return_value = True
+        # Mock _find_session_file to return a valid path
+        with patch.object(manager, "_find_session_file", return_value=Path("/tmp/test-session-id.jsonl")):
+            with patch("pathlib.Path.exists") as mock_exists:
+                mock_exists.return_value = True
 
-            result = manager.format_status_line_from_template(
-                tokens=100000,
-                messages=25,
-                session_id="test-session-id",
-            )
+                result = manager.format_status_line_from_template(
+                    tokens=100000,
+                    messages=25,
+                    session_id="test-session-id",
+                )
 
-            # jq command should have been called
-            assert any(
-                "jq" in str(call[0][0]) if call[0] else False
-                for call in mock_run.call_args_list
-            )
+                # jq command should have been called
+                assert any(
+                    "jq" in str(call[0][0]) if call[0] else False
+                    for call in mock_run.call_args_list
+                )
 
-            # Result should contain session tokens
-            assert "150K" in result
-            assert "200K" in result  # Default max
+                # Result should contain session tokens
+                assert "150K" in result
+                assert "200K" in result  # Default max
 
 
 def test_date_time_not_fetched_when_not_in_template():
@@ -269,6 +273,8 @@ def test_username_fetched_when_in_template():
 
 def test_multiple_conditional_fetches():
     """Test that multiple components are conditionally fetched correctly."""
+    from pathlib import Path
+
     config = create_mock_config()
     # Template with only tokens and session tokens
     config.statusline_template = "{tokens} - {session_tokens}/{session_tokens_total}"
@@ -279,21 +285,23 @@ def test_multiple_conditional_fetches():
         with patch("socket.gethostname") as mock_gethostname:
             with patch("os.getenv") as mock_getenv:
                 with patch("par_cc_usage.statusline_manager.datetime") as mock_datetime:
-                    with patch("pathlib.Path.exists") as mock_exists:
-                        mock_exists.return_value = True
-                        mock_run.return_value = Mock(returncode=0, stdout="150000\n")
+                    # Mock _find_session_file to return a valid path
+                    with patch.object(manager, "_find_session_file", return_value=Path("/tmp/test-session-id.jsonl")):
+                        with patch("pathlib.Path.exists") as mock_exists:
+                            mock_exists.return_value = True
+                            mock_run.return_value = Mock(returncode=0, stdout="150000\n")
 
-                        manager.format_status_line_from_template(
-                            tokens=100000,
-                            messages=25,
-                            session_id="test-session-id",
-                        )
+                            manager.format_status_line_from_template(
+                                tokens=100000,
+                                messages=25,
+                                session_id="test-session-id",
+                            )
 
-                        # Only jq should have been called (for session tokens)
-                        assert any(
-                            "jq" in str(call[0][0]) if call[0] else False
-                            for call in mock_run.call_args_list
-                        )
+                            # Only jq should have been called (for session tokens)
+                            assert any(
+                                "jq" in str(call[0][0]) if call[0] else False
+                                for call in mock_run.call_args_list
+                            )
 
                         # Git should not have been called
                         assert not any(
@@ -312,6 +320,8 @@ def test_multiple_conditional_fetches():
 
 def test_session_progress_bar_conditional_fetch():
     """Test that session progress bar triggers session token fetch."""
+    from pathlib import Path
+
     config = create_mock_config()
     config.statusline_template = "{tokens} - {session_tokens_progress_bar}"
     manager = StatusLineManager(config)
@@ -323,21 +333,23 @@ def test_session_progress_bar_conditional_fetch():
             stdout="50000\n",  # 25% of 200K
         )
 
-        with patch("pathlib.Path.exists") as mock_exists:
-            mock_exists.return_value = True
+        # Mock _find_session_file to return a valid path
+        with patch.object(manager, "_find_session_file", return_value=Path("/tmp/test-session-id.jsonl")):
+            with patch("pathlib.Path.exists") as mock_exists:
+                mock_exists.return_value = True
 
-            result = manager.format_status_line_from_template(
-                tokens=100000,
-                messages=25,
-                session_id="test-session-id",
-            )
+                result = manager.format_status_line_from_template(
+                    tokens=100000,
+                    messages=25,
+                    session_id="test-session-id",
+                )
 
-            # jq command should have been called
-            assert any(
-                "jq" in str(call[0][0]) if call[0] else False
-                for call in mock_run.call_args_list
-            )
+                # jq command should have been called
+                assert any(
+                    "jq" in str(call[0][0]) if call[0] else False
+                    for call in mock_run.call_args_list
+                )
 
-            # Result should contain progress bar
-            assert "[" in result
-            assert "]" in result
+                # Result should contain progress bar
+                assert "[" in result
+                assert "]" in result
