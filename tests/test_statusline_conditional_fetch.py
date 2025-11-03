@@ -46,6 +46,8 @@ def test_git_info_not_fetched_when_not_in_template():
 
 def test_git_info_fetched_when_in_template():
     """Test that git info is fetched when in the template."""
+    from pathlib import Path
+
     config = create_mock_config()
     config.statusline_template = "{tokens} - {git_branch} {git_status}"
     manager = StatusLineManager(config)
@@ -58,19 +60,25 @@ def test_git_info_fetched_when_in_template():
             stderr="",
         )
 
-        result = manager.format_status_line_from_template(
-            tokens=100000,
-            messages=25,
-        )
+        # Mock _get_project_path_from_session to return a valid path
+        mock_project_path = Path("/tmp/test_project")
+        with patch.object(manager, "_get_project_path_from_session", return_value=mock_project_path):
+            # Mock _find_git_root to return the project path (indicating .git exists)
+            with patch.object(manager, "_find_git_root", return_value=mock_project_path):
+                result = manager.format_status_line_from_template(
+                    tokens=100000,
+                    messages=25,
+                    session_id="test-session-123",
+                )
 
-        # Git command should have been called
-        assert any(
-            "git" in str(call[0][0]) if call[0] else False
-            for call in mock_run.call_args_list
-        )
+                # Git command should have been called
+                assert any(
+                    "git" in str(call[0][0]) if call[0] else False
+                    for call in mock_run.call_args_list
+                )
 
-        # Result should contain branch name
-        assert "main" in result
+                # Result should contain branch name
+                assert "main" in result
 
 
 def test_session_tokens_not_fetched_when_not_in_template():

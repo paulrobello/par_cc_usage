@@ -458,7 +458,8 @@ class StatusLineManager:
 
         claude_projects = Path.home() / ".claude" / "projects"
 
-        # First, try to find the file by searching through project directories
+        # Search through all project directories to find the session file
+        # Don't use Path.cwd() fallback as the monitor may not be running from the project
         if claude_projects.exists() and claude_projects.is_dir():
             try:
                 for project_dir in claude_projects.iterdir():
@@ -470,24 +471,7 @@ class StatusLineManager:
                 # Directory might not exist or we lack permissions
                 pass
 
-        # Try the expected path based on current directory
-        cwd = Path.cwd()
-        project_name = cwd.name.replace("_", "-")
-        # Use Path methods for cross-platform compatibility (Windows uses backslashes)
-        try:
-            relative_parent = cwd.parent.relative_to(Path.home())
-            parent_path = str(relative_parent).replace("\\", "-").replace("/", "-")
-        except ValueError:
-            # Path is not relative to home directory
-            parent_path = ""
-
-        if parent_path:
-            project_dir = f"-{parent_path}-{project_name}"
-        else:
-            project_dir = f"-{project_name}"
-
-        session_file = claude_projects / project_dir / f"{session_id}.jsonl"
-        return session_file if session_file.exists() else None
+        return None
 
     def _extract_tokens_from_file(self, session_file: Path) -> int:
         """Extract token count from session JSONL file.
@@ -554,22 +538,13 @@ class StatusLineManager:
         Returns:
             Path to git root or None if not found
         """
-        from pathlib import Path
 
+        # If no project path provided, we can't determine git status
+        # Don't fall back to Path.cwd() as that's where the monitor is running
         if project_path is None:
-            try:
-                # Use current working directory instead of script location
-                check_path = Path.cwd().resolve()
-
-                while check_path != check_path.parent:
-                    if (check_path / ".git").exists():
-                        return check_path
-                    check_path = check_path.parent
-            except Exception:
-                pass
             return None
 
-        # When project_path is provided, also check parent directories
+        # When project_path is provided, check it and parent directories
         try:
             check_path = project_path.resolve()
             while check_path != check_path.parent:
@@ -639,8 +614,8 @@ class StatusLineManager:
         """Get current git branch and status.
 
         Args:
-            project_path: Path to check for git status. If None, uses the directory
-                         where this code is running (the par_cc_usage repo itself).
+            project_path: Path to check for git status. If None, git info cannot be
+                         determined and empty strings are returned.
 
         Returns:
             Tuple of (branch_name, status_indicator)
@@ -773,56 +748,11 @@ class StatusLineManager:
 
         return components
 
-    def _decode_claude_project_path(self, claude_project_dir: Path) -> Path | None:
-        """Decode a Claude Code project directory name back to the actual project path.
-
-        Claude encodes project paths as: -parent-with-slashes-as-dashes-project_name
-        For example: /Users/probello/Repos/par_cc_usage becomes
-                     -Users-probello-Repos-par_cc_usage
-
-        Args:
-            claude_project_dir: Path to Claude Code project directory
-                               (e.g., ~/.claude/projects/-Users-probello-Repos-par_cc_usage)
-
-        Returns:
-            Decoded actual project path or None if cannot decode
-        """
-        try:
-            # Get the directory name (e.g., "-Users-probello-Repos-par_cc_usage")
-            dir_name = claude_project_dir.name
-
-            # Remove leading dash
-            if not dir_name.startswith("-"):
-                return None
-            dir_name = dir_name[1:]
-
-            # Split by dash to get path components
-            parts = dir_name.split("-")
-            if not parts:
-                return None
-
-            # Reconstruct the path by joining with os separator
-            # Replace underscores back to dashes in project name (last part)
-            parts[-1] = parts[-1].replace("_", "-")  # Project name may have had _ → -
-
-            # Try as path under home first
-            reconstructed = Path.home() / "/".join(parts)
-            if reconstructed.exists():
-                return reconstructed
-
-            # If not found, it might just be the project name without parent path
-            # Try just the last part as a direct child of home or current directory
-            project_only = Path.home() / parts[-1]
-            if project_only.exists():
-                return project_only
-
-        except Exception:
-            pass
-
-        return None
-
     def _get_project_path_from_session(self, session_id: str | None) -> Path | None:
         """Get the project directory path from a session ID.
+
+        Extracts the `cwd` (current working directory) field from the session JSONL file,
+        which contains the actual project path.
 
         Args:
             session_id: Session ID to find project for
@@ -837,12 +767,32 @@ class StatusLineManager:
         if not session_file:
             return None
 
-        # Session file is in: ~/.claude/projects/<encoded-project-dir>/<session-id>.jsonl
-        # Decode the project directory name back to actual path
-        claude_project_dir = session_file.parent
-        actual_project_path = self._decode_claude_project_path(claude_project_dir)
+        # Read the session file to extract the cwd field
+        # The cwd field may not be in the first line (could be summary/snapshot),
+        # so we read up to 100 lines to find it (typically appears in first user message)
+        import json
 
-        return actual_project_path
+        try:
+            with open(session_file, encoding="utf-8") as f:
+                # Read up to 100 lines to find the cwd
+                for _ in range(100):
+                    line = f.readline().strip()
+                    if not line:
+                        break
+
+                    try:
+                        record = json.loads(line)
+                        cwd = record.get("cwd")
+                        if cwd:
+                            project_path = Path(cwd)
+                            if project_path.exists():
+                                return project_path
+                    except json.JSONDecodeError:
+                        continue
+        except (OSError, KeyError):
+            pass
+
+        return None
 
     def _prepare_template_components(
         self,
@@ -1395,6 +1345,7 @@ class StatusLineManager:
             cost_limit=cost_limit,
             time_remaining=time_remaining,
             project_name=project_name,
+            session_id=session_id,
         )
 
     async def generate_grand_total_with_project_name_async(self, usage_snapshot: UsageSnapshot, session_id: str) -> str:
@@ -1447,6 +1398,7 @@ class StatusLineManager:
             cost_limit=cost_limit,
             time_remaining=time_remaining,
             project_name=project_name,
+            session_id=session_id,
         )
 
     def _clear_outdated_cache(self) -> None:

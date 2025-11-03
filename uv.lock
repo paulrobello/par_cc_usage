@@ -693,7 +693,7 @@ wheels = [
 
 [[package]]
 name = "par-cc-usage"
-version = "0.14.1"
+version = "0.14.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

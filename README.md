@@ -1297,6 +1297,13 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.14.2 - Additional Status Line Git Path Fixes
+**Bug Fixes**: Further improvements to status line git path resolution:
+
+#### 🐛 Bug Fixes
+- **Git Path Resolution**: Additional fixes for status line git status detection
+- **Path Handling**: Improved robustness of project path decoding and git repository detection
+
 ### v0.14.1 - Status Line Git Status & Pre-commit Fix
 **Bug Fixes**: Fixed git status template variables and pre-commit hook corruption issue:
 
