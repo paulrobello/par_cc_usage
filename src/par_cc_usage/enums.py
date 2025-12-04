@@ -25,6 +25,7 @@ class ModelType(str, Enum):
     CLAUDE_SONNET_4 = "sonnet-4"
     CLAUDE_SONNET_4_5 = "sonnet-4-5"
     CLAUDE_OPUS_4_1 = "opus-4-1"
+    CLAUDE_OPUS_4_5 = "opus-4-5"
     CLAUDE_HAIKU_4_5 = "haiku-4-5"
     UNKNOWN = "unknown"
 
