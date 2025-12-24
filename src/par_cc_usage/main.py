@@ -1790,6 +1790,7 @@ def configure_statusline(
             "  {git_status}          - Git status indicator (configurable via statusline_git_clean_indicator and"
         )
         console.print("                          statusline_git_dirty_indicator in config. Default: ✓=clean, *=dirty)")
+        console.print("  {last_message_time}   - Timestamp of last message (e.g., 📝 08:42 AM)")
         console.print()
         console.print("[bold cyan]Session token variables (when session_id available):[/bold cyan]")
         console.print("  {session_tokens}              - Current session token usage (e.g., 🪙 45K)")
@@ -1859,6 +1860,9 @@ def configure_statusline(
     manager = StatusLineManager(config)
 
     # Generate sample data for preview
+    # Replace {last_message_time} with sample value for preview (actual time format)
+    preview_template = template.replace("{last_message_time}", "📝 08:42 AM")
+
     sample_status = manager.format_status_line_from_template(
         tokens=150000,
         messages=25,
@@ -1868,7 +1872,7 @@ def configure_statusline(
         cost_limit=5.00,
         time_remaining="2h 34m",
         project_name="my-project",
-        template=template,
+        template=preview_template,
     )
 
     console.print()
