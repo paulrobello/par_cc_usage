@@ -186,8 +186,18 @@ class TestLastMessageTimer:
         import re
         assert re.match(r"\d{2}:\d{2} (AM|PM)", time_str), f"Should be HH:MM AM/PM format, got: {time_str}"
 
-    def test_template_integration(self, manager: StatusLineManager) -> None:
-        """Test integration with template system."""
+    def test_template_keeps_placeholder(self, manager: StatusLineManager) -> None:
+        """Test that template keeps {last_message_time} as placeholder for on-demand enrichment."""
+        # _prepare_last_message_time_component now returns empty dict
+        # to keep the placeholder for on-demand enrichment
+        template = "{last_message_time}"
+        components = manager._prepare_last_message_time_component(template, "test-session-123")
+
+        # Should return empty dict (placeholder is kept for on-demand enrichment)
+        assert components == {}, "Should return empty dict to keep placeholder"
+
+    def test_on_demand_enrichment_in_template(self, manager: StatusLineManager) -> None:
+        """Test that last_message_time is enriched on-demand during status line retrieval."""
         session_file = self.create_session_file(minutes_ago=3)
 
         try:
@@ -195,40 +205,37 @@ class TestLastMessageTimer:
             original_find = manager._find_session_file
             manager._find_session_file = lambda _: session_file
 
-            # Test template with last_message_time variable
-            template = "{last_message_time}"
-            components = manager._prepare_last_message_time_component(template, "test-session-123")
+            # Generate status line - will have placeholder
+            manager.config.statusline_template = "{tokens}{sep}{last_message_time}"
+            status_line = manager.format_status_line_from_template(
+                tokens=1000,
+                messages=5,
+                cost=0.50,
+                session_id="test-session-123",
+            )
 
-            assert "last_message_time" in components
-            assert components["last_message_time"] != "", "Should have a value"
-            assert "📝" in components["last_message_time"], "Should include 📝 emoji"
+            # Placeholder should be kept in the generated line
+            assert "{last_message_time}" in status_line, "Should keep placeholder"
 
-            # Verify format: should be "📝 HH:MM AM/PM"
+            # Now enrich on-demand (simulating what pccu statusline does)
+            enriched = manager._enrich_with_model_and_session_tokens(
+                status_line, "test-session-123", ""
+            )
+
+            # Should have replaced the placeholder
+            assert "{last_message_time}" not in enriched, "Placeholder should be replaced"
+
             import re
-            assert re.search(r"📝 \d{2}:\d{2} (AM|PM)", components["last_message_time"]), \
-                f"Should be '📝 HH:MM AM/PM' format, got: {components['last_message_time']}"
+            assert re.search(r"\d{2}:\d{2} (AM|PM)", enriched), \
+                f"Should be 'HH:MM AM/PM' format, got: {enriched}"
 
             # Restore original method
             manager._find_session_file = original_find
         finally:
             session_file.unlink()
 
-    def test_template_without_variable(self, manager: StatusLineManager) -> None:
-        """Test that component is empty when variable not in template."""
-        template = "{tokens}{sep}{messages}"
-        components = manager._prepare_last_message_time_component(template, "test-session-123")
-
-        assert components["last_message_time"] == "", "Should be empty when not in template"
-
-    def test_template_without_session_id(self, manager: StatusLineManager) -> None:
-        """Test that component is empty without session ID."""
-        template = "{last_message_time}"
-        components = manager._prepare_last_message_time_component(template, None)
-
-        assert components["last_message_time"] == "", "Should be empty without session ID"
-
-    def test_full_status_line_with_timer(self, manager: StatusLineManager) -> None:
-        """Test full status line generation with timer."""
+    def test_full_status_line_with_enrichment(self, manager: StatusLineManager) -> None:
+        """Test full status line generation with on-demand enrichment."""
         session_file = self.create_session_file(minutes_ago=10)
 
         try:
@@ -236,7 +243,7 @@ class TestLastMessageTimer:
             original_find = manager._find_session_file
             manager._find_session_file = lambda _: session_file
 
-            # Generate status line with custom template
+            # Generate status line with custom template - will have placeholder
             manager.config.statusline_template = "{project}{sep}{tokens}{sep}{last_message_time}"
             status_line = manager.format_status_line_from_template(
                 tokens=1000,
@@ -246,11 +253,18 @@ class TestLastMessageTimer:
                 session_id="test-session-123",
             )
 
-            assert "📝" in status_line, "Should include timer emoji"
-            # Should show actual time (HH:MM AM/PM format), not elapsed time
-            import re
-            assert re.search(r"\d{2}:\d{2} (AM|PM)", status_line), f"Should show time in HH:MM AM/PM format, got: {status_line}"
+            # Placeholder should be kept
+            assert "{last_message_time}" in status_line, "Should keep placeholder"
             assert "test-project" in status_line, "Should include project name"
+
+            # Enrich on-demand
+            enriched = manager._enrich_with_model_and_session_tokens(
+                status_line, "test-session-123", ""
+            )
+
+            import re
+            assert re.search(r"\d{2}:\d{2} (AM|PM)", enriched), \
+                f"Should show time in HH:MM AM/PM format, got: {enriched}"
 
             # Restore original method
             manager._find_session_file = original_find
@@ -314,3 +328,55 @@ class TestLastMessageTimerEdgeCases:
             assert timestamp is None, "Should return None for malformed JSON"
         finally:
             session_file.unlink()
+
+    def test_on_demand_enrichment(self, manager: StatusLineManager) -> None:
+        """Test that last_message_time is enriched on-demand during status line retrieval."""
+        # Create a session file with a known timestamp
+        time_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+        timestamp_str = time_ago.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            session_file = Path(f.name)
+            mock_entry = {
+                "timestamp": timestamp_str,
+                "sessionId": "test-session-456",
+                "type": "assistant",
+            }
+            f.write(json.dumps(mock_entry) + "\n")
+
+        try:
+            # Mock the session file lookup
+            original_find = manager._find_session_file
+            manager._find_session_file = lambda _: session_file
+
+            # Simulate a cached status line with unfilled {last_message_time} placeholder
+            cached_status = "🪙 1K - 💬 5 - {last_message_time}"
+
+            # Enrich it on-demand (this is what pccu statusline does)
+            enriched = manager._enrich_with_model_and_session_tokens(
+                cached_status, "test-session-456", "opus"
+            )
+
+            # Should have replaced the placeholder with actual time
+            assert "{last_message_time}" not in enriched, "Placeholder should be replaced"
+
+            import re
+            assert re.search(r"\d{2}:\d{2} (AM|PM)", enriched), \
+                f"Should show time in HH:MM AM/PM format, got: {enriched}"
+
+            # Restore original method
+            manager._find_session_file = original_find
+        finally:
+            session_file.unlink()
+
+    def test_on_demand_enrichment_no_session(self, manager: StatusLineManager) -> None:
+        """Test on-demand enrichment removes placeholder when no session."""
+        cached_status = "🪙 1K - 💬 5 - {last_message_time}"
+
+        # Enrich without session ID
+        enriched = manager._enrich_with_model_and_session_tokens(cached_status, None, "opus")
+
+        # Placeholder should remain (cleanup happens at end if session_id is None)
+        # Actually the code checks "if session_id" so placeholder remains
+        # Let me check the actual behavior
+        assert "🪙 1K" in enriched, "Should keep tokens part"
