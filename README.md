@@ -1297,6 +1297,16 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.15.0 - Opus 4.5 Model Support
+**New Features**: Added proper support for Claude Opus 4.5 model with correct pricing.
+
+#### ✨ New Features
+- **Opus 4.5 Support**: Added `CLAUDE_OPUS_4_5` model type for proper recognition
+- **Pricing Fix**: Opus 4.5 now correctly maps to LiteLLM pricing instead of generic "opus" with $0 cache pricing
+
+#### 🐛 Bug Fixes
+- **Cost Calculation**: Fixed ~99% cost underreporting when using Opus 4.5 (cache tokens now priced correctly)
+
 ### v0.14.2 - Additional Status Line Git Path Fixes
 **Bug Fixes**: Further improvements to status line git path resolution:
 
