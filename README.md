@@ -1297,6 +1297,15 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.16.0 - Last Message Time Display
+**New Feature**: Status line now supports showing the actual timestamp of the last message.
+
+#### ✨ New Features
+- **Last Message Time**: Added `{last_message_time}` template variable showing timestamp (e.g., "📝 08:42 AM")
+- Helps users gauge if their prompt cache is still active (5-minute default lifetime)
+
+Thanks to @catapulta for this contribution!
+
 ### v0.15.1 - Security Updates
 **Security**: Updated dependencies to address security vulnerabilities.
 
