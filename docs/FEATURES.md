@@ -95,8 +95,9 @@ PAR CC Usage is a comprehensive monitoring solution designed specifically for tr
 - **Flexible output**: Table, JSON, and CSV export formats
 
 ## Theme System
-- **Multiple built-in themes**: Choose from 5 carefully crafted themes for different preferences
+- **Multiple built-in themes**: Choose from 6 carefully crafted themes for different preferences
 - **Light and dark themes**: Options for both dark terminal and light terminal users
+- **Terminal-native ANSI theme**: Respects your terminal's color palette (great for Catppuccin, Dracula, etc.)
 - **Accessibility support**: High contrast theme meeting WCAG AAA standards
 - **Session-based overrides**: Temporarily change themes for individual command runs
 - **Rich color integration**: Semantic color system with consistent visual language
@@ -199,6 +200,7 @@ PAR CC Usage is a comprehensive monitoring solution designed specifically for tr
 - **Default**: Original bright color scheme for dark terminals
 - **Dark**: Optimized colors for dark terminal backgrounds
 - **Light**: Solarized Light inspired palette for light terminals
+- **ANSI**: Terminal-native theme using ANSI color names (respects terminal palettes like Catppuccin)
 - **Accessibility**: High contrast theme meeting WCAG AAA standards
 - **Minimal**: Grayscale theme for distraction-free use
 

@@ -149,8 +149,9 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Flexible output**: Table, JSON, and CSV export formats
 
 ### 🎨 Theme System
-- **Multiple built-in themes**: Choose from 5 carefully crafted themes for different preferences
+- **Multiple built-in themes**: Choose from 6 carefully crafted themes for different preferences
 - **Light and dark themes**: Options for both dark terminal and light terminal users
+- **Terminal-native ANSI theme**: Respects your terminal's color palette (great for Catppuccin, Dracula, etc.)
 - **Accessibility support**: High contrast theme meeting WCAG AAA standards
 - **Session-based overrides**: Temporarily change themes for individual command runs
 - **Rich color integration**: Semantic color system with consistent visual language
@@ -376,6 +377,7 @@ pccu monitor --show-pricing --config pricing-config.yaml  # Cost monitoring with
 # Theme customization
 pccu monitor --theme light  # Use light theme for this session
 pccu monitor --theme dark --show-sessions  # Dark theme with session details
+pccu monitor --theme ansi --show-sessions  # ANSI theme (respects terminal palette like Catppuccin)
 pccu monitor --theme accessibility --show-pricing  # High contrast theme with pricing
 pccu monitor --theme minimal --compact  # Minimal theme with compact display
 

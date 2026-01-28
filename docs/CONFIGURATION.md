@@ -87,7 +87,7 @@ display:
   time_format: 24h  # Time format: '12h' for 12-hour, '24h' for 24-hour
   display_mode: normal  # Display mode: 'normal' or 'compact'
   show_pricing: false  # Enable cost calculations and display (default: false)
-  theme: default  # Theme: 'default', 'dark', 'light', 'accessibility', or 'minimal'
+  theme: default  # Theme: 'default', 'dark', 'light', 'ansi', 'accessibility', or 'minimal'
   project_name_prefixes:  # Strip prefixes from project names for cleaner display
     - "-Users-"
     - "-home-"
@@ -284,7 +284,7 @@ model_multipliers:
 - `PAR_CC_USAGE_UPDATE_IN_PLACE`: Update display in place
 - `PAR_CC_USAGE_REFRESH_INTERVAL`: Display refresh interval
 - `PAR_CC_USAGE_TIME_FORMAT`: Time format ('12h' or '24h')
-- `PAR_CC_USAGE_THEME`: Theme name ('default', 'dark', 'light', 'accessibility', or 'minimal')
+- `PAR_CC_USAGE_THEME`: Theme name ('default', 'dark', 'light', 'ansi', 'accessibility', or 'minimal')
 - `PAR_CC_USAGE_PROJECT_NAME_PREFIXES`: Comma-separated list of prefixes to strip from project names
 - `PAR_CC_USAGE_AGGREGATE_BY_PROJECT`: Aggregate token usage by project instead of sessions ('true', '1', 'yes', 'on' for true)
 - `PAR_CC_USAGE_STATUSLINE_ENABLED`: Enable/disable Claude Code status line generation ('true', '1', 'yes', 'on' for true, default: true)
