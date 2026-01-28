@@ -382,6 +382,11 @@ PAR CC Usage includes a comprehensive theme system that allows you to customize 
 - **Colors**: Solarized Light palette (darker text, warm backgrounds)
 - **Best for**: Light terminals, bright environments
 
+**ANSI Theme**: Terminal-native theme using standard ANSI color names
+- **Use case**: Terminals with custom color palettes (Catppuccin, Dracula, Nord, etc.)
+- **Colors**: ANSI color names (green, cyan, yellow, red, magenta, blue)
+- **Best for**: Users who want the theme to respect their terminal's configured color palette
+
 **Accessibility Theme**: High contrast theme meeting WCAG AAA standards
 - **Use case**: Visual accessibility and screen readers
 - **Colors**: High contrast colors (black text on white background)
@@ -420,7 +425,7 @@ pccu monitor --theme light --show-sessions --show-pricing
 **Configuration File Setting:**
 ```yaml
 display:
-  theme: light  # Options: 'default', 'dark', 'light', 'accessibility', 'minimal'
+  theme: light  # Options: 'default', 'dark', 'light', 'ansi', 'accessibility', 'minimal'
 ```
 
 **Environment Variable:**
@@ -463,6 +468,7 @@ Themes apply to all visual elements:
 
 - **Light terminals**: Use `light` or `accessibility` themes
 - **Dark terminals**: Use `default` or `dark` themes
+- **Custom terminal palettes**: Use `ansi` theme (Catppuccin, Dracula, Nord, etc.)
 - **Accessibility needs**: Use `accessibility` theme for high contrast
 - **Professional environments**: Use `minimal` theme for clean appearance
 - **Testing themes**: Use `--theme` flag to test before setting as default

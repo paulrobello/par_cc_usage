@@ -76,6 +76,7 @@ class ThemeType(str, Enum):
     DEFAULT = "default"
     DARK = "dark"
     LIGHT = "light"
+    ANSI = "ansi"
     ACCESSIBILITY = "accessibility"
     MINIMAL = "minimal"
 

@@ -71,12 +71,12 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
   - [Environment Variable Override](#environment-variable-override)
 - [Coming Soon](#coming-soon)
 - [What's New](#whats-new)
-  - [v0.10.1 - Windows Compatibility Fixes](#v0101---windows-compatibility-fixes)
-  - [v0.10.0 - Advanced Status Line Progress Bars & Performance](#v0100---advanced-status-line-progress-bars--performance)
-  - [v0.9.0 - Enhanced Status Line with Project Names](#v090---enhanced-status-line-with-project-names)
-  - [v0.8.0 - Claude Code Status Line Integration](#v080---claude-code-status-line-integration)
-  - [v0.7.0 - Enhanced Configuration Management](#v070---enhanced-configuration-management)
-  - [v0.6.0 - Usage Summary Analytics](#v060---usage-summary-analytics)
+  - [v0.17.0 - ANSI Theme & Dependency Updates](#v0170---ansi-theme--dependency-updates)
+  - [v0.16.0 - Last Message Time Display](#v0160---last-message-time-display)
+  - [v0.15.0 - Opus 4.5 Model Support](#v0150---opus-45-model-support)
+  - [v0.14.0 - Tool Usage Tracking](#v0140---tool-usage-tracking)
+  - [v0.13.0 - MCP Tool Differentiation](#v0130---mcp-tool-differentiation)
+  - [v0.12.0 - Theme System](#v0120---theme-system)
   - [older...](#older)
 - [Development](#development)
 
@@ -149,8 +149,9 @@ Claude Code usage tracking tool with real-time monitoring and analysis.
 - **Flexible output**: Table, JSON, and CSV export formats
 
 ### 🎨 Theme System
-- **Multiple built-in themes**: Choose from 5 carefully crafted themes for different preferences
+- **Multiple built-in themes**: Choose from 6 carefully crafted themes for different preferences
 - **Light and dark themes**: Options for both dark terminal and light terminal users
+- **Terminal-native ANSI theme**: Respects your terminal's color palette (great for Catppuccin, Dracula, etc.)
 - **Accessibility support**: High contrast theme meeting WCAG AAA standards
 - **Session-based overrides**: Temporarily change themes for individual command runs
 - **Rich color integration**: Semantic color system with consistent visual language
@@ -376,6 +377,7 @@ pccu monitor --show-pricing --config pricing-config.yaml  # Cost monitoring with
 # Theme customization
 pccu monitor --theme light  # Use light theme for this session
 pccu monitor --theme dark --show-sessions  # Dark theme with session details
+pccu monitor --theme ansi --show-sessions  # ANSI theme (respects terminal palette like Catppuccin)
 pccu monitor --theme accessibility --show-pricing  # High contrast theme with pricing
 pccu monitor --theme minimal --compact  # Minimal theme with compact display
 
@@ -1296,6 +1298,20 @@ We're actively working on exciting new features to enhance your Claude Code moni
 **Want to contribute or request a feature?** Check out our [GitHub repository](https://github.com/paulrobello/par_cc_usage) or open an issue with your suggestions!
 
 ## What's New
+
+### v0.17.0 - ANSI Theme & Dependency Updates
+**New Feature**: Added terminal-native ANSI theme for users with custom terminal color palettes.
+
+#### ✨ New Features
+- **ANSI Theme**: New theme using standard ANSI color names instead of hex values
+  - Respects your terminal's configured color palette (Catppuccin, Dracula, Nord, Solarized, etc.)
+  - Use with `pccu monitor --theme ansi` or set as default with `pccu theme set ansi`
+  - Fixes garish colors when using custom terminal themes (issue #3)
+
+#### 📦 Dependency Updates
+- Updated all dependencies to latest versions (rich 14.3.1, typer 0.21.1, pydantic 2.12.5, etc.)
+
+Thanks to @tartansandal for the detailed investigation and fix suggestions!
 
 ### v0.16.0 - Last Message Time Display
 **New Feature**: Status line now supports showing the actual timestamp of the last message.

@@ -517,6 +517,7 @@ pccu monitor --no-cache --snapshot
 
 ### Theme Selection
 - Use `light` theme for light terminals
+- Use `ansi` theme for custom terminal palettes (Catppuccin, Dracula, Nord, etc.)
 - Use `accessibility` theme for high contrast needs
 - Use `minimal` theme for distraction-free monitoring
 - Test themes with `--theme` flag before setting as default

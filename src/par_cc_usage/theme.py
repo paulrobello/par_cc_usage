@@ -263,6 +263,71 @@ class ThemeManager:
             rich_theme=light_rich_theme,
         )
 
+        # ANSI theme (uses standard ANSI color names to respect terminal palettes)
+        # This theme works well with custom terminal themes like Catppuccin, Dracula, etc.
+        ansi_colors = ColorScheme(
+            success="green",
+            warning="yellow",
+            error="red",
+            info="blue",
+            primary="blue",
+            secondary="cyan",
+            accent="magenta",
+            border="yellow",
+            background="black",
+            text="white",
+            text_dim="dim",
+            token_count="yellow",
+            model_name="green",
+            project_name="cyan",
+            tool_usage="yellow",
+            tool_mcp="red",
+            tool_total="cyan",
+            cost="green",
+            progress_low="green",
+            progress_medium="yellow",
+            progress_high="yellow",
+            progress_critical="red",
+            burn_rate="cyan",
+            eta_normal="cyan",
+            eta_urgent="red",
+        )
+
+        ansi_rich_theme = Theme(
+            {
+                "success": ansi_colors.success,
+                "warning": ansi_colors.warning,
+                "error": ansi_colors.error,
+                "info": ansi_colors.info,
+                "primary": ansi_colors.primary,
+                "secondary": ansi_colors.secondary,
+                "accent": ansi_colors.accent,
+                "border": ansi_colors.border,
+                "text": ansi_colors.text,
+                "text_dim": ansi_colors.text_dim,
+                "token_count": ansi_colors.token_count,
+                "model_name": ansi_colors.model_name,
+                "project_name": ansi_colors.project_name,
+                "tool_usage": ansi_colors.tool_usage,
+                "tool_mcp": ansi_colors.tool_mcp,
+                "cost": ansi_colors.cost,
+                "progress_low": ansi_colors.progress_low,
+                "progress_medium": ansi_colors.progress_medium,
+                "progress_high": ansi_colors.progress_high,
+                "progress_critical": ansi_colors.progress_critical,
+                "burn_rate": ansi_colors.burn_rate,
+                "eta_normal": ansi_colors.eta_normal,
+                "eta_urgent": ansi_colors.eta_urgent,
+            }
+        )
+
+        self._themes[ThemeType.ANSI] = ThemeDefinition(
+            name="ANSI",
+            description="Terminal-native theme using ANSI color names (respects terminal palette)",
+            colors=ansi_colors,
+            rich_theme=ansi_rich_theme,
+        )
+
         # Accessibility theme (high contrast)
         accessibility_colors = ColorScheme(
             success="#00AA00",  # High contrast green

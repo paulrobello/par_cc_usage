@@ -233,7 +233,7 @@ class TestThemeManager:
         manager = ThemeManager()
 
         themes = manager.list_themes()
-        assert len(themes) == 5  # All built-in themes
+        assert len(themes) == 6  # All built-in themes
 
         # Check all theme types present
         for theme_type in ThemeType:
