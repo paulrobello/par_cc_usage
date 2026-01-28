@@ -1,11 +1,8 @@
 name: Build and Test 🐍 distribution 📦
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    description: 'Manually trigger build, test, and deploy pipeline'
 
 jobs:
   build:
