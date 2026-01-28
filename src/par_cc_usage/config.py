@@ -189,8 +189,8 @@ class Config(BaseModel):
         description="Always return grand total in status line regardless of session",
     )
     statusline_template: str = Field(
-        default="{project}{sep}{tokens}{sep}{cost}{sep}{remaining_block_time}{sep} SES:{model}{sep}{session_tokens}/{session_tokens_total}",
-        description="Template for status line format. Available variables: {project}, {tokens}, {messages}, {cost}, {remaining_block_time}, {sep}, {username}, {hostname}, {date}, {current_time}, {model}, {session_tokens}, {session_tokens_total}. Use \\n for multi-line.",
+        default="{project}{sep}{tokens}{sep}{cost}{sep}{remaining_block_time}{sep} SES:{model}{sep}{session_tokens}/{session_tokens_total}{sep}{last_message_time}",
+        description="Template for status line format. Available variables: {project}, {tokens}, {messages}, {cost}, {remaining_block_time}, {sep}, {username}, {hostname}, {date}, {current_time}, {model}, {session_tokens}, {session_tokens_total}, {last_message_time} (time of last message in current session, e.g., '08:42 AM'). Use \\n for multi-line.",
     )
     statusline_date_format: str = Field(
         default="%Y-%m-%d",

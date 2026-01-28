@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -169,6 +169,30 @@ class StatusLineManager:
             return f"{hours}h {minutes}m"
         else:
             return f"{minutes}m"
+
+    def _format_last_message_timestamp(self, timestamp: datetime) -> str | None:
+        """Format timestamp of last message as time string.
+
+        Args:
+            timestamp: Timestamp of the last message
+
+        Returns:
+            Formatted time string (e.g., "08:42 AM") or None
+        """
+        try:
+            # Convert to local timezone for display
+
+            # Handle timezone-naive datetime by making it aware (assume UTC)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+
+            # Convert to local time
+            local_time = timestamp.astimezone()
+
+            # Format as 12-hour time with AM/PM
+            return local_time.strftime("%I:%M %p")
+        except (ValueError, OSError):
+            return None
 
     def format_status_line(
         self,
@@ -502,6 +526,39 @@ class StatusLineManager:
 
         return 0
 
+    def _extract_last_message_timestamp(self, session_file: Path) -> datetime | None:
+        """Extract timestamp of the last message from session JSONL file.
+
+        Args:
+            session_file: Path to the session file
+
+        Returns:
+            Datetime of last message or None if extraction fails
+        """
+        import subprocess
+
+        try:
+            # Extract the timestamp from the last line in the file
+            # Use tail -1 to get the last line, then jq to extract timestamp
+            cmd = [
+                "sh",
+                "-c",
+                f"tail -1 '{session_file}' | jq -r '.timestamp // empty' 2>/dev/null",
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1)
+
+            if result.returncode == 0 and result.stdout.strip():
+                timestamp_str = result.stdout.strip()
+                # Parse ISO 8601 timestamp (e.g., "2025-01-09T10:00:00.000Z")
+                # Replace 'Z' with '+00:00' for Python's fromisoformat
+                timestamp_str = timestamp_str.replace("Z", "+00:00")
+                return datetime.fromisoformat(timestamp_str)
+        except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
+            pass
+
+        return None
+
     def _get_session_tokens(self, session_id: str | None = None) -> tuple[int, int, int]:
         """Get current session token usage from JSONL file.
 
@@ -748,6 +805,24 @@ class StatusLineManager:
 
         return components
 
+    def _prepare_last_message_time_component(self, template: str, session_id: str | None) -> dict[str, str]:
+        """Prepare last message time template component.
+
+        Note: This returns an empty dict to keep the {last_message_time} placeholder
+        in the cached status line. The actual value is computed on-demand during
+        enrichment in _enrich_with_model_and_session_tokens().
+
+        Args:
+            template: Template string to check what's needed
+            session_id: Session ID for finding last message
+
+        Returns:
+            Empty dictionary (placeholder is kept for on-demand enrichment)
+        """
+        # Don't provide a value - keep the placeholder for on-demand enrichment
+        # This is similar to how {model} is handled
+        return {}
+
     def _get_project_path_from_session(self, session_id: str | None) -> Path | None:
         """Get the project directory path from a session ID.
 
@@ -837,6 +912,9 @@ class StatusLineManager:
 
         # Add datetime components if needed
         components.update(self._prepare_datetime_components(template))
+
+        # Add last message time component if needed
+        components.update(self._prepare_last_message_time_component(template, session_id))
 
         # Add git info if needed
         if "{git_branch}" in template or "{git_status}" in template:
@@ -1019,12 +1097,13 @@ class StatusLineManager:
             "session_tokens_percent",
             "session_tokens_progress_bar",
         }
-        claude_provided_vars = {"model"}
+        # Variables that are always kept as placeholders for on-demand enrichment
+        on_demand_vars = {"model", "last_message_time"}
 
         all_vars = re.findall(r"\{([^}]+)\}", result)
         for var in all_vars:
             if var not in components:
-                if (var in session_token_vars and not session_id) or var in claude_provided_vars:
+                if (var in session_token_vars and not session_id) or var in on_demand_vars:
                     continue  # Keep placeholder as-is
                 else:
                     result = result.replace(f"{{{var}}}", f"[unknown_var: {var}]")
@@ -1690,6 +1769,33 @@ class StatusLineManager:
 
         return status_line
 
+    def _enrich_with_last_message_time(self, status_line: str, session_id: str | None) -> str:
+        """Enrich status line with last message time on-demand.
+
+        Args:
+            status_line: The status line to enrich
+            session_id: Session ID for finding the session file
+
+        Returns:
+            Status line with {last_message_time} replaced or removed
+        """
+        if "{last_message_time}" not in status_line or not session_id:
+            return status_line
+
+        session_file = self._find_session_file(session_id)
+        if session_file:
+            last_timestamp = self._extract_last_message_timestamp(session_file)
+            if last_timestamp:
+                formatted_time = self._format_last_message_timestamp(last_timestamp)
+                if formatted_time:
+                    return status_line.replace("{last_message_time}", formatted_time)
+
+        # Clean up unfilled placeholder
+        status_line = status_line.replace("{last_message_time}", "")
+        lines = status_line.split("\n")
+        cleaned_lines = [self._clean_template_line(line) for line in lines]
+        return "\n".join(line for line in cleaned_lines if line)
+
     def _enrich_with_model_and_session_tokens(self, status_line: str, session_id: str | None, model_name: str) -> str:
         """Enrich a status line with model information and session token information.
 
@@ -1701,6 +1807,14 @@ class StatusLineManager:
         Returns:
             Status line with model and session token placeholders replaced
         """
+        # Check if current template expects {last_message_time} but cached value doesn't have it
+        # This handles backward compatibility when old cache is loaded
+        template = str(getattr(self.config, "statusline_template", ""))
+        if "{last_message_time}" in template and "{last_message_time}" not in status_line:
+            # Append the placeholder so it can be enriched below
+            sep = str(getattr(self.config, "statusline_separator", " - "))
+            status_line = status_line + sep + "{last_message_time}"
+
         # First add model information if needed
         if "{model}" in status_line and model_name:
             status_line = status_line.replace("{model}", model_name)
@@ -1709,15 +1823,14 @@ class StatusLineManager:
 
         # Clean up each line after model replacement
         lines = status_line.split("\n")
-        cleaned_lines = []
-        for line in lines:
-            cleaned_line = self._clean_template_line(line)
-            if cleaned_line:  # Only add non-empty lines
-                cleaned_lines.append(cleaned_line)
+        cleaned_lines = [self._clean_template_line(line) for line in lines if self._clean_template_line(line)]
         status_line = "\n".join(cleaned_lines)
 
-        # Then enrich with session tokens
-        return self._enrich_with_session_tokens(status_line, session_id)
+        # Enrich with session tokens
+        status_line = self._enrich_with_session_tokens(status_line, session_id)
+
+        # Enrich with last message time (on-demand)
+        return self._enrich_with_last_message_time(status_line, session_id)
 
     def _load_cached_status_line(self, cache_key: str, session_id: str | None, model_display_name: str) -> str | None:
         """Try to load and enrich a cached status line.
