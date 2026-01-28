@@ -1,0 +1,176 @@
+name: Deploy 🚀 Full Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_testpypi:
+        description: 'Skip TestPyPI publish'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  build:
+    name: Build and Test 📦
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Lint and Typecheck
+        run: make checkall
+
+      - name: Package
+        run: make package
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  tag-version:
+    name: Create Version Tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Get version
+        id: get_version
+        run: |
+          version=$(uv run python -c "from src.par_cc_usage import __version__; print(__version__)")
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Create or update tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag -d "v$VERSION" 2>/dev/null || true
+          git push --delete origin "v$VERSION" 2>/dev/null || true
+          git tag -a "v$VERSION" -m "Version $VERSION"
+          git push origin "v$VERSION"
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    if: ${{ inputs.skip_testpypi != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, tag-version]
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/par-cc-usage
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, tag-version, publish-testpypi]
+    if: ${{ always() && needs.build.result == 'success' && needs.tag-version.result == 'success' && (needs.publish-testpypi.result == 'success' || needs.publish-testpypi.result == 'skipped') }}
+    environment:
+      name: pypi
+      url: https://pypi.org/p/par-cc-usage
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, tag-version, publish-pypi]
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Sign with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: ./dist/*.tar.gz ./dist/*.whl
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.tag-version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --repo "${{ github.repository }}" \
+            --title "v$VERSION" \
+            --generate-notes \
+            dist/*.tar.gz dist/*.whl dist/*.sigstore.json
