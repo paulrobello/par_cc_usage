@@ -1297,6 +1297,15 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.15.1 - Security Updates
+**Security**: Updated dependencies to address security vulnerabilities.
+
+#### 🔒 Security Fixes
+- **aiohttp**: Updated to 3.13.3 (fixes zip bomb, DoS, and cookie parser vulnerabilities)
+- **urllib3**: Updated to 2.6.3 (fixes decompression bomb bypass vulnerabilities)
+- **filelock**: Updated to 3.20.3 (fixes TOCTOU symlink vulnerabilities)
+- **virtualenv**: Updated to 20.36.1 (fixes TOCTOU directory creation vulnerabilities)
+
 ### v0.15.0 - Opus 4.5 Model Support
 **New Features**: Added proper support for Claude Opus 4.5 model with correct pricing.
 
