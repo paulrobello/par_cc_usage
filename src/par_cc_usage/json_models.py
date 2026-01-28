@@ -93,6 +93,8 @@ class MessageData(BaseModel):
         # Check for specific Claude 4.x models first (most specific patterns first)
         if "sonnet-4-5" in model_lower or "sonnet-4.5" in model_lower:
             return ModelType.CLAUDE_SONNET_4_5
+        if "opus-4-5" in model_lower or "opus-4.5" in model_lower:
+            return ModelType.CLAUDE_OPUS_4_5
         if "opus-4-1" in model_lower or "opus-4.1" in model_lower:
             return ModelType.CLAUDE_OPUS_4_1
         if "haiku-4-5" in model_lower or "haiku-4.5" in model_lower:

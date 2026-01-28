@@ -139,6 +139,10 @@ class PricingCache:
                 ["claude-sonnet-4-5-20250929", "claude-sonnet-4-5", "anthropic/claude-sonnet-4-5-20250929"],
             ),
             (
+                "opus-4-5",
+                ["claude-opus-4-5-20251101", "claude-opus-4-5", "anthropic/claude-opus-4-5-20251101"],
+            ),
+            (
                 "opus-4-1",
                 ["claude-opus-4-1-20250805", "claude-opus-4-1", "anthropic/claude-opus-4-1-20250805"],
             ),
