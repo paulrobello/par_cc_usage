@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import yaml
 
-from par_cc_usage.config import Config, DisplayConfig, NotificationConfig, load_config
-from par_cc_usage.enums import DisplayMode, TimeFormat
+from par_cc_usage.config import Config, DisplayConfig, NotificationConfig, load_config, save_config
+from par_cc_usage.enums import DisplayMode, ThemeType, TimeFormat
 
 
 class TestDisplayConfig:
@@ -490,3 +490,131 @@ class TestXDGConfigIntegration:
         # Verify directory was created
         assert cache_dir.exists()
         assert cache_dir.is_dir()
+
+
+class TestSaveConfig:
+    """Test save_config function and display settings persistence."""
+
+    def test_save_and_load_theme_setting(self, tmp_path):
+        """Test that theme setting persists when saved and loaded."""
+        config_file = tmp_path / "config.yaml"
+
+        # Create config with ANSI theme
+        config = Config()
+        config.display.theme = ThemeType.ANSI
+
+        # Save config
+        save_config(config, config_file)
+
+        # Load config back
+        loaded_config = load_config(config_file)
+
+        # Verify theme persisted
+        assert loaded_config.display.theme == ThemeType.ANSI
+
+    def test_save_and_load_all_theme_types(self, tmp_path):
+        """Test that all theme types persist correctly."""
+        config_file = tmp_path / "config.yaml"
+
+        for theme_type in ThemeType:
+            # Create config with specific theme
+            config = Config()
+            config.display.theme = theme_type
+
+            # Save and load
+            save_config(config, config_file)
+            loaded_config = load_config(config_file)
+
+            # Verify theme persisted
+            assert loaded_config.display.theme == theme_type, f"Theme {theme_type} did not persist"
+
+    def test_save_and_load_aggregate_by_project_setting(self, tmp_path):
+        """Test that aggregate_by_project setting persists."""
+        config_file = tmp_path / "config.yaml"
+
+        # Test both True and False values
+        for value in [True, False]:
+            config = Config()
+            config.display.aggregate_by_project = value
+
+            save_config(config, config_file)
+            loaded_config = load_config(config_file)
+
+            assert loaded_config.display.aggregate_by_project == value
+
+    def test_save_and_load_show_tool_usage_setting(self, tmp_path):
+        """Test that show_tool_usage setting persists."""
+        config_file = tmp_path / "config.yaml"
+
+        # Test both True and False values
+        for value in [True, False]:
+            config = Config()
+            config.display.show_tool_usage = value
+
+            save_config(config, config_file)
+            loaded_config = load_config(config_file)
+
+            assert loaded_config.display.show_tool_usage == value
+
+    def test_save_and_load_all_display_settings(self, tmp_path):
+        """Test that all display settings persist correctly."""
+        config_file = tmp_path / "config.yaml"
+
+        # Create config with all non-default display settings
+        config = Config()
+        config.display.show_progress_bars = False
+        config.display.show_active_sessions = False
+        config.display.update_in_place = False
+        config.display.refresh_interval = 10
+        config.display.time_format = TimeFormat.TWELVE_HOUR
+        config.display.project_name_prefixes = ["test-", "custom-"]
+        config.display.aggregate_by_project = False
+        config.display.show_tool_usage = False
+        config.display.display_mode = DisplayMode.COMPACT
+        config.display.show_pricing = False
+        config.display.use_p90_limit = False
+        config.display.theme = ThemeType.LIGHT
+
+        # Save config
+        save_config(config, config_file)
+
+        # Load config back
+        loaded_config = load_config(config_file)
+
+        # Verify all display settings persisted
+        assert loaded_config.display.show_progress_bars is False
+        assert loaded_config.display.show_active_sessions is False
+        assert loaded_config.display.update_in_place is False
+        assert loaded_config.display.refresh_interval == 10
+        assert loaded_config.display.time_format == TimeFormat.TWELVE_HOUR
+        assert loaded_config.display.project_name_prefixes == ["test-", "custom-"]
+        assert loaded_config.display.aggregate_by_project is False
+        assert loaded_config.display.show_tool_usage is False
+        assert loaded_config.display.display_mode == DisplayMode.COMPACT
+        assert loaded_config.display.show_pricing is False
+        assert loaded_config.display.use_p90_limit is False
+        assert loaded_config.display.theme == ThemeType.LIGHT
+
+    def test_save_config_creates_valid_yaml(self, tmp_path):
+        """Test that save_config creates valid YAML with display.theme field."""
+        config_file = tmp_path / "config.yaml"
+
+        config = Config()
+        config.display.theme = ThemeType.DARK
+        config.display.aggregate_by_project = False
+        config.display.show_tool_usage = False
+
+        save_config(config, config_file)
+
+        # Read raw YAML to verify structure
+        with open(config_file) as f:
+            yaml_content = yaml.safe_load(f)
+
+        # Verify display section has all required fields
+        assert "display" in yaml_content
+        assert "theme" in yaml_content["display"]
+        assert yaml_content["display"]["theme"] == "dark"
+        assert "aggregate_by_project" in yaml_content["display"]
+        assert yaml_content["display"]["aggregate_by_project"] is False
+        assert "show_tool_usage" in yaml_content["display"]
+        assert yaml_content["display"]["show_tool_usage"] is False
