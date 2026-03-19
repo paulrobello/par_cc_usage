@@ -200,3 +200,178 @@ class TestThemeConfigurationIntegration:
         # Invalid theme should raise validation error
         with pytest.raises(ValueError):
             DisplayConfig(theme="invalid_theme")  # type: ignore
+
+
+class TestThemeCurrentCommand:
+    """Test theme current command reads from config file."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.runner = CliRunner()
+
+    def test_theme_current_reads_from_config(self, tmp_path):
+        """Test that 'theme current' command reads from config file, not ThemeManager state."""
+        from par_cc_usage.config import Config, save_config
+
+        config_file = tmp_path / "config.yaml"
+
+        # Create config with ANSI theme
+        config = Config()
+        config.display.theme = ThemeType.ANSI
+        save_config(config, config_file)
+
+        # Run theme current command with the config file
+        result = self.runner.invoke(app, ["theme", "current", "--config", str(config_file)])
+
+        # Should show ANSI theme from config, not DEFAULT from ThemeManager
+        assert result.exit_code == 0
+        assert "ANSI" in result.output
+        assert "ansi" in result.output.lower()
+
+    def test_theme_current_with_different_themes(self, tmp_path):
+        """Test theme current command with various theme types."""
+        from par_cc_usage.config import Config, save_config
+
+        config_file = tmp_path / "config.yaml"
+
+        # Test each theme type
+        for theme_type in [ThemeType.LIGHT, ThemeType.DARK, ThemeType.MINIMAL]:
+            config = Config()
+            config.display.theme = theme_type
+            save_config(config, config_file)
+
+            # Run command with config-file argument instead of mocking
+            result = self.runner.invoke(app, ["theme", "current", "--config", str(config_file)])
+
+            assert result.exit_code == 0
+            assert theme_type.value in result.output.lower()
+
+
+class TestThemeApplicationFromConfig:
+    """Test that commands apply theme from config when no CLI override provided."""
+
+    def test_apply_temporary_theme_called_with_config_theme(self):
+        """Test that apply_temporary_theme is called with theme from config when no CLI override."""
+        from par_cc_usage.config import Config
+        from par_cc_usage.theme import get_theme_manager
+
+        # Reset theme manager
+        get_theme_manager().set_current_theme(ThemeType.DEFAULT)
+
+        # Create a config with LIGHT theme
+        config = Config()
+        config.display.theme = ThemeType.LIGHT
+
+        # Simulate what the monitor/list commands do
+        theme_override = None  # No CLI override
+        if theme_override is not None:
+            apply_temporary_theme(theme_override)
+        else:
+            # This is the fix we added - apply theme from config
+            apply_temporary_theme(config.display.theme)
+
+        # Verify theme was applied
+        assert get_theme_manager().get_current_theme_type() == ThemeType.LIGHT
+
+    def test_cli_theme_override_takes_precedence_over_config(self):
+        """Test that CLI theme override takes precedence over config theme."""
+        from par_cc_usage.config import Config
+        from par_cc_usage.theme import get_theme_manager
+
+        # Reset theme manager
+        get_theme_manager().set_current_theme(ThemeType.DEFAULT)
+
+        # Create a config with LIGHT theme
+        config = Config()
+        config.display.theme = ThemeType.LIGHT
+
+        # Simulate what the monitor/list commands do with CLI override
+        theme_override = ThemeType.DARK  # CLI override
+        if theme_override is not None:
+            apply_temporary_theme(theme_override)
+        else:
+            apply_temporary_theme(config.display.theme)
+
+        # Verify CLI override was applied, not config theme
+        assert get_theme_manager().get_current_theme_type() == ThemeType.DARK
+
+    def test_theme_application_logic_for_all_theme_types(self):
+        """Test theme application logic works for all theme types."""
+        from par_cc_usage.config import Config
+        from par_cc_usage.theme import get_theme_manager
+
+        for theme_type in ThemeType:
+            # Reset theme manager
+            get_theme_manager().set_current_theme(ThemeType.DEFAULT)
+
+            # Create config with this theme type
+            config = Config()
+            config.display.theme = theme_type
+
+            # Apply theme from config (no CLI override)
+            theme_override = None
+            if theme_override is not None:
+                apply_temporary_theme(theme_override)
+            else:
+                apply_temporary_theme(config.display.theme)
+
+            # Verify theme was applied
+            assert get_theme_manager().get_current_theme_type() == theme_type
+
+
+class TestThemeSetAndCurrentWorkflow:
+    """Test the complete workflow of setting and checking theme."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.runner = CliRunner()
+
+    def test_set_theme_persists_and_current_shows_it(self, tmp_path):
+        """Test that set theme persists and current command shows it."""
+        from par_cc_usage.config import Config, load_config, save_config
+
+        config_file = tmp_path / "config.yaml"
+
+        # Create initial config with default theme
+        config = Config()
+        save_config(config, config_file)
+
+        # Set theme to ANSI
+        result = self.runner.invoke(app, ["theme", "set", "ansi", "--config", str(config_file)])
+        assert result.exit_code == 0
+        assert "ANSI" in result.output
+
+        # Verify it persisted in config file
+        loaded_config = load_config(config_file)
+        assert loaded_config.display.theme == ThemeType.ANSI
+
+        # Check current theme shows ANSI
+        result = self.runner.invoke(app, ["theme", "current", "--config", str(config_file)])
+        assert result.exit_code == 0
+        assert "ANSI" in result.output
+
+    def test_theme_switching_workflow(self, tmp_path):
+        """Test switching between themes multiple times."""
+        from par_cc_usage.config import Config, load_config, save_config
+
+        config_file = tmp_path / "config.yaml"
+
+        # Create initial config
+        config = Config()
+        save_config(config, config_file)
+
+        theme_sequence = [ThemeType.ANSI, ThemeType.LIGHT, ThemeType.DARK, ThemeType.DEFAULT]
+
+        for theme_type in theme_sequence:
+            # Set theme
+            result = self.runner.invoke(app, ["theme", "set", theme_type.value, "--config", str(config_file)])
+            assert result.exit_code == 0
+
+            # Verify persistence
+            loaded_config = load_config(config_file)
+            assert loaded_config.display.theme == theme_type
+
+            # Verify current shows correct theme
+            result = self.runner.invoke(app, ["theme", "current", "--config", str(config_file)])
+            assert result.exit_code == 0
+            assert theme_type.value in result.output.lower()

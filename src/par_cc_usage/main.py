@@ -1041,6 +1041,9 @@ async def _monitor_async(  # noqa: C901
     # Apply temporary theme override if provided (before printing config)
     if theme is not None:
         apply_temporary_theme(theme)
+    else:
+        # Apply theme from config if no CLI override
+        apply_temporary_theme(config.display.theme)
 
     # Create themed console after theme is applied
     from .theme import create_themed_console
@@ -1336,6 +1339,9 @@ def list_usage(
     # Apply temporary theme override if provided
     if theme is not None:
         apply_temporary_theme(theme)
+    else:
+        # Apply theme from config if no CLI override
+        apply_temporary_theme(config.display.theme)
 
     # Create themed console after theme application
     from .theme import create_themed_console
@@ -2142,6 +2148,9 @@ def list_sessions(
         # Apply temporary theme override if provided
         if theme is not None:
             apply_temporary_theme(theme)
+        else:
+            # Apply theme from config if no CLI override
+            apply_temporary_theme(config.display.theme)
 
         console.print(f"[dim]Scanning projects in {config.projects_dir}...[/]")
 
@@ -2534,6 +2543,9 @@ async def _usage_summary_async(
     # Apply temporary theme override if provided
     if theme is not None:
         apply_temporary_theme(theme)
+    else:
+        # Apply theme from config if no CLI override
+        apply_temporary_theme(config.display.theme)
 
     # Create themed console after theme application
     from .theme import create_themed_console
@@ -2623,11 +2635,14 @@ def theme_command(
             console.print(f"    {theme_def.description}", style="dim")
 
     elif action == "current":
-        current_theme = theme_manager.get_current_theme()
+        # Load config to get the persisted theme setting
+        config = load_config(config_file)
+        theme_type = config.display.theme
+        theme_def = theme_manager.get_theme(theme_type)
         console.print(
-            f"Current theme: [bold]{current_theme.name}[/bold] ({theme_manager.get_current_theme_type().value})"
+            f"Current theme: [bold]{theme_def.name}[/bold] ({theme_type.value})"
         )
-        console.print(f"Description: {current_theme.description}")
+        console.print(f"Description: {theme_def.description}")
 
     elif action == "set":
         if not theme_name:

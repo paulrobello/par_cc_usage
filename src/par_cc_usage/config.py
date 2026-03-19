@@ -665,9 +665,12 @@ def save_config(config: Config, config_file: Path) -> None:
             "refresh_interval": config.display.refresh_interval,
             "time_format": config.display.time_format.value,
             "project_name_prefixes": config.display.project_name_prefixes,
+            "aggregate_by_project": config.display.aggregate_by_project,
+            "show_tool_usage": config.display.show_tool_usage,
             "display_mode": config.display.display_mode.value,
             "show_pricing": config.display.show_pricing,
             "use_p90_limit": config.display.use_p90_limit,
+            "theme": config.display.theme.value,
         },
         "notifications": {
             "discord_webhook_url": config.notifications.discord_webhook_url,
