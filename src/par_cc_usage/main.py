@@ -2626,11 +2626,15 @@ def theme_command(
     console = Console()
     theme_manager = get_theme_manager()
 
+    # theme_command loads config on-demand per-action (unlike monitor/list which
+    # receive a pre-loaded config). Each action only loads config if it needs it.
     if action == "list":
+        # Load config to determine which theme is currently active
+        config = load_config(config_file)
         themes = theme_manager.list_themes()
         console.print("Available themes:", style="bold")
         for theme_type, theme_def in themes.items():
-            current_marker = "→ " if theme_type == theme_manager.get_current_theme_type() else "  "
+            current_marker = "→ " if theme_type == config.display.theme else "  "
             console.print(f"{current_marker}[bold]{theme_def.name}[/bold] ({theme_type.value})")
             console.print(f"    {theme_def.description}", style="dim")
 
@@ -2639,9 +2643,7 @@ def theme_command(
         config = load_config(config_file)
         theme_type = config.display.theme
         theme_def = theme_manager.get_theme(theme_type)
-        console.print(
-            f"Current theme: [bold]{theme_def.name}[/bold] ({theme_type.value})"
-        )
+        console.print(f"Current theme: [bold]{theme_def.name}[/bold] ({theme_type.value})")
         console.print(f"Description: {theme_def.description}")
 
     elif action == "set":

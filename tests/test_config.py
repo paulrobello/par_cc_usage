@@ -607,7 +607,7 @@ class TestSaveConfig:
         save_config(config, config_file)
 
         # Read raw YAML to verify structure
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             yaml_content = yaml.safe_load(f)
 
         # Verify display section has all required fields
