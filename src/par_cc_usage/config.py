@@ -507,6 +507,7 @@ def _get_display_env_mapping() -> dict[str, str]:
         "PAR_CC_USAGE_REFRESH_INTERVAL": "refresh_interval",
         "PAR_CC_USAGE_TIME_FORMAT": "time_format",
         "PAR_CC_USAGE_PROJECT_NAME_PREFIXES": "project_name_prefixes",
+        "PAR_CC_USAGE_AGGREGATE_BY_PROJECT": "aggregate_by_project",
         "PAR_CC_USAGE_SHOW_TOOL_USAGE": "show_tool_usage",
         "PAR_CC_USAGE_DISPLAY_MODE": "display_mode",
         "PAR_CC_USAGE_SHOW_PRICING": "show_pricing",

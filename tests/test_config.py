@@ -389,6 +389,7 @@ auto_detected_timezone: America/New_York
         # Verify the config file was not updated (same modification time)
         # Small delay to ensure mtime would change if file was written
         import time
+
         time.sleep(0.01)
         new_mtime = config_file.stat().st_mtime
         assert new_mtime == original_mtime
@@ -607,7 +608,7 @@ class TestSaveConfig:
         save_config(config, config_file)
 
         # Read raw YAML to verify structure
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             yaml_content = yaml.safe_load(f)
 
         # Verify display section has all required fields

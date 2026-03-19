@@ -113,7 +113,7 @@ class TestThemeColorApplication:
 
         # Test specific expected colors
         assert light_success == "#859900"  # Solarized green
-        assert light_error == "#dc322f"    # Solarized red
+        assert light_error == "#dc322f"  # Solarized red
 
     def test_theme_affects_progress_colors(self):
         """Test that themes affect progress color calculations."""
@@ -155,7 +155,7 @@ class TestThemeColorApplication:
         background = get_color("background")
 
         # Should have high contrast
-        assert text == "#000000"      # Black text
+        assert text == "#000000"  # Black text
         assert background == "#FFFFFF"  # White background
 
 
@@ -250,73 +250,61 @@ class TestThemeCurrentCommand:
 class TestThemeApplicationFromConfig:
     """Test that commands apply theme from config when no CLI override provided."""
 
-    def test_apply_temporary_theme_called_with_config_theme(self):
-        """Test that apply_temporary_theme is called with theme from config when no CLI override."""
-        from par_cc_usage.config import Config
-        from par_cc_usage.theme import get_theme_manager
-
-        # Reset theme manager
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.runner = CliRunner()
         get_theme_manager().set_current_theme(ThemeType.DEFAULT)
 
-        # Create a config with LIGHT theme
+    def test_list_command_applies_theme_from_config(self, tmp_path):
+        """Test that list command calls apply_temporary_theme with config theme when no --theme flag."""
+        from unittest.mock import patch
+
+        from par_cc_usage.config import Config, save_config
+
+        config_file = tmp_path / "config.yaml"
         config = Config()
         config.display.theme = ThemeType.LIGHT
+        save_config(config, config_file)
 
-        # Simulate what the monitor/list commands do
-        theme_override = None  # No CLI override
-        if theme_override is not None:
-            apply_temporary_theme(theme_override)
-        else:
-            # This is the fix we added - apply theme from config
-            apply_temporary_theme(config.display.theme)
+        with patch("par_cc_usage.main.apply_temporary_theme") as mock_apply:
+            self.runner.invoke(app, ["list", "--config", str(config_file)])
+            # Verify apply_temporary_theme was called with the config theme (no CLI override)
+            assert mock_apply.call_count >= 1
+            assert mock_apply.call_args_list[0][0][0] == ThemeType.LIGHT
 
-        # Verify theme was applied
-        assert get_theme_manager().get_current_theme_type() == ThemeType.LIGHT
+    def test_list_command_cli_theme_overrides_config(self, tmp_path):
+        """Test that --theme CLI flag overrides config theme in list command."""
+        from unittest.mock import patch
 
-    def test_cli_theme_override_takes_precedence_over_config(self):
-        """Test that CLI theme override takes precedence over config theme."""
-        from par_cc_usage.config import Config
-        from par_cc_usage.theme import get_theme_manager
+        from par_cc_usage.config import Config, save_config
 
-        # Reset theme manager
-        get_theme_manager().set_current_theme(ThemeType.DEFAULT)
-
-        # Create a config with LIGHT theme
+        config_file = tmp_path / "config.yaml"
         config = Config()
         config.display.theme = ThemeType.LIGHT
+        save_config(config, config_file)
 
-        # Simulate what the monitor/list commands do with CLI override
-        theme_override = ThemeType.DARK  # CLI override
-        if theme_override is not None:
-            apply_temporary_theme(theme_override)
-        else:
-            apply_temporary_theme(config.display.theme)
+        with patch("par_cc_usage.main.apply_temporary_theme") as mock_apply:
+            self.runner.invoke(app, ["list", "--theme", "dark", "--config", str(config_file)])
+            # CLI override (DARK) should take precedence over config theme (LIGHT)
+            assert mock_apply.call_count >= 1
+            assert mock_apply.call_args_list[0][0][0] == ThemeType.DARK
 
-        # Verify CLI override was applied, not config theme
-        assert get_theme_manager().get_current_theme_type() == ThemeType.DARK
+    def test_usage_summary_applies_theme_from_config(self, tmp_path):
+        """Test that usage-summary command applies theme from config when no --theme flag."""
+        from unittest.mock import patch
 
-    def test_theme_application_logic_for_all_theme_types(self):
-        """Test theme application logic works for all theme types."""
-        from par_cc_usage.config import Config
-        from par_cc_usage.theme import get_theme_manager
+        from par_cc_usage.config import Config, save_config
 
-        for theme_type in ThemeType:
-            # Reset theme manager
-            get_theme_manager().set_current_theme(ThemeType.DEFAULT)
+        config_file = tmp_path / "config.yaml"
+        config = Config()
+        config.display.theme = ThemeType.DARK
+        save_config(config, config_file)
 
-            # Create config with this theme type
-            config = Config()
-            config.display.theme = theme_type
-
-            # Apply theme from config (no CLI override)
-            theme_override = None
-            if theme_override is not None:
-                apply_temporary_theme(theme_override)
-            else:
-                apply_temporary_theme(config.display.theme)
-
-            # Verify theme was applied
-            assert get_theme_manager().get_current_theme_type() == theme_type
+        with patch("par_cc_usage.main.apply_temporary_theme") as mock_apply:
+            self.runner.invoke(app, ["usage-summary", "--config", str(config_file)])
+            # Verify apply_temporary_theme was called with the config theme (no CLI override)
+            assert mock_apply.call_count >= 1
+            assert mock_apply.call_args_list[0][0][0] == ThemeType.DARK
 
 
 class TestThemeSetAndCurrentWorkflow:
