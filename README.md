@@ -1299,6 +1299,18 @@ We're actively working on exciting new features to enhance your Claude Code moni
 
 ## What's New
 
+### v0.17.1 - Theme Persistence Fixes
+**Bug Fix**: Theme and display settings now persist correctly across sessions.
+
+#### 🐛 Bug Fixes
+- **Theme persistence**: `pccu theme set <name>` now persists correctly — theme no longer reverts to default on restart
+- **`theme list` current marker**: The `→` marker now correctly highlights the active theme from config (previously always showed `default`)
+- **Theme applied from config**: All commands (`monitor`, `list`, `list-sessions`, `usage-summary`) now apply the saved theme on startup without requiring `--theme` flag
+- **`aggregate_by_project` env override**: Added `PAR_CC_USAGE_AGGREGATE_BY_PROJECT` environment variable support
+- **Test quality**: Replaced tests that simulated production logic with real CLI invocation tests
+
+Thanks to @tartansandal for the thorough bug report and fix!
+
 ### v0.17.0 - ANSI Theme & Dependency Updates
 **New Feature**: Added terminal-native ANSI theme for users with custom terminal color palettes.
 
